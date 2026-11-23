@@ -99,7 +99,7 @@ assert.doesNotMatch(functions[3].source, /(?<![.])\b(?:now|jsonb_build_object|ge
   "portal verifier must not depend on objects resolved through search_path");
 assert.match(functions[3].source, /failed_attempts=failed_attempts\+1/i);
 assert.match(functions[3].source, /now\(\)\+interval '15 minutes'/i);
-assert.match(functions[3].source, /locked_until is not null and c\.locked_until>now\(\)/i);
+assert.match(functions[3].source, /locked_until IS NOT NULL AND c\.locked_until>pg_catalog\.now\(\)/i);
 
 assert.match(functions[0].source, /crypt\(p_plaintext_password,gen_salt\('bf',12\)\)/i);
 assert.match(functions[1].source, /crypt\(v_password,gen_salt\('bf',12\)\)/i);
