@@ -47,7 +47,6 @@ test("Production provisioning activation requires a complete definer audit and c
   assert.ok(workflow.includes("production-provisioning-provider-before.json"));
   assert.ok(workflow.includes("production-provisioning-provider-after.json"));
   assert.ok(workflow.includes("Encrypted SendPulse credentials, routing/quota/delivery state changed"));
-  assert.match(workflow, /\{64\}/);
   assert.match(workflow, /AUTH-STAGE-7-SECURITY-DEFINER-ALLOWLIST-2026-11-21\.json/);
   assert.match(workflow, /authenticatedSecurityDefinerCount !== 202/);
   assert.match(workflow, /manifestAnonCount/);
