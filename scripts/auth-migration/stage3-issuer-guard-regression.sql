@@ -328,6 +328,7 @@ DO $all_user_rpc_legacy_issuer$
 DECLARE
   v_signature text;
   v_error text;
+  v_rpc_source text;
   v_count integer := 0;
 BEGIN
   FOREACH v_signature IN ARRAY ARRAY[
@@ -400,6 +401,25 @@ BEGIN
     'public.create_collective_certificate_order(uuid)',
     'public.create_product_order(uuid,integer)'
   ] LOOP
+    -- The one-argument overload is shadowed by the three-argument overload's
+    -- DEFAULT parameters for a positional one-argument call. Resolve its exact
+    -- pg_proc identity and verify its issuer guard statically; the three-argument
+    -- overload remains covered by the runtime call immediately after this case.
+    IF v_signature = 'public.validate_organizer_voucher(text)' THEN
+      SELECT p.prosrc
+        INTO v_rpc_source
+      FROM pg_catalog.pg_proc p
+      WHERE p.oid = pg_catalog.to_regprocedure(v_signature);
+
+      IF v_rpc_source IS NULL
+         OR pg_catalog.strpos(v_rpc_source, 'private.current_user_is_better_auth()') = 0 THEN
+        RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ISSUER_GUARD_MISSING:%', v_signature;
+      END IF;
+
+      v_count := v_count + 1;
+      CONTINUE;
+    END IF;
+
     v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
     IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
       RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_NOT_DENIED:%:%', v_signature, coalesce(v_error, '<no error>');
