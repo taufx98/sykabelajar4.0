@@ -345,9 +345,8 @@ jobs:
                     ) acl
                     WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'
                   ))::int,
-              (SELECT count(*) FROM private.app_users WHERE identity_origin IS DISTINCT FROM 'better_auth')::int
           " )"
-          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS APP_USERS_ROWS NON_BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS INNER_FUNCTIONS_SECURE NON_BETTER_AUTH_ROWS_CHECK <<< "$DB2_STATE"
+          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS APP_USERS_ROWS NON_BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS INNER_FUNCTIONS_SECURE <<< "$DB2_STATE"
 
           test "$AUTH_FKS" = "0" || { echo "Blocked: application FKs still reference auth.users."; exit 1; }
           test "$APP_USERS_FKS" = "69" || { echo "Blocked: expected exactly 69 application FKs to private.app_users."; exit 1; }
@@ -376,6 +375,7 @@ jobs:
                 JOIN pg_catalog.pg_namespace ns ON ns.oid=tbl.relnamespace
                 JOIN pg_catalog.pg_attribute att ON att.attrelid=tbl.oid AND att.attnum=con.conkey[1]
                 WHERE con.contype='f'
+                  AND pg_catalog.cardinality(con.conkey)=1
                   AND con.confrelid='private.app_users'::regclass
                   AND ns.nspname IN ('public','private')
                 ORDER BY ns.nspname,tbl.relname,con.conname
@@ -395,8 +395,9 @@ jobs:
               END IF;
             END;
             \$zero_start_provisioning_preflight\$;
+            SELECT 'ZERO_START_OK_' || 69::text;
           " )"
-          test -n "$ZERO_START_STATE"
+          test "$ZERO_START_STATE" = "ZERO_START_OK_69"
           echo "PASS: Production identity root is empty and all 69 application FK source columns contain zero legacy UUID references."
           echo "PASS: Stage 3 FK structure and service_role-only provisioning wrappers are ready for a fresh owner identity."
 
