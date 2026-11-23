@@ -22,6 +22,8 @@ const names = [
   ["public","claim_rpc_recovery","p_rpc_name text"],
   ["public","complete_daily_task","p_task_id uuid"],
   ["public","create_ad_banner_payment_order","p_request_id uuid, p_payment_method_id uuid, p_proof_url text, p_proof_public_id text, p_proof_width integer, p_proof_height integer, p_proof_version text, p_proof_resource_type text, p_unique_code integer"],
+  ["public","provision_collective_registration","p_registration_id uuid"],
+  ["public","regenerate_collective_participant_password","p_participant_id uuid"],
   ["public","create_follow_request","p_target_user_id uuid"],
   ["public","get_my_canonical_competition_result","p_competition_id uuid"],
   ["public","get_my_canonical_participant","p_competition_id uuid"],
@@ -50,8 +52,8 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,20),
-  personal_rpc_issuer_functions: functionRows.slice(20),
+  user_scoped_issuer_functions: functionRows.slice(10,22),
+  personal_rpc_issuer_functions: functionRows.slice(22),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -73,10 +75,18 @@ assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uu
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO "anon";'), false);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "authenticated";'));
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "service_role";'));
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "anon";'), false);
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO PUBLIC;'), false);
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "authenticated";'));
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "service_role";'));
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "anon";'), false);
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO PUBLIC;'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 34/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 34/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 36/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 36/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,

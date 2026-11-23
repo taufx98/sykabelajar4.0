@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const EXPECTED_COUNTS = {
   auth_dependent_functions: 10,
-  user_scoped_issuer_functions: 10,
+  user_scoped_issuer_functions: 12,
   personal_rpc_issuer_functions: 14,
   auth_and_profile_triggers: 7,
   uid_policies: 109,

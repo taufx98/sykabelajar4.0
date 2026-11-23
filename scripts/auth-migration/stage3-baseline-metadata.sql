@@ -93,7 +93,9 @@ user_scoped_issuer_function_meta AS (
       'claim_organizer_voucher',
       'claim_rpc_recovery',
       'complete_daily_task',
-      'create_ad_banner_payment_order'
+      'create_ad_banner_payment_order',
+      'provision_collective_registration',
+      'regenerate_collective_participant_password'
     )
 ),
 personal_rpc_issuer_function_meta AS (
