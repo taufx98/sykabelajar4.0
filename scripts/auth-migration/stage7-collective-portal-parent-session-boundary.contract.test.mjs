@@ -173,7 +173,7 @@ assert.ok(regression.includes("STAGE7_REVOKED_CHILD_ACCESS_TOKEN_STILL_VALID"));
 assert.match(regression, /public\.revoke_collective_access_session\(v_access_token_lifecycle\)/);
 assert.match(regression, /public\.resolve_collective_linear_exam_timeout\(v_attempt_id,v_access_token\)/);
 assert.match(regression, /public\.revoke_collective_portal_session\(v_portal_token\)/);
-assert.match(regression, /public\.get_collective_participant_certificate\(v_access_token\)/);
+assert.match(regression, /public\\.get_collective_participant_certificate\\(v_other_token\\)/);
 
 assert.ok(regression.includes("STAGE7_CERTIFICATE_EXPOSED_BEFORE_PUBLICATION"));
 assert.ok(regression.includes("STAGE7_RESULT_SCORE_LEAKED_BEFORE_PUBLICATION"));
@@ -185,7 +185,7 @@ assert.match(regression, /public\.choose_collective_linear_exam_timeout\(v_attem
 assert.match(regression, /public\.get_collective_participant_certificate\(v_token\)/);
 
 assert.ok(regression.includes("STAGE7_PORTAL_TOKEN_LISTED_OTHER_PARTICIPANT"),"missing cross-participant IDOR regression: STAGE7_PORTAL_TOKEN_LISTED_OTHER_PARTICIPANT");
-assert.ok(regression.includes("STAGE7_PORTAL_TOKEN_OPENED_OTHER_PARTICIPANT"),"missing cross-participant IDOR regression: STAGE7_PORTAL_TOKEN_OPENED_OTHER_PARTICIPANT");
+assert.ok(regression.includes("STAGE7_PORTAL_TOKEN_OPENED_UNRELATED_PARTICIPANT"),"missing cross-participant IDOR regression: STAGE7_PORTAL_TOKEN_OPENED_UNRELATED_PARTICIPANT");
 assert.ok(regression.includes("STAGE7_OTHER_VALID_PORTAL_LOGIN_FAILED"),"missing cross-participant IDOR regression: STAGE7_OTHER_VALID_PORTAL_LOGIN_FAILED");
 assert.ok(regression.includes("STAGE7_OTHER_PORTAL_LISTED_FOREIGN_PARTICIPANT"),"missing cross-participant IDOR regression: STAGE7_OTHER_PORTAL_LISTED_FOREIGN_PARTICIPANT");
 assert.ok(regression.includes("STAGE7_OTHER_PORTAL_CANNOT_OPEN_OWN_COMPETITION"),"missing cross-participant IDOR regression: STAGE7_OTHER_PORTAL_CANNOT_OPEN_OWN_COMPETITION");
@@ -197,10 +197,12 @@ assert.ok(regression.includes("STAGE7_PORTAL_TOKEN_RETURNED_OTHER_CERTIFICATE"),
 assert.ok(regression.includes("STAGE7_OTHER_TOKEN_DID_NOT_GET_OWN_CERTIFICATE"),"missing cross-participant IDOR regression: STAGE7_OTHER_TOKEN_DID_NOT_GET_OWN_CERTIFICATE");
 assert.ok(regression.includes("STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT_AFTER_PUBLICATION"),"missing cross-participant IDOR regression: STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT_AFTER_PUBLICATION");
 assert.match(regression, /public\\.get_collective_linear_exam_state\\(v_other_attempt_id,v_access_token\\)/);
-assert.match(regression, /public\\.save_collective_linear_exam_draft\\(\s*v_other_attempt_id,v_access_token/);
-assert.match(regression, /public\\.answer_collective_linear_exam_question\\(\s*v_other_attempt_id,v_access_token/);
+assert.match(regression, /public\\.save_collective_linear_exam_draft\\(\\s*v_other_attempt_id,v_access_token/);
+assert.match(regression, /public\\.answer_collective_linear_exam_question\\(\\s*v_other_attempt_id,v_access_token/);
 assert.match(regression, /public\\.get_collective_participant_certificate\\(v_other_token\\)/);
 
+assert.ok(regression.includes("STAGE7_REPLAYED_START_CREATED_DIFFERENT_ATTEMPT"),"missing idempotent active-attempt replay regression");
+assert.ok(regression.includes("STAGE7_VALID_ACCESS_TOKEN_OWN_STATE_UNAVAILABLE_AFTER_IDOR_PROBES"),"missing own-attempt state recovery after cross-participant probes");
 assert.match(regression, /ROLLBACK;/);
 
 const applyStep = workflow.indexOf("- name: Apply Stage 7 portal parent-session hardening to disposable restore only");
