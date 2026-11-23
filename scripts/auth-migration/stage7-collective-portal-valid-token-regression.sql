@@ -133,6 +133,46 @@ INSERT INTO public.collective_portal_credentials (
   true
 );
 
+INSERT INTO public.roster_students (id,roster_id,full_name,metadata)
+VALUES (
+  '00000000-0000-4000-8000-00000000f720',
+  '00000000-0000-4000-8000-00000000f712',
+  'Stage 7 Synthetic Other Participant',
+  '{"source":"stage7-disposable-idor-acceptance"}'::jsonb
+);
+
+INSERT INTO public.collective_participants (
+  id,competition_id,roster_student_id,managed_by_user_id,participant_code,full_name,status
+) VALUES (
+  '00000000-0000-4000-8000-00000000f721',
+  '00000000-0000-4000-8000-00000000f714',
+  '00000000-0000-4000-8000-00000000f720',
+  '00000000-0000-4000-8000-00000000f711',
+  'STAGE7-OTHER-002',
+  'Stage 7 Synthetic Other Participant',
+  'ACTIVE'
+);
+
+INSERT INTO public.collective_portal_identities (
+  id,roster_student_id,owner_user_id,status
+) VALUES (
+  '00000000-0000-4000-8000-00000000f722',
+  '00000000-0000-4000-8000-00000000f720',
+  '00000000-0000-4000-8000-00000000f711',
+  'ACTIVE'
+);
+
+INSERT INTO public.collective_portal_credentials (
+  id,portal_identity_id,password_hash,password_lookup_key,password_version,enabled
+) VALUES (
+  '00000000-0000-4000-8000-00000000f723',
+  '00000000-0000-4000-8000-00000000f722',
+  extensions.crypt('OtherPortal#2026!',extensions.gen_salt('bf')),
+  pg_catalog.encode(extensions.digest('OtherPor','sha256'),'hex'),
+  1,
+  true
+);
+
 SET LOCAL ROLE anon;
 SELECT pg_catalog.set_config('request.jwt.claims','{"role":"anon"}',true);
 SELECT pg_catalog.set_config('request.jwt.claim.role','anon',true);
@@ -140,8 +180,10 @@ SELECT pg_catalog.set_config('request.jwt.claim.role','anon',true);
 DO $stage7_collective_portal_valid_token$
 DECLARE
   v_password constant text := 'PortalTest#2026!';
+  v_other_password constant text := 'OtherPortal#2026!';
   v_competition constant uuid := '00000000-0000-4000-8000-00000000f714';
   v_participant constant uuid := '00000000-0000-4000-8000-00000000f715';
+  v_other_participant constant uuid := '00000000-0000-4000-8000-00000000f721';
   v_result jsonb;
   v_portal_token text;
   v_access_token text;
@@ -153,6 +195,10 @@ DECLARE
   v_state jsonb;
   v_portal_token_lifecycle text;
   v_access_token_lifecycle text;
+  v_other_portal_token text;
+  v_other_access_token text;
+  v_other_attempt_id uuid;
+  v_other_question_id uuid;
 BEGIN
   v_result := public.verify_collective_portal_password(v_password);
   IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
@@ -173,10 +219,17 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_VALID_PORTAL_TOKEN_CANNOT_LIST_OWN_PRIVATE_COMPETITION:%',v_count;
   END IF;
 
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_portal_token)
+  WHERE participant_id=v_other_participant;
+  IF v_count<>0 THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_TOKEN_LISTED_OTHER_PARTICIPANT:%',v_count;
+  END IF;
+
   v_result := public.open_collective_competition_session(
     v_portal_token,
     v_competition,
-    'STAGE7-NOT-OWNED'
+    'STAGE7-OTHER-002'
   );
   IF coalesce((v_result->>'ok')::boolean,false) IS TRUE
      OR v_result->>'reason' IS DISTINCT FROM 'INVALID_PARTICIPANT_CODE' THEN
@@ -208,6 +261,109 @@ BEGIN
 
   v_attempt_id := (v_result->>'attempt_id')::uuid;
   v_question_id := (v_result->'question'->>'id')::uuid;
+
+  -- A repeated start call for the same active participant/token must reuse the
+  -- existing active attempt instead of creating a duplicate attempt.
+  v_state := public.start_collective_linear_exam_attempt(v_competition,v_access_token);
+  IF (v_state->>'attempt_id')::uuid IS DISTINCT FROM v_attempt_id THEN
+    RAISE EXCEPTION 'STAGE7_REPLAYED_START_CREATED_DIFFERENT_ATTEMPT:%',v_state;
+  END IF;
+
+  -- Participant B has a separate valid portal identity, credential and child session.
+  v_result := public.verify_collective_portal_password(v_other_password);
+  IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_VALID_PORTAL_LOGIN_FAILED:%',v_result;
+  END IF;
+  v_other_portal_token := v_result->>'portal_token';
+
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_other_portal_token)
+  WHERE participant_id=v_other_participant
+    AND participant_code='STAGE7-OTHER-002';
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_PORTAL_CANNOT_LIST_OWN_PRIVATE_COMPETITION:%',v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_other_portal_token)
+  WHERE participant_id<>v_other_participant;
+  IF v_count<>0 THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_PORTAL_LISTED_FOREIGN_PARTICIPANT:%',v_count;
+  END IF;
+
+  v_result := public.open_collective_competition_session(
+    v_other_portal_token,v_competition,'STAGE7-OTHER-002'
+  );
+  IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE
+     OR v_result->>'participant_id' IS DISTINCT FROM v_other_participant::text THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_PORTAL_CANNOT_OPEN_OWN_COMPETITION:%',v_result;
+  END IF;
+  v_other_access_token := v_result->>'access_token';
+
+  v_result := public.start_collective_linear_exam_attempt(v_competition,v_other_access_token);
+  IF v_result->>'phase' IS DISTINCT FROM 'ACTIVE' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_PARTICIPANT_CANNOT_START_OWN_EXAM:%',v_result;
+  END IF;
+  v_other_attempt_id := (v_result->>'attempt_id')::uuid;
+  v_other_question_id := (v_result->'question'->>'id')::uuid;
+
+  -- A valid token for participant A must not read or mutate participant B's attempt.
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(v_other_attempt_id,v_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_EXAM_STATE_READ:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.save_collective_linear_exam_draft(
+      v_other_attempt_id,v_access_token,v_other_question_id,'{"text":"foreign draft"}'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_DRAFT_WRITE:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.answer_collective_linear_exam_question(
+      v_other_attempt_id,v_access_token,v_other_question_id,'{"text":"foreign answer"}'::jsonb,false
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_ANSWER_WRITE:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(v_attempt_id,v_other_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_READ_FOREIGN_ATTEMPT:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  -- The participant result endpoint must not return another participant's finalized result.
+  v_state := public.get_collective_participant_result(v_other_access_token);
+  IF coalesce((v_state->>'has_result')::boolean,true) IS TRUE
+     OR v_state ? 'score' OR v_state ? 'rank' OR v_state ? 'attempt_id' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT:%',v_state;
+  END IF;
+
+    -- Re-read participant A's state after the cross-participant probes; answer-key
+  -- assertions below must inspect A's own active attempt, never participant B's.
+  v_result := public.get_collective_linear_exam_state(v_attempt_id,v_access_token);
+  IF v_result->>'phase' IS DISTINCT FROM 'ACTIVE' THEN
+    RAISE EXCEPTION 'STAGE7_VALID_ACCESS_TOKEN_OWN_STATE_UNAVAILABLE_AFTER_IDOR_PROBES:%',v_result;
+  END IF;
 
   -- Valid active child token may request reconciliation without changing a live question.
   v_state := public.resolve_collective_linear_exam_timeout(v_attempt_id,v_access_token);
@@ -303,6 +459,9 @@ BEGIN
   PERFORM pg_catalog.set_config('stage7.portal_token_lifecycle',v_portal_token_lifecycle,true);
   PERFORM pg_catalog.set_config('stage7.access_token_lifecycle',v_access_token_lifecycle,true);
   PERFORM pg_catalog.set_config('stage7.attempt_id',v_attempt_id::text,true);
+  PERFORM pg_catalog.set_config('stage7.other_portal_token',v_other_portal_token,true);
+  PERFORM pg_catalog.set_config('stage7.other_access_token',v_other_access_token,true);
+  PERFORM pg_catalog.set_config('stage7.other_attempt_id',v_other_attempt_id::text,true);
 
   -- Parent revocation must cascade to the child access session without needing
   -- a separate call to revoke_collective_access_session().
@@ -356,11 +515,22 @@ INSERT INTO public.collective_certificates (
   'ELIGIBLE','STAGE7-CERT-SERIAL-001','STAGE7-CERT-VERIFY-001'
 );
 
+INSERT INTO public.collective_certificates (
+  id,collective_participant_id,competition_id,status,serial_number,verification_code
+) VALUES (
+  '00000000-0000-4000-8000-00000000f724',
+  '00000000-0000-4000-8000-00000000f721',
+  '00000000-0000-4000-8000-00000000f714',
+  'ELIGIBLE','STAGE7-CERT-SERIAL-002','STAGE7-CERT-VERIFY-002'
+);
+
 SET LOCAL ROLE anon;
 DO $stage7_portal_unpublished_result_and_certificate$
 DECLARE
   v_token text := pg_catalog.current_setting('stage7.access_token_lifecycle',true);
+  v_other_token text := pg_catalog.current_setting('stage7.other_access_token',true);
   v_attempt uuid := pg_catalog.current_setting('stage7.attempt_id',true)::uuid;
+  v_other_attempt uuid := pg_catalog.current_setting('stage7.other_attempt_id',true)::uuid;
   v_state jsonb;
 BEGIN
   v_state := public.get_collective_participant_certificate(v_token);
@@ -373,6 +543,22 @@ BEGIN
      OR coalesce((v_state->>'published')::boolean,true) IS NOT FALSE
      OR v_state ? 'score' OR v_state ? 'rank' OR v_state ? 'attempt_id' THEN
     RAISE EXCEPTION 'STAGE7_RESULT_SCORE_LEAKED_BEFORE_PUBLICATION:%',v_state;
+  END IF;
+
+  v_state := public.get_collective_participant_certificate(v_other_token);
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_TOKEN_RETURNED_OTHER_CERTIFICATE:%',v_state;
+  END IF;
+
+  v_state := public.get_collective_participant_result(v_other_token);
+  IF coalesce((v_state->>'has_result')::boolean,true) IS TRUE
+     OR v_state ? 'score' OR v_state ? 'rank' OR v_state ? 'attempt_id' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT:%',v_state;
+  END IF;
+
+  v_state := public.get_collective_linear_exam_state(v_other_attempt,v_other_token);
+  IF v_state->>'phase' IS DISTINCT FROM 'ACTIVE' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_CANNOT_READ_OWN_EXAM_STATE:%',v_state;
   END IF;
 
   v_state := public.get_collective_linear_exam_state(v_attempt,v_token);
@@ -401,6 +587,11 @@ SET status='PUBLISHED',issued_at=pg_catalog.clock_timestamp(),
     certificate_url='https://res.cloudinary.com/demo/image/upload/stage7-synthetic-certificate.pdf'
 WHERE id='00000000-0000-4000-8000-00000000f71c';
 
+UPDATE public.collective_certificates
+SET status='PUBLISHED',issued_at=pg_catalog.clock_timestamp(),
+    certificate_url='https://res.cloudinary.com/demo/image/upload/stage7-synthetic-other-certificate.pdf'
+WHERE id='00000000-0000-4000-8000-00000000f724';
+
 SELECT pg_catalog.set_config('syka.allow_competition_transition','1',true);
 
 UPDATE public.competitions
@@ -414,8 +605,11 @@ SET LOCAL ROLE anon;
 DO $stage7_portal_published_result_and_certificate$
 DECLARE
   v_token text := pg_catalog.current_setting('stage7.access_token_lifecycle',true);
+  v_other_token text := pg_catalog.current_setting('stage7.other_access_token',true);
   v_certificate jsonb;
+  v_other_certificate jsonb;
   v_result jsonb;
+  v_other_result jsonb;
 BEGIN
   v_certificate := public.get_collective_participant_certificate(v_token);
   IF v_certificate->>'certificate_id' IS DISTINCT FROM '00000000-0000-4000-8000-00000000f71c'
@@ -423,6 +617,20 @@ BEGIN
      OR v_certificate->>'serial_number' IS DISTINCT FROM 'STAGE7-CERT-SERIAL-001'
      OR v_certificate->>'status' IS DISTINCT FROM 'PUBLISHED' THEN
     RAISE EXCEPTION 'STAGE7_VALID_PUBLISHED_CERTIFICATE_NOT_RETURNED:%',v_certificate;
+  END IF;
+
+  v_other_certificate := public.get_collective_participant_certificate(v_other_token);
+  IF v_other_certificate->>'certificate_id' IS DISTINCT FROM '00000000-0000-4000-8000-00000000f724'
+     OR v_other_certificate->>'verification_code' IS DISTINCT FROM 'STAGE7-CERT-VERIFY-002'
+     OR v_other_certificate->>'serial_number' IS DISTINCT FROM 'STAGE7-CERT-SERIAL-002'
+     OR v_other_certificate->>'status' IS DISTINCT FROM 'PUBLISHED' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_DID_NOT_GET_OWN_CERTIFICATE:%',v_other_certificate;
+  END IF;
+
+  v_other_result := public.get_collective_participant_result(v_other_token);
+  IF coalesce((v_other_result->>'has_result')::boolean,true) IS TRUE
+     OR v_other_result ? 'score' OR v_other_result ? 'rank' OR v_other_result ? 'attempt_id' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT_AFTER_PUBLICATION:%',v_other_result;
   END IF;
 
   v_result := public.get_collective_participant_result(v_token);
