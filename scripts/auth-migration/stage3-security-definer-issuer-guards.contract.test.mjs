@@ -342,4 +342,43 @@ assert.match(adminRpcBetterAuthBlock, /admin_set_user_role[\s\S]*?foreign_key_vi
 assert.match(adminRpcBetterAuthBlock, /admin_force_complete_pending_order[\s\S]*?ORDER_NOT_FOUND/);
 assert.match(adminRpcBetterAuthBlock, /admin_review_manual_order[\s\S]*?ORDER_NOT_FOUND/);
 
+
+const issuerFirstFunctionNames = [
+  "auto_grade_essay_item",
+  "generate_awards_for_competition",
+  "issue_certificate_for_award",
+];
+for (const name of issuerFirstFunctionNames) {
+  const definition = draft.match(
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\\\([\\\\s\\\\S]*?\\\\$function\\\\$;", "i"),
+  )?.[0] ?? "";
+  assert.ok(definition, "missing guarded function definition: " + name);
+  const issuerCheck = definition.search(/private\.current_user_is_better_auth\(\)/i);
+  const firstProtectedRead = definition.search(
+    name === "auto_grade_essay_item"
+      ? /SELECT\s+\*\s+INTO\s+v_attempt/i
+      : name === "generate_awards_for_competition"
+        ? /SELECT\s+organizer_id\s+INTO\s+v_org/i
+        : /SELECT\s+\*\s+INTO\s+v_award/i,
+  );
+  assert.ok(issuerCheck >= 0, "missing explicit Better Auth issuer check: " + name);
+  assert.ok(firstProtectedRead >= 0 && issuerCheck < firstProtectedRead,
+    "issuer check must precede first protected row read: " + name);
+}
+
+const trancheFourCases = [
+  ["auto_grade_essay_item", "STAGE3_LEGACY_USER_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:"],
+  ["generate_awards_for_competition", "STAGE3_LEGACY_USER_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:"],
+  ["issue_certificate_for_award", "STAGE3_LEGACY_USER_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:"],
+  ["admin_set_certificate_status", "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:"],
+  ["admin_transition_certificate", "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:"],
+  ["admin_transition_order", "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:", "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:"],
+];
+for (const [name, legacyPrefix, betterAuthPrefix] of trancheFourCases) {
+  assert.ok(adminRpcLegacyBlock.includes(legacyPrefix + name),
+    "missing legacy-issuer denial assertion: " + name);
+  assert.ok(adminRpcBetterAuthBlock.includes(betterAuthPrefix + name),
+    "missing Better Auth positive-path assertion: " + name);
+}
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
