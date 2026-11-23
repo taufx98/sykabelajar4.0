@@ -22,6 +22,7 @@ const FUNCTIONS = new Map([
   ["public.claim_rpc_recovery", "public.claim_rpc_recovery(text)"],
   ["public.complete_daily_task", "public.complete_daily_task(uuid)"],
   ["public.create_ad_banner_payment_order", "public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)"],
+  ["private.provision_collective_registration", "private.provision_collective_registration(uuid)"],
   ["public.provision_collective_registration", "public.provision_collective_registration(uuid)"],
   ["public.regenerate_collective_participant_password", "public.regenerate_collective_participant_password(uuid)"],
   ["public.create_follow_request", "public.create_follow_request(uuid)"],
@@ -72,7 +73,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 36 reviewed Stage 3 functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 37 reviewed Stage 3 functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -145,7 +146,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 36 Stage 3 functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 37 Stage 3 functions. No database connection was opened.\n"
   );
 }
 
