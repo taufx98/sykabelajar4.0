@@ -1,5 +1,16 @@
 # Better Auth identity-root migration design
 
+## Superseding clean-start directive — 23 November 2026
+
+This is the controlling data policy for the identity/FK design and supersedes all legacy-reference/tombstone and preserve-row wording below:
+
+- Do not copy, migrate, back up, export, restore, or attach any existing Supabase Auth accounts or user-linked application data to Better Auth identities. Demo/test rows are disposable.
+- private.app_users starts empty and contains only fresh Better Auth UUIDs created by trusted provisioning after cutover. The legacy_reference identity origin and UUID-only tombstone strategy are retired for this project.
+- Before re-pointing the 69 application FKs, prepare and review a table-by-table zero-start cleanup plan. It must delete/reset disposable account-linked test records and explicitly set nullable attribution FKs to NULL where the underlying system/configuration row is intentionally retained. Keep only individually reviewed system/configuration records required by the product.
+- Prove all 69 source FK columns contain no legacy UUID references and private.app_users is empty before the FK re-home. The new FKs then attach only to future fresh Better Auth identities.
+- The existing generate-app-users-fk-plan.mjs output still contains a legacy tombstone phase. It is historical/review-only and MUST NOT be used for a new zero-start cutover until a replacement generator and tests enforce the empty-data precondition and omit tombstone insertion.
+- This document does not authorize destructive Production execution. The cleanup allowlist, dependency ordering, zero-state assertions, and exact Production operation require separate review and explicit approval.
+
 Status: design proposal with a tested, opt-in Worker provisioning scaffold — not an executable production migration
 Snapshot date: 6 November 2026
 
@@ -9,7 +20,7 @@ This document converts the current production catalog inventory into a proposed 
 
 Existing Supabase Auth identities are demo/testing accounts. The approved direction is **fresh Better Auth accounts only**: do not import old password hashes, credentials, OAuth tokens, sessions, or legacy login state; do not build a JIT password bridge or a password-reset campaign for demo users. New accounts receive a fresh Better Auth UUID, which is also used as Supabase `private.app_users.id` and JWT `sub`.
 
-The demo-account cleanup and linked test-data scope belong to Stage 6. Until then, do not delete old Auth identities or dependent application records. To rehome the 69 application FKs without migrating any account, the generated FK plan inserts only distinct UUIDs that are still referenced by application rows as `identity_origin='legacy_reference'` tombstones. These rows have no email, verification timestamps, phone, credentials, provider identity, sessions or copied role; they are not authenticatable Better Auth users. Auth UUIDs with no live application FK reference are not inserted.
+Do not retain old user-linked rows to make FK re-homing easier. Under the clean-start directive, no legacy UUID tombstones are permitted: user-linked test rows are disposable and nullable attribution columns in explicitly retained system/configuration records are cleared according to the reviewed cleanup plan. A fresh private.app_users begins empty and is populated only by trusted provisioning of new Better Auth accounts.
 
 See [AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md](AUTH-NEW-ACCOUNT-AND-ROLE-CONTRACT.md) for the approved new-registration, identity and role rules. The superseded credential proposal is retained only as a decision record in [AUTH-LEGACY-CREDENTIAL-MIGRATION.md](AUTH-LEGACY-CREDENTIAL-MIGRATION.md).
 
@@ -32,7 +43,7 @@ The initial table should contain only fields that application-side SQL demonstra
 | Column | Type | Why it exists | Trusted writer |
 |---|---|---|---|
 | id | uuid primary key | Fresh Better Auth UUID and JWT sub; parent for application identity FKs | Provisioning RPC/Worker |
-| identity_origin | text (`better_auth` or `legacy_reference`) | Separates new authenticatable identities from FK-only tombstones | Database default / review-only FK tombstone seed |
+| identity_origin | text (`better_auth` only) | Marks a fresh, authenticatable Better Auth identity; no legacy tombstone rows are allowed | Trusted server-only provisioning RPC |
 | email_verified_at | timestamptz null | Required by referral qualification and verified-email gates | Better Auth email-verification event for new accounts only |
 | phone_verified_at | timestamptz null | Preserves the verified-phone requirement in organizer creation | A trusted Worker callback after Telegram OIDC consent and ID-token validation; remains NULL while the optional flow is disabled or no verified consent has completed |
 | verified_phone_identity_hash | text null | Allows organizer eligibility/one-free-organizer-per-phone checks without storing a second raw phone number in Postgres | Server-only provisioning/phone-verification handler |
@@ -102,9 +113,7 @@ First pause Better Auth registration/provisioning (Worker-side `SUPABASE_PROVISI
 
 ### Reverse FK safety and point of no return
 
-The review-only reverse generator is `scripts/auth-migration/generate-app-users-fk-rollback-plan.mjs`. It reverses only the 69 FK targets and requires every UUID in `private.app_users` to still exist in `auth.users`; this is true for UUID-only `legacy_reference` tombstones because they are generated from existing child FK values, not because an Auth account is migrated. The same guard is repeated inside the one atomic cutover transaction and refuses rollback after any fresh `better_auth` identity exists. It does not create shadow Auth accounts. The complete Stage 3 rollback draft restores the original Supabase Auth functions and three original `auth.users` triggers, removes Better Auth projection helpers, and drops only the exact Stage 3 issuer guards.
-
-UUID-only legacy_reference tombstones are safe for FK reversal because each one is generated from a currently valid FK child value, whose parent is an existing auth.users row. This does not migrate an Auth account. The reverse generator refuses to proceed if any Better Auth-only UUID appears in private.app_users. Consequently, the FK-only rollback is available only before the first Better Auth-only user is provisioned. After that point, the identity root and Better Auth token/session adapter must remain authoritative; rollback the application bundle without changing those identity dependencies. The reverse plan is generated SQL only and is never run against production without a separate review.
+The existing reverse generator is a historical design artifact and must be re-reviewed against the clean-start model before use. Before the first Better Auth identity exists, rollback may restore the 69 FK targets to auth.users only if the source columns remain empty (the zero-start baseline) and all exact FK metadata checks pass. After the first fresh Better Auth identity is provisioned, do not reverse the identity root or route those users to Supabase Auth: no password, session, or account data is mirrored into auth.users. At that point rollback is limited to compatible application code/configuration recovery while Better Auth remains the account/session authority. Never create shadow Auth rows or restore legacy account data as a rollback shortcut.
 
 ## 6. Foreign-key migration sequence
 
@@ -112,14 +121,13 @@ Production currently has 69 validated, non-deferrable FKs across 62 application 
 
 The eventual migration must:
 
-1. Create private.app_users with id as a UUID primary key and no public API exposure.
-2. Run the generated 00-identity-tombstones.sql to insert only distinct non-null UUIDs read from the 69 application FK source columns, marked identity_origin='legacy_reference'. It never reads auth.users and never copies account data. New Better Auth registrations write their fresh UUIDs as identity_origin='better_auth'.
-3. Check that there are zero child references without a corresponding identity-root row. Do not delete, null, or invent application rows to make the check pass.
-4. For each of the 69 relationships, add a replacement FK to private.app_users(id) with the exact source column, original MATCH, ON UPDATE, ON DELETE, deferrability and validation state.
-5. Validate the replacement constraints and prove row counts/integrity are unchanged.
+1. Create private.app_users empty, keyed by UUID, with no public API exposure and no legacy_reference identity origin.
+2. Execute only the separately reviewed clean-start cleanup plan: remove disposable user-linked demo/test rows and clear nullable attribution FKs on retained system/configuration rows where the plan explicitly permits it. No rows or identity values are copied into the new identity root.
+3. Assert private.app_users is empty and all 69 application FK source columns contain no legacy UUID references. Any non-empty reference stops the cutover; do not create tombstones to bypass the assertion.
+4. For each of the 69 relationships, add a replacement FK to private.app_users(id) with the exact source column, original MATCH, ON UPDATE, ON DELETE, deferrability and validation semantics.
+5. Validate all replacement constraints against the zero-row baseline and prove the old user-linked rows were not migrated. Preserve the exact schema/constraint metadata.
 6. Drop the old auth.users constraint only after its replacement is valid, then rename the replacement constraint to the original name.
-7. Keep the existing profile, Edu Coin, order, competition and audit rows intact. In particular, the 18 SET NULL relationships must not be changed into cascades.
-8. Re-run the orphan checks and catalog comparison; the new identity root must have the same UUID parent relation for all application references.
+7. Re-run zero-state assertions and the full catalog comparison. Fresh Better Auth accounts are provisioned only after the structural cutover and are the only rows inserted into private.app_users.
 
 The current synthetic local test verifies the metadata-reconstruction idea and delete behavior for the four FK actions. The exact production mapping is recorded in [AUTH-FOREIGN-KEY-CATALOG.md](AUTH-FOREIGN-KEY-CATALOG.md). A no-data schema export helper and automated GitHub Actions workflow are available in [AUTH-SCHEMA-BASELINE-RUNBOOK.md](AUTH-SCHEMA-BASELINE-RUNBOOK.md). The workflow is ready but awaits the repository Actions secret `SUPABASE_DB_URL`; it will perform the export and disposable restore without owner CLI work once that secret is configured. The fixture test is not the actual 69-FK migration, and it does not replace full-schema tests or a migration review.
 
@@ -140,7 +148,7 @@ node scripts/auth-migration/generate-app-users-fk-plan.mjs \\
 - `02-validate.sql`: validates each replacement constraint.
 - `03-cutover.sql`: checks that replacement constraints are validated and retain the expected semantics, then drops the old `auth.users` constraints and renames replacements to the original names.
 
-This is a **SQL generator only**. It has no database connection and never executes SQL. Its output is not yet an approved migration: it assumes `private.app_users` has already been created, then seeds only UUID-only `legacy_reference` tombstones from the 69 still-referenced application FK columns. It never queries `auth.users` and never copies account data. The CI contract checks all 69 entries, all four delete actions, catalog drift guards, the tombstone seed plus three FK phases, and absence of account/authentication data migration.
+This remains a SQL generator only and has no database connection. Its current output includes the now-retired UUID-tombstone phase and is not compatible with the 23 November clean-start directive. Do not run its output. Replace it with a zero-start generator that has no row-seeding phase and fails unless all 69 FK source columns are empty before issuing replacement constraints; update its contract tests before Stage 3 cutover.
 
 
 ## 7. RLS and issuer separation
