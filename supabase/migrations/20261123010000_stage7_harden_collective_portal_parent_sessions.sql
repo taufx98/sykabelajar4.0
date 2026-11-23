@@ -68,7 +68,7 @@ AS $function$
     ON pc.portal_identity_id=pi.id
   JOIN public.collective_participants AS cp
     ON cp.id=s.collective_participant_id
-  WHERE s.token_hash=private.hash_collective_token(pg_catalog.btrim(pg_catalog.coalesce(p_token,'')))
+  WHERE s.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_token,'')))
     AND s.revoked_at IS NULL
     AND s.expires_at>pg_catalog.now()
     AND s.session_type='COMPETITION'
@@ -103,7 +103,7 @@ AS $function$
     ON pi.id=ps.portal_identity_id
   JOIN public.collective_portal_credentials AS pc
     ON pc.portal_identity_id=pi.id
-  WHERE ps.token_hash=private.hash_collective_token(pg_catalog.btrim(pg_catalog.coalesce(p_token,'')))
+  WHERE ps.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_token,'')))
     AND ps.revoked_at IS NULL
     AND ps.expires_at>pg_catalog.now()
     AND pi.status='ACTIVE'
@@ -146,7 +146,7 @@ BEGIN
    AND pi.status='ACTIVE'
   WHERE ps.id IS NOT NULL
     AND ps.portal_identity_id=v_identity_id
-    AND ps.token_hash=private.hash_collective_token(pg_catalog.btrim(pg_catalog.coalesce(p_portal_token,'')))
+    AND ps.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_portal_token,'')))
     AND ps.revoked_at IS NULL
     AND ps.expires_at>pg_catalog.now()
   ORDER BY ps.created_at DESC
@@ -169,9 +169,8 @@ BEGIN
   WHERE pi.id=v_identity_id
     AND pi.status='ACTIVE'
     AND cp.competition_id=p_competition_id
-    AND pg_catalog.upper(cp.participant_code)=pg_catalog.upper(pg_catalog.btrim(pg_catalog.coalesce(p_participant_code,'')))
+    AND pg_catalog.upper(cp.participant_code)=pg_catalog.upper(pg_catalog.btrim(coalesce(p_participant_code,'')))
     AND cp.status='ACTIVE'
-  ORDER BY cp.created_at DESC
   LIMIT 1;
 
   IF v_participant.id IS NULL THEN
@@ -230,7 +229,7 @@ BEGIN
   SELECT ps.id,(ps.revoked_at IS NULL)
     INTO v_session_id,v_was_active
   FROM public.collective_portal_sessions AS ps
-  WHERE ps.token_hash=private.hash_collective_token(pg_catalog.btrim(pg_catalog.coalesce(p_portal_token,'')))
+  WHERE ps.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_portal_token,'')))
   ORDER BY ps.created_at DESC
   LIMIT 1
   FOR UPDATE;
@@ -240,12 +239,12 @@ BEGIN
   END IF;
 
   UPDATE public.collective_portal_sessions
-  SET revoked_at=pg_catalog.coalesce(revoked_at,pg_catalog.clock_timestamp()),
+  SET revoked_at=coalesce(revoked_at,pg_catalog.clock_timestamp()),
       last_seen_at=pg_catalog.clock_timestamp()
   WHERE id=v_session_id;
 
   UPDATE public.collective_access_sessions
-  SET revoked_at=pg_catalog.coalesce(revoked_at,pg_catalog.clock_timestamp()),
+  SET revoked_at=coalesce(revoked_at,pg_catalog.clock_timestamp()),
       last_seen_at=pg_catalog.clock_timestamp()
   WHERE portal_session_id=v_session_id
     AND revoked_at IS NULL;
@@ -283,7 +282,7 @@ AS $function$
    AND cc.status='PUBLISHED'
   JOIN public.competitions AS c
     ON c.id=cc.competition_id
-  WHERE s.token_hash=private.hash_collective_token(pg_catalog.btrim(pg_catalog.coalesce(p_access_token,'')))
+  WHERE s.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_access_token,'')))
     AND s.revoked_at IS NULL
     AND s.expires_at>pg_catalog.now()
     AND s.portal_session_id IS NOT NULL
