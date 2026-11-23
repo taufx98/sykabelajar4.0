@@ -16,6 +16,10 @@ DECLARE
   v_rls boolean;
   v_policy_count integer;
   v_privilege text;
+  v_acl text;
+  v_anon_inherited_roles text;
+  v_authenticated_inherited_roles text;
+  v_default_acl text;
   v_checked integer := 0;
 BEGIN
   FOR v_item IN
@@ -57,6 +61,43 @@ BEGIN
            (SELECT count(*) FROM pg_catalog.pg_policy p WHERE p.polrelid=c.oid)
     INTO v_owner,v_rls,v_policy_count
     FROM pg_catalog.pg_class c WHERE c.oid=v_oid;
+
+    SELECT COALESCE(c.relacl::text, '<NULL>')
+    INTO v_acl
+    FROM pg_catalog.pg_class AS c
+    WHERE c.oid = v_oid;
+
+    SELECT COALESCE(string_agg(r.rolname, ',' ORDER BY r.rolname), '<none>')
+    INTO v_anon_inherited_roles
+    FROM pg_catalog.pg_roles AS r
+    WHERE r.rolname <> 'anon'
+      AND pg_catalog.pg_has_role('anon', r.oid, 'USAGE');
+
+    SELECT COALESCE(string_agg(r.rolname, ',' ORDER BY r.rolname), '<none>')
+    INTO v_authenticated_inherited_roles
+    FROM pg_catalog.pg_roles AS r
+    WHERE r.rolname <> 'authenticated'
+      AND pg_catalog.pg_has_role('authenticated', r.oid, 'USAGE');
+
+    SELECT COALESCE(
+      string_agg(d.defaclobjtype || ':' || COALESCE(d.defaclacl::text, '<NULL>'), ',' ORDER BY d.defaclobjtype),
+      '<none>'
+    )
+    INTO v_default_acl
+    FROM pg_catalog.pg_default_acl AS d
+    JOIN pg_catalog.pg_class AS c ON c.oid = v_oid
+    WHERE d.defaclrole = c.relowner
+      AND d.defaclnamespace IN (0, (SELECT n.oid FROM pg_catalog.pg_namespace AS n WHERE n.nspname = v_item.schema_name));
+
+    RAISE NOTICE
+      'STAGE7_ACL_DIAGNOSTIC:%:relacl=%:anon_effective_select=%:authenticated_effective_select=%:anon_inherited_roles=%:authenticated_inherited_roles=%:owner_default_acl=%',
+      v_item.schema_name || '.' || v_item.table_name,
+      v_acl,
+      pg_catalog.has_table_privilege('anon', v_oid, 'SELECT'),
+      pg_catalog.has_table_privilege('authenticated', v_oid, 'SELECT'),
+      v_anon_inherited_roles,
+      v_authenticated_inherited_roles,
+      v_default_acl;
 
     IF v_owner IS DISTINCT FROM 'postgres' THEN
       RAISE EXCEPTION 'STAGE7_RLS_REVIEW_OWNER_DRIFT:%:%',v_item.table_name,v_owner;
