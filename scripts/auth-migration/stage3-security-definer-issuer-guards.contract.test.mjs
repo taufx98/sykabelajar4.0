@@ -315,4 +315,31 @@ assert.match(currentUserHasRole, /private\.current_user_is_better_auth\(\)/);
 assert.match(currentUserHasRole, /ur\.user_id = \(SELECT auth\.uid\(\)\)/);
 assert.match(currentUserHasRole, /ur\.is_active = TRUE/);
 
+
+const reviewedAdminMutationCases = [
+  "admin_delete_competition",
+  "admin_force_delete_competition",
+  "admin_force_complete_pending_order",
+  "admin_review_manual_order",
+  "admin_set_user_role",
+  "admin_set_user_status",
+  "admin_issue_shop_voucher",
+  "admin_save_shop_voucher_definition",
+  "admin_set_comment_moderation",
+  "admin_update_referral_program_settings",
+];
+for (const name of reviewedAdminMutationCases) {
+  assert.ok(
+    adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name,
+  );
+  assert.ok(
+    adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth no-write business-boundary assertion: " + name,
+  );
+}
+assert.match(adminRpcBetterAuthBlock, /admin_set_user_role[\s\S]*?foreign_key_violation/);
+assert.match(adminRpcBetterAuthBlock, /admin_force_complete_pending_order[\s\S]*?ORDER_NOT_FOUND/);
+assert.match(adminRpcBetterAuthBlock, /admin_review_manual_order[\s\S]*?ORDER_NOT_FOUND/);
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
