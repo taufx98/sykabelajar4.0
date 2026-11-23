@@ -866,6 +866,110 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_create_organizer_payment_method'; END IF;
 
+
+  -- Tranche 03: privileged mutation RPCs must deny the same active Admin UUID
+  -- when the token issuer is still Supabase Auth.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_competition(
+      '99999999-9999-4999-8999-999999999971'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_competition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_force_delete_competition(
+      '99999999-9999-4999-8999-999999999972'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_force_delete_competition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_force_complete_pending_order(
+      '99999999-9999-4999-8999-999999999973'::uuid, 'Stage 7 audit probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_force_complete_pending_order'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_review_manual_order(
+      '99999999-9999-4999-8999-999999999974'::uuid, 'REJECT', 'Stage 7 audit probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_review_manual_order'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_set_user_role(
+      '99999999-9999-4999-8999-999999999975'::uuid,
+      'teacher'::public.app_role, true, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_user_role'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_set_user_status(
+      '99999999-9999-4999-8999-999999999976'::uuid,
+      'ACTIVE'::public.user_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_user_status'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_issue_shop_voucher(
+      '99999999-9999-4999-8999-999999999977'::uuid, 'stage7-no-such-user'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_issue_shop_voucher'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_shop_voucher_definition('{"name":""}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_shop_voucher_definition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_set_comment_moderation(
+      NULL::uuid, 'INVALID_STAGE7_STATE', 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_comment_moderation'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_update_referral_program_settings(
+      NULL::boolean, 100, NULL::integer, NULL::text, NULL::text,
+      NULL::timestamptz, NULL::timestamptz
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_update_referral_program_settings'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1188,6 +1292,110 @@ BEGIN
       RAISE;
     END IF;
   END;
+
+  -- Under the exact Better Auth issuer each Admin mutation must pass the
+  -- shared Admin guard and stop at a deliberate no-write business boundary.
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_competition(
+      '99999999-9999-4999-8999-999999999971'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_competition'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_force_delete_competition(
+      '99999999-9999-4999-8999-999999999972'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_force_delete_competition'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_force_complete_pending_order(
+      '99999999-9999-4999-8999-999999999973'::uuid, 'Stage 7 audit probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ORDER_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_force_complete_pending_order'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_review_manual_order(
+      '99999999-9999-4999-8999-999999999974'::uuid, 'REJECT', 'Stage 7 audit probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ORDER_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_review_manual_order'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_set_user_role(
+      '99999999-9999-4999-8999-999999999975'::uuid,
+      'teacher'::public.app_role, true, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN foreign_key_violation THEN
+    v_exam_denied := true;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_set_user_role'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_set_user_status(
+      '99999999-9999-4999-8999-999999999976'::uuid,
+      'ACTIVE'::public.user_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'USER_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_set_user_status'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_issue_shop_voucher(
+      '99999999-9999-4999-8999-999999999977'::uuid, 'stage7-no-such-user'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'VOUCHER_DEFINITION_NOT_AVAILABLE' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_issue_shop_voucher'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_save_shop_voucher_definition('{"name":""}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'VOUCHER_NAME_REQUIRED' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_shop_voucher_definition'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_set_comment_moderation(
+      NULL::uuid, 'INVALID_STAGE7_STATE', 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_STATE' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_set_comment_moderation'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_update_referral_program_settings(
+      NULL::boolean, 100, NULL::integer, NULL::text, NULL::text,
+      NULL::timestamptz, NULL::timestamptz
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACTIVE_FLAG_REQUIRED' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_update_referral_program_settings'; END IF;
+
   IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_create_organizer_payment_method'; END IF;
 
 
