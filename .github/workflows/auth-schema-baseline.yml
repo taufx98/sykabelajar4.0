@@ -40,6 +40,8 @@ on:
       - "scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs"
       - "scripts/auth-migration/stage7-collective-portal-valid-token.contract.test.mjs"
       - "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql"
+      - "scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs"
+      - "supabase/migrations/20261123010000_stage7_harden_collective_portal_parent_sessions.sql"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
       - "docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"
@@ -774,6 +776,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-collective-portal-valid-token.contract.test.mjs
 
+      - name: Test Stage 7 collective portal parent-session boundary contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs
+
       - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -786,6 +792,20 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage5-no-policy-table-acl-draft.sql
           echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 7 portal parent-session hardening to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/supabase/migrations/20261123010000_stage7_harden_collective_portal_parent_sessions.sql:/baseline/stage7-portal-parent-session-hardening.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-portal-parent-session-hardening.sql
+          echo "- Hardened child-token checks against parent portal revocation/expiry, suspended identities and disabled/rotated credentials on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preserved function owners and EXECUTE grants; no Production data or ACL was changed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore
         if: steps.credentials.outputs.available == 'true'
