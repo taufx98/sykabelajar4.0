@@ -75,12 +75,12 @@ assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uu
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO "anon";'), false);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "authenticated";/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "service_role";/);
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "authenticated";'));
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "service_role";'));
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO PUBLIC;'), false);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "authenticated";/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "service_role";/);
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "authenticated";'));
+assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "service_role";'));
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO PUBLIC;'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
