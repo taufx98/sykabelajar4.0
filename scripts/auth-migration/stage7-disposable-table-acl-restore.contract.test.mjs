@@ -35,8 +35,8 @@ const entries = [...sql.matchAll(/\('public', '([a-z_][a-z0-9_]*)'\)/g)]
   .sort();
 assert.equal(entries.length, expected.length * 2,
   "preflight and postcondition must use exactly the same reviewed table allowlist");
-assert.deepEqual(entries.slice(0, expected.length), expected);
-assert.deepEqual(entries.slice(expected.length), expected);
+assert.deepEqual(entries, [...expected, ...expected].sort(),
+  "the same exact 17-table allowlist must be repeated for the preflight and postcondition");
 
 const revoke = [...sql.matchAll(
   /REVOKE ALL PRIVILEGES ON TABLE %I\.%I FROM PUBLIC, anon, authenticated/g,
