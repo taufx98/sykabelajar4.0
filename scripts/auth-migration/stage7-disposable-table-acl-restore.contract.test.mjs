@@ -59,9 +59,10 @@ for (const excluded of [
   assert.doesNotMatch(sql, new RegExp("\\b" + excluded + "\\b"),
     excluded + " must remain for the canonical Stage 5 ACL draft");
 }
-assert.doesNotMatch(sql, /\b(?:INSERT INTO|UPDATE\s+public\.|DELETE FROM|DROP TABLE|TRUNCATE TABLE)\b/i);
-assert.doesNotMatch(sql, /GRANT\s+/i);
-assert.doesNotMatch(sql, /FROM\s+service_role/i);
+const executableSql = sql.replace(/^--.*$/gm, "");
+assert.doesNotMatch(executableSql, /\b(?:INSERT INTO|UPDATE\s+public\.|DELETE FROM|DROP TABLE|TRUNCATE TABLE)\b/i);
+assert.doesNotMatch(executableSql, /GRANT\s+/i);
+assert.doesNotMatch(executableSql, /FROM\s+service_role/i);
 
 const step = workflow.indexOf("- name: Restore reviewed no-browser table ACLs in disposable restore only");
 const restore = workflow.indexOf("- name: Restore schema into the disposable local Supabase database");
