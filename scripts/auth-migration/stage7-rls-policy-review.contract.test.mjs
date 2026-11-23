@@ -20,9 +20,15 @@ assert.equal(expected.length, 23);
 assert.deepEqual(reviewed, expected, "RLS review must classify each and only the 23 application tables.");
 assert.equal(review.reviewed_table_count, 23);
 assert.equal(review.application_table_count, 23);
-assert.equal(review.status, "reviewed_catalog_pending_disposable_acceptance");
+assert.equal(review.status, "direct_table_acl_boundary_passed_disposable");
+assert.equal(review.direct_table_boundary_acceptance.status, "passed_disposable_schema_only");
+assert.equal(review.direct_table_boundary_acceptance.workflow_run_id, 45100444988);
+assert.equal(review.direct_table_boundary_acceptance.commit, "feeefcfa3077adfcb6a1151cf03bb8bff75a5321");
+assert.match(review.direct_table_boundary_acceptance.limitations.join(" "), /SECURITY DEFINER caller\/issuer\/token audit/);
 
 for (const table of review.tables) {
+  assert.equal(table.review_status, "direct_table_acl_boundary_passed_disposable");
+  assert.equal(table.authorization_path_review_status, "pending_security_definer_audit");
   assert.equal(table.owner, "postgres", table.schema + "." + table.table + " owner drift");
   assert.equal(table.rls_enabled, true, table.schema + "." + table.table + " must retain RLS");
   assert.equal(table.policy_count, 0, table.schema + "." + table.table + " must remain policy-free");
@@ -61,4 +67,4 @@ assert.doesNotMatch(executableSql, /\b(?:CREATE|DROP)\s+POLICY\b/i);
 assert.doesNotMatch(executableSql, /\b(?:GRANT|REVOKE)\b/i);
 assert.doesNotMatch(executableSql, /\b(?:INSERT INTO|UPDATE\s+public\.|DELETE FROM|TRUNCATE TABLE|DROP TABLE)\b/i);
 
-console.log("Stage 7 RLS review contract passed: all 23 app tables classified; no broad policies or Production changes; disposable catalog test asserts browser-deny and backend access.");
+console.log("Stage 7 RLS review contract passed: all 23 direct table ACL boundaries are accepted on the disposable restore; SECURITY DEFINER caller authorization remains a separate gate.");

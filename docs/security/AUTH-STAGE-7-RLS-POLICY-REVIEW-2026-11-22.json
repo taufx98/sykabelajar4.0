@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "reviewed_catalog_pending_disposable_acceptance",
+  "status": "direct_table_acl_boundary_passed_disposable",
   "project_ref": "mvdczyitbkxkldjughor",
   "snapshot_date": "2026-11-22",
   "source": "Fresh read-only PostgreSQL catalog query. Includes effective ACLs for PostgreSQL 17 MAINTAIN and source-token matching for function callers.",
@@ -73,8 +73,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "private",
@@ -150,8 +151,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "private",
@@ -192,8 +194,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -237,8 +240,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -275,8 +279,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -418,8 +423,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -463,8 +469,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -571,8 +578,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -646,8 +654,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -728,8 +737,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -810,8 +820,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -895,8 +906,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -963,8 +975,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1164,8 +1177,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1358,8 +1372,9 @@
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
         "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1407,8 +1422,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1445,8 +1461,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1518,8 +1535,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1556,8 +1574,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1621,9 +1640,10 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
+      "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "intended_boundary": "Public storefront banner reads use the narrow active-banner RPC; Admin CRUD uses issuer-gated Admin RPCs; view/click telemetry uses the validated event RPC. The banner table itself has no direct browser grants."
+      "intended_boundary": "Public storefront banner reads use the narrow active-banner RPC; Admin CRUD uses issuer-gated Admin RPCs; view/click telemetry uses the validated event RPC. The banner table itself has no direct browser grants.",
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1723,8 +1743,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1824,8 +1845,9 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     },
     {
       "schema": "public",
@@ -1881,8 +1903,29 @@
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
       ],
-      "review_status": "catalog_reviewed_disposable_regression_pending",
-      "public_acl_grant": false
+      "review_status": "direct_table_acl_boundary_passed_disposable",
+      "public_acl_grant": false,
+      "authorization_path_review_status": "pending_security_definer_audit"
     }
-  ]
+  ],
+  "direct_table_boundary_acceptance": {
+    "status": "passed_disposable_schema_only",
+    "workflow": "Auth Production Schema Baseline",
+    "workflow_run_id": 45100444988,
+    "workflow_url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45100444988",
+    "commit": "feeefcfa3077adfcb6a1151cf03bb8bff75a5321",
+    "postgres_version": "17.6",
+    "checks": [
+      "All 23 application-owned tables exist, remain owned by postgres, retain RLS, and have zero policies.",
+      "anon and authenticated have no effective SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, or MAINTAIN privilege on the 23 tables.",
+      "No explicit PUBLIC ACL remains on the 23 application tables.",
+      "service_role retains CRUD on the 20 designated public backend tables and has no direct table grants on the three private tables.",
+      "The assertion ran after the Stage 5 no-policy ACL draft and the Stage 7 portal parent-session hardening on the disposable restore."
+    ],
+    "limitations": [
+      "This acceptance covers direct table RLS/ACL boundaries on the disposable schema restore only.",
+      "It does not complete the separate SECURITY DEFINER caller/issuer/token audit, which remains a Production cutover blocker.",
+      "It does not apply any grants, policies, DDL, or DML to Production."
+    ]
+  }
 }
