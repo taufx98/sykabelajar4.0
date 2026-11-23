@@ -172,10 +172,15 @@ DECLARE
   v_total integer;
   v_distinct_keys integer;
   v_distinct_prefixes integer;
+  v_lookup_mismatches integer;
 BEGIN
   SELECT count(*),count(DISTINCT c.password_lookup_key),
-         count(DISTINCT pg_catalog.left(p.password,8))
-    INTO v_total,v_distinct_keys,v_distinct_prefixes
+         count(DISTINCT pg_catalog.left(p.password,8)),
+         count(*) FILTER (
+           WHERE c.password_lookup_key IS DISTINCT FROM
+             private.collective_portal_password_lookup_key(p.password)
+         )
+    INTO v_total,v_distinct_keys,v_distinct_prefixes,v_lookup_mismatches
   FROM public.collective_portal_credentials AS c
   JOIN public.collective_portal_identities AS pi
     ON pi.id=c.portal_identity_id
@@ -195,9 +200,10 @@ BEGIN
     '00000000-0000-4000-8000-00000000f737'
   );
 
-  IF v_total<>2 OR v_distinct_keys<>2 OR v_distinct_prefixes<>1 THEN
-    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_STORED_COLLISION:%:%:%',
-      v_total,v_distinct_keys,v_distinct_prefixes;
+  IF v_total<>2 OR v_distinct_keys<>2 OR v_distinct_prefixes<>1
+     OR v_lookup_mismatches<>0 THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_STORED_COLLISION:%:%:%:%',
+      v_total,v_distinct_keys,v_distinct_prefixes,v_lookup_mismatches;
   END IF;
 END;
 $stage7_portal_lookup_stored_credentials$;
