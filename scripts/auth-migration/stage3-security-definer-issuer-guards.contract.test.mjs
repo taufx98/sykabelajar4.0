@@ -407,4 +407,30 @@ for (const name of trancheFiveAdminCases) {
     "missing Better Auth Admin positive assertion: " + name);
 }
 
+
+const trancheSixAdminCases = [
+  "admin_delete_organizer_voucher",
+  "admin_generate_organizer_vouchers",
+  "admin_save_organizer_payment_fields",
+  "admin_save_plan_bundle",
+  "admin_upsert_organizer_voucher",
+  "admin_update_referral_program_settings_v2",
+  "admin_save_competition",
+  "admin_save_post",
+  "admin_save_product",
+  "admin_save_shop_promo_banner",
+];
+const stage7AdminValidationPositive = regression.match(
+  /DO \$stage7_admin_mutation_validation_positive\$[\s\S]*?\$stage7_admin_mutation_validation_positive\$;/i,
+)?.[0] ?? "";
+assert.ok(stage7AdminValidationPositive, "missing tranche 06 Better Auth validation block");
+for (const name of trancheSixAdminCases) {
+  assert.ok(adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name);
+  assert.ok(stage7AdminValidationPositive.includes("public." + name + "("),
+    "missing Better Auth validation call: " + name);
+  assert.ok(stage7AdminValidationPositive.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth validation assertion: " + name);
+}
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
