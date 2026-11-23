@@ -23,16 +23,16 @@ const expand = plan["01-preflight-expand.sql"];
 const validate = plan["02-validate.sql"];
 const cutover = plan["03-cutover.sql"];
 
-const tombstones = plan["00-identity-tombstones.sql"];
-assert.ok(tombstones && expand && validate && cutover, "the identity tombstone seed and all three FK phases must be generated");
-assert.equal((tombstones.match(/SELECT [^\n]+ AS id FROM/g) ?? []).length, 69,
-  "every reviewed FK source column must contribute to the legacy-reference tombstone query");
-assert.match(tombstones, /INSERT INTO private\.app_users \(id, identity_origin\)/);
-assert.match(tombstones, /'legacy_reference'/);
-assert.match(tombstones, /ON CONFLICT \(id\) DO NOTHING/);
-const tombstoneStatements = tombstones.split(/\r?\n/).filter((line) => !line.trim().startsWith("--")).join("\n");
-assert.doesNotMatch(tombstoneStatements, /\bauth\.users\b|\bemail\b|\bpassword\b|\bcredential\b|\bsession\b|\brole\b/i,
-  "the tombstone seed must never read or copy account or authentication data");
+assert.ok(expand && validate && cutover, "all three zero-start FK phases must be generated");
+assert.equal(Object.keys(plan).length, 3, "zero-start plans must not generate a legacy identity seed");
+assert.ok(!Object.keys(plan).some((name) => /tombstone|legacy/i.test(name)),
+  "legacy account/data tombstone SQL must never be generated");
+assert.match(expand, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
+assert.match(expand, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
+assert.equal((expand.match(/ZERO_START_FK_COLUMN_NOT_EMPTY/g) ?? []).length, 69,
+  "every one of the 69 application FK source columns must have a zero-start assertion");
+assert.doesNotMatch(expand, /INSERT\s+INTO\s+private\.app_users|legacy_reference/i,
+  "the generated cutover must never seed or preserve legacy identity rows");
 assert.equal((expand.match(/ADD CONSTRAINT/g) ?? []).length, 69);
 assert.equal((validate.match(/VALIDATE CONSTRAINT/g) ?? []).length, 69);
 assert.equal((cutover.match(/DROP CONSTRAINT/g) ?? []).length, 69);
@@ -55,7 +55,7 @@ assert.match(validate, /convalidated/);
 assert.match(cutover, /REPLACEMENT_FK_NOT_VALIDATED_OR_SEMANTICS_CHANGED:/);
 assert.doesNotMatch(expand, /IDENTITY_ROOT_MISSING_LEGACY_USERS|FROM auth\.users/,
   "the FK cutover must not require migrating every old Auth account");
-assert.match(expand, /IDENTITY_ROOT_ORPHANS:/);
+assert.match(expand, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
 assert.match(expand, /LIVE_FK_DRIFT:/);
 assert.match(expand, /TEMP_FK_NAME_COLLISION:/);
 assert.match(expand, /ON UPDATE NO ACTION/);
@@ -85,4 +85,4 @@ assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.fo
 assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.foreign_keys[0], on_delete: "UNKNOWN" }] }), /unsupported ON DELETE/);
 assert.throws(() => validateCatalog({ ...fixture, foreign_keys: [{ ...fixture.foreign_keys[0], validated: false }] }), /validated, non-deferrable/);
 
-console.log("Identity FK plan generator contract passed: 69 live constraints, UUID-only tombstones, exact delete semantics, three gated FK phases, no DB execution.");
+console.log("Identity FK plan generator contract passed: 69 live constraints, zero-start identity/FK guards, exact delete semantics, three gated FK phases, no DB execution.");
