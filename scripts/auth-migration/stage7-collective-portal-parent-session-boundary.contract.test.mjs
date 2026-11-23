@@ -124,6 +124,19 @@ for (const marker of [
 ]) {
   assert.ok(regression.includes(marker), "missing runtime parent-boundary assertion: " + marker);
 }
+for (const signature of [
+  "'public.list_collective_portal_competitions(text)'",
+  "'public.revoke_collective_access_session(text)'",
+  "'public.verify_collective_portal_password(text)'",
+]) {
+  assert.ok(migration.includes(signature), "missing preflight/postflight registration: " + signature);
+}
+assert.ok(regression.includes("STAGE7_VALID_ACCESS_TOKEN_COULD_NOT_RESOLVE_ACTIVE_TIMEOUT"));
+assert.ok(regression.includes("STAGE7_VALID_CHILD_ACCESS_TOKEN_COULD_NOT_BE_REVOKED"));
+assert.ok(regression.includes("STAGE7_CHILD_REVOKE_INVALIDATED_PARENT_PORTAL_SESSION"));
+assert.ok(regression.includes("STAGE7_REVOKED_CHILD_ACCESS_TOKEN_STILL_VALID"));
+assert.match(regression, /public\.revoke_collective_access_session\(v_access_token_lifecycle\)/);
+assert.match(regression, /public\.resolve_collective_linear_exam_timeout\(v_attempt_id,v_access_token\)/);
 assert.match(regression, /public\.revoke_collective_portal_session\(v_portal_token\)/);
 assert.match(regression, /public\.get_collective_participant_certificate\(v_access_token\)/);
 assert.match(regression, /ROLLBACK;/);
