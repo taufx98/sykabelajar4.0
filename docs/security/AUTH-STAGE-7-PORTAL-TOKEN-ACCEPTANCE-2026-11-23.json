@@ -8,7 +8,8 @@
     "method": "read-only pg_catalog/information_schema query",
     "productionDefinitionsOrAclChanged": false,
     "functions": 14,
-    "helpers": 3
+    "helpers": 3,
+    "functionOwnerAndKind": "all 14 public portal RPCs are owned by postgres and SECURITY DEFINER"
   },
   "classification": {
     "suggestedClassification": "participant_portal_token",
@@ -103,7 +104,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "A token -> B attempt denied; reciprocal B -> A not exercised for this RPC"
+      "crossParticipant": "A token -> B attempt denied; reciprocal B -> A not exercised for this RPC",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.choose_collective_linear_exam_timeout(uuid,text,text)",
@@ -122,7 +125,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND"
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.get_collective_linear_exam_state(uuid,text)",
@@ -141,7 +146,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both A -> B and B -> A reads denied with ATTEMPT_NOT_FOUND"
+      "crossParticipant": "both A -> B and B -> A reads denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.get_collective_participant_certificate(text)",
@@ -160,7 +167,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "token-derived certificate binding; unpublished withheld and each participant receives only its own published certificate"
+      "crossParticipant": "token-derived certificate binding; unpublished withheld and each participant receives only its own published certificate",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.get_collective_participant_result(text)",
@@ -179,7 +188,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "participant B token cannot obtain participant A result before or after publication; participant A receives own result after publication"
+      "crossParticipant": "participant B token cannot obtain participant A result before or after publication; participant A receives own result after publication",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.list_collective_portal_competitions(text)",
@@ -198,7 +209,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both valid parent tokens list only their own participant in the same private competition"
+      "crossParticipant": "both valid parent tokens list only their own participant in the same private competition",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.open_collective_competition_session(text,uuid,text)",
@@ -217,7 +230,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "participant A token is denied when given participant B code; B opens its own participant session"
+      "crossParticipant": "participant A token is denied when given participant B code; B opens its own participant session",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.resolve_collective_linear_exam_timeout(uuid,text)",
@@ -236,7 +251,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND"
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.revoke_collective_access_session(text)",
@@ -255,7 +272,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "revoking A child leaves B parent and B child usable"
+      "crossParticipant": "revoking A child leaves B parent and B child usable",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.revoke_collective_portal_session(text)",
@@ -274,7 +293,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "revoking A parent (and cascading A child) leaves B parent and B child usable"
+      "crossParticipant": "revoking A parent (and cascading A child) leaves B parent and B child usable",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.save_collective_linear_exam_draft(uuid,text,uuid,jsonb)",
@@ -293,7 +314,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "A token -> B draft write denied with ATTEMPT_NOT_FOUND; reciprocal B -> A not exercised for this RPC"
+      "crossParticipant": "A token -> B draft write denied with ATTEMPT_NOT_FOUND; reciprocal B -> A not exercised for this RPC",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.skip_collective_linear_exam_question(uuid,text)",
@@ -312,7 +335,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND"
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.start_collective_linear_exam_attempt(uuid,text)",
@@ -331,7 +356,9 @@
       ],
       "negativeToken": "passed",
       "validOwnPath": "passed",
-      "crossParticipant": "both valid participants start only their token-bound attempt; repeating A start returns the same attempt ID"
+      "crossParticipant": "both valid participants start only their token-bound attempt; repeating A start returns the same attempt ID",
+      "owner": "postgres",
+      "securityDefiner": true
     },
     {
       "signature": "public.verify_collective_portal_password(text)",
@@ -350,7 +377,9 @@
       ],
       "negativeToken": "invalid password denied",
       "validOwnPath": "passed",
-      "crossParticipant": "two independent participant credentials each produce separate valid parent sessions"
+      "crossParticipant": "two independent participant credentials each produce separate valid parent sessions",
+      "owner": "postgres",
+      "securityDefiner": true
     }
   ],
   "helpers": [
