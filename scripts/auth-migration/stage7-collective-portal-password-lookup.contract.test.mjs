@@ -20,7 +20,7 @@ assert.match(helper, /LANGUAGE sql/i);
 assert.match(helper, /IMMUTABLE/i);
 assert.match(helper, /STRICT/i);
 assert.match(helper, /SET search_path TO ''/i);
-assert.match(helper, /pg_catalog\.encode\(extensions\.digest\(pg_catalog\.left\(p_password,18\),'sha256'\),'hex'\)/i);
+assert.match(helper, /pg_catalog\.encode\(extensions\.digest\(pg_catalog\.left\(pg_catalog\.btrim\(p_password\),18\),'sha256'\),'hex'\)/i);
 
 assert.match(
   migration,
@@ -30,6 +30,12 @@ assert.match(migration, /STAGE7_PORTAL_LOOKUP_REBUILD_REQUIRES_ZERO_CREDENTIAL_R
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_UNIQUE_CONSTRAINT_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_PRIVATE_SCHEMA_USAGE_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_SOURCE_DEFINITION_DRIFT/);
+assert.match(migration, /v_expected_search_path text\[\]/);
+assert.match(migration, /v_search_path IS DISTINCT FROM v_expected_search_path/);
+assert.match(migration, /STAGE7_PORTAL_LOOKUP_SOURCE_SEARCH_PATH_DRIFT/);
+assert.match(migration, /STAGE7_PORTAL_LOOKUP_POST_SEARCH_PATH_DRIFT/);
+assert.ok(migration.includes("4561302b0ce91bbf252daf1dc2f88553"),
+  "preflight must pin the Stage 7 parent-session verifier source");
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_SOURCE_ACL_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_POST_ACL_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_HELPER_ACL_POSTCONDITION_FAILED/);
@@ -40,7 +46,7 @@ const expectedSourceFingerprints = [
   "e4a007bcd32d3d135ccb48df8636bbd0",
   "1ae119812cdf0497239c9564c5ca9c87",
   "0f9a8c6b114e362e8d228ea40ce2fad4",
-  "f5d01e7ab270b1ff332467f2cf80a2f8",
+  "4561302b0ce91bbf252daf1dc2f88553",
 ];
 for (const fingerprint of expectedSourceFingerprints) {
   assert.ok(migration.includes(fingerprint), "missing reviewed Production source fingerprint: " + fingerprint);
@@ -75,14 +81,25 @@ for (const fn of functions) {
   assert.doesNotMatch(fn.source, /digest\s*\(\s*left\s*\(/i, "prefix-based lookup remains in " + fn.signature);
   assert.doesNotMatch(fn.source, /left\s*\([^)]*,\s*8\s*\)/i, "eight-character lookup truncation remains in " + fn.signature);
   assert.match(fn.source, /SECURITY DEFINER/i);
-  assert.match(fn.source, /SET search_path TO 'public', 'private', 'extensions'/i);
+  if (fn.signature === "public.verify_collective_portal_password") {
+    assert.match(fn.source, /SET search_path TO ''/i,
+      "portal verifier must preserve the Stage 7 parent-session empty search_path");
+  } else {
+    assert.match(fn.source, /SET search_path TO 'public', 'private', 'extensions'/i);
+  }
 }
 
 // Keep full bcrypt verification and all existing caller/session behavior intact.
-assert.match(functions[3].source, /crypt\(coalesce\(p_password,''\),c\.password_hash\)\s+IS DISTINCT FROM c\.password_hash/i);
+assert.match(functions[3].source, /extensions\.crypt\(coalesce\(p_password,''\),c\.password_hash\)\s+IS DISTINCT FROM c\.password_hash/i);
+assert.match(functions[3].source, /private\.collective_portal_password_lookup_key\(coalesce\(p_password,''\)\)/i);
+assert.match(functions[3].source, /pg_catalog\.jsonb_build_object/i);
+assert.match(functions[3].source, /pg_catalog\.now\(\)/i);
+assert.match(functions[3].source, /pg_catalog\.encode\(extensions\.gen_random_bytes\(32\),'hex'\)/i);
+assert.doesNotMatch(functions[3].source, /(?<![.])\b(?:now|jsonb_build_object|gen_random_bytes|encode)\s*\(/i,
+  "portal verifier must not depend on objects resolved through search_path");
 assert.match(functions[3].source, /failed_attempts=failed_attempts\+1/i);
 assert.match(functions[3].source, /now\(\)\+interval '15 minutes'/i);
-assert.match(functions[3].source, /locked_until is not null and c\.locked_until>now\(\)/i);
+assert.match(functions[3].source, /locked_until IS NOT NULL AND c\.locked_until>pg_catalog\.now\(\)/i);
 
 assert.match(functions[0].source, /crypt\(p_plaintext_password,gen_salt\('bf',12\)\)/i);
 assert.match(functions[1].source, /crypt\(v_password,gen_salt\('bf',12\)\)/i);
