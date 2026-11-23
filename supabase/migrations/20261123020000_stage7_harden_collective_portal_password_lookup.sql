@@ -1,6 +1,8 @@
 BEGIN;
 
--- Fail closed unless this exact Production source/ACL snapshot is present.
+-- Fail closed unless this exact post-Stage-3 disposable source/ACL snapshot is present.
+-- The two teacher provisioning RPCs are pinned to the reviewed Stage-3 Better Auth
+-- issuer-guard definitions; the helper and password verifier are pinned to Production.
 -- Credential rows must be empty: bcrypt hashes cannot be reversed to rebuild a
 -- new full-password lookup key. This is a zero-start-only migration.
 DO $stage7_portal_lookup_source_preflight$
@@ -49,22 +51,22 @@ BEGIN
     FROM (VALUES
       (
         'private.sync_collective_portal_credential(uuid,text,integer)',
-        'deeaff8a6abcf615b4b368d6fb58efb7',
+        'e4a007bcd32d3d135ccb48df8636bbd0',
         ARRAY['PUBLIC=X/postgres','postgres=X/postgres']::text[]
       ),
       (
         'public.provision_collective_registration(uuid)',
-        '754fe1bf3e11bb714d183cf6127a86c0',
+        '1ae119812cdf0497239c9564c5ca9c87',
         ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
       ),
       (
         'public.regenerate_collective_participant_password(uuid)',
-        '9631e5525fef8faf6dcf9bd3ae7fd07c',
+        '0f9a8c6b114e362e8d228ea40ce2fad4',
         ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
       ),
       (
         'public.verify_collective_portal_password(text)',
-        'd85f7c2a1d194151663b4c536c064dad',
+        'f5d01e7ab270b1ff332467f2cf80a2f8',
         ARRAY['anon=X/postgres','authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
       )
     ) AS expected(signature,source_md5,execute_acl)
@@ -75,7 +77,7 @@ BEGIN
     END IF;
 
     SELECT p.proowner,p.prosecdef,p.proconfig,
-           pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)),
+           pg_catalog.md5(p.prosrc),
            COALESCE((
              SELECT pg_catalog.array_agg(
                COALESCE(grantee.rolname,'PUBLIC') || '=X/' || COALESCE(grantor.rolname,'?')
@@ -109,6 +111,20 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_SOURCE_ACL_DRIFT:%:%',v_signature,v_actual_acl;
     END IF;
   END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=pg_catalog.to_regprocedure('public.provision_collective_registration(uuid)')
+      AND p.prosrc ILIKE '%private.current_user_is_better_auth()%'
+      AND p.prosrc ILIKE '%BETTER_AUTH_ISSUER_REQUIRED%'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=pg_catalog.to_regprocedure('public.regenerate_collective_participant_password(uuid)')
+      AND p.prosrc ILIKE '%private.current_user_is_better_auth()%'
+      AND p.prosrc ILIKE '%BETTER_AUTH_ISSUER_REQUIRED%'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_STAGE3_BETTER_AUTH_ISSUER_GUARD_MISSING';
+  END IF;
 END;
 $stage7_portal_lookup_source_preflight$;
 
@@ -206,6 +222,10 @@ DECLARE
   v_portal public.collective_portal_credentials%rowtype;
   v_pac public.participant_access_credentials%rowtype;
 BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED';
   END IF;
@@ -345,6 +365,10 @@ DECLARE
   raw text;
   pi_id uuid;
 BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED';
   END IF;
@@ -579,6 +603,17 @@ BEGIN
     IF position('private.collective_portal_password_lookup_key' IN v_source)=0
        OR v_source ILIKE '%digest(left%' THEN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_FULL_PASSWORD_DERIVATION_MISSING:%',v_signature;
+    END IF;
+
+    IF v_signature IN (
+         'public.provision_collective_registration(uuid)',
+         'public.regenerate_collective_participant_password(uuid)'
+       )
+       AND (
+         position('private.current_user_is_better_auth()' IN v_source)=0
+         OR position('BETTER_AUTH_ISSUER_REQUIRED' IN v_source)=0
+       ) THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_STAGE3_ISSUER_GUARD_WAS_NOT_PRESERVED:%',v_signature;
     END IF;
   END LOOP;
 
