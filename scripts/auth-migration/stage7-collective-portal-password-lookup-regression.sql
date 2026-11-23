@@ -1,7 +1,7 @@
--- Stage 7 full-password lookup-key collision regression.
+-- Stage 7 64-bit portal password selector and lockout regression.
 -- PostgreSQL 17.6 schema-only disposable restore only. All rows roll back.
 -- Distinct 24-character temporary passwords share the legacy 8-character prefix.
--- A 5,000-password scale probe verifies the 64-bit selector and lockout behavior.
+-- A 5,000-password scale probe verifies selector uniqueness and wrong-suffix lockout.
 
 \set ON_ERROR_STOP on
 BEGIN;
@@ -43,7 +43,7 @@ BEGIN
      OR v_distinct_keys<>5000
      OR v_key_length_min<>64
      OR v_key_length_max<>64 THEN
-    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_5000_PASSWORD_SCALE_PROBE_FAILED:%:%:%:%:%',
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_5000_PASSWORD_SCALE_PROBE_FAILED:%:%:%:%:%:%',
       v_total,v_distinct_prefixes,v_distinct_keys,v_key_length_min,v_key_length_max;
   END IF;
 END;
@@ -129,12 +129,12 @@ DECLARE
 BEGIN
   v_identity_a:=private.sync_collective_portal_credential(
     '00000000-0000-4000-8000-00000000f736',
-    'SKABCDEF000001222233334444',
+    'SKABCDEF0000012222333344',
     1
   );
   v_identity_b:=private.sync_collective_portal_credential(
     '00000000-0000-4000-8000-00000000f737',
-    'SKABCDEF000002222233334445',
+    'SKABCDEF0000022222333345',
     1
   );
 
@@ -143,20 +143,20 @@ BEGIN
       v_identity_a,v_identity_b;
   END IF;
 
-  IF pg_catalog.left('SKABCDEF000001222233334444',8)
-       IS DISTINCT FROM pg_catalog.left('SKABCDEF000002222233334445',8)
-     OR pg_catalog.left('SKABCDEF000001222233334444',18)
-       IS NOT DISTINCT FROM pg_catalog.left('SKABCDEF000002222233334445',18) THEN
+  IF pg_catalog.left('SKABCDEF0000012222333344',8)
+       IS DISTINCT FROM pg_catalog.left('SKABCDEF0000022222333345',8)
+     OR pg_catalog.left('SKABCDEF0000012222333344',18)
+       IS NOT DISTINCT FROM pg_catalog.left('SKABCDEF0000022222333345',18) THEN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_SELECTOR_TEST_INPUT_INVALID';
   END IF;
 
-  IF private.collective_portal_password_lookup_key('SKABCDEF000001222233334444')
+  IF private.collective_portal_password_lookup_key('SKABCDEF0000012222333344')
        IS NOT DISTINCT FROM
-     private.collective_portal_password_lookup_key('SKABCDEF000002222233334445') THEN
+     private.collective_portal_password_lookup_key('SKABCDEF0000022222333345') THEN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_64BIT_SELECTORS_COLLIDE';
   END IF;
 
-  IF private.collective_portal_password_lookup_key('SKABCDEF000001222233334444')
+  IF private.collective_portal_password_lookup_key('SKABCDEF0000012222333344')
        IS DISTINCT FROM pg_catalog.encode(
          extensions.digest('SKABCDEF0000012222','sha256'),'hex'
        ) THEN
@@ -165,9 +165,9 @@ BEGIN
 
 
   IF pg_catalog.encode(
-       extensions.digest(pg_catalog.left('SKABCDEF000001222233334444',8),'sha256'),'hex'
+       extensions.digest(pg_catalog.left('SKABCDEF0000012222333344',8),'sha256'),'hex'
      ) IS DISTINCT FROM pg_catalog.encode(
-       extensions.digest(pg_catalog.left('SKABCDEF000002222233334445',8),'sha256'),'hex'
+       extensions.digest(pg_catalog.left('SKABCDEF0000022222333345',8),'sha256'),'hex'
      ) THEN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_LEGACY_PREFIX_COLLISION_CONTROL_CHANGED';
   END IF;
@@ -200,8 +200,8 @@ BEGIN
    AND cp.managed_by_user_id=pi.owner_user_id
   JOIN (
     VALUES
-      ('00000000-0000-4000-8000-00000000f736'::uuid,'SKABCDEF000001222233334444'::text),
-      ('00000000-0000-4000-8000-00000000f737'::uuid,'SKABCDEF000002222233334445'::text)
+      ('00000000-0000-4000-8000-00000000f736'::uuid,'SKABCDEF0000012222333344'::text),
+      ('00000000-0000-4000-8000-00000000f737'::uuid,'SKABCDEF0000022222333345'::text)
   ) AS p(participant_id,password)
     ON p.participant_id=cp.id
   WHERE cp.id IN (
@@ -226,9 +226,10 @@ DECLARE
   v_a jsonb;
   v_b jsonb;
   v_wrong jsonb;
+  attempt_no integer;
 BEGIN
-  v_a:=public.verify_collective_portal_password('SKABCDEF000001222233334444');
-  v_b:=public.verify_collective_portal_password('SKABCDEF000002222233334445');
+  v_a:=public.verify_collective_portal_password('SKABCDEF0000012222333344');
+  v_b:=public.verify_collective_portal_password('SKABCDEF0000022222333345');
 
   IF coalesce((v_a->>'ok')::boolean,false) IS NOT TRUE
      OR coalesce((v_b->>'ok')::boolean,false) IS NOT TRUE
@@ -237,13 +238,31 @@ BEGIN
   END IF;
 
   FOR attempt_no IN 1..5 LOOP
-    v_wrong:=public.verify_collective_portal_password('SKABCDEF000001222299999999');
+    v_wrong:=public.verify_collective_portal_password('SKABCDEF0000012222999999');
     IF coalesce((v_wrong->>'ok')::boolean,true) IS TRUE
        OR v_wrong->>'reason' IS DISTINCT FROM 'INVALID_CREDENTIALS' THEN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_WRONG_SUFFIX_NOT_COUNTED:%:%',attempt_no,v_wrong;
     END IF;
   END LOOP;
 
+  v_wrong:=public.verify_collective_portal_password('SKABCDEF0000012222999999');
+  IF coalesce((v_wrong->>'ok')::boolean,true) IS TRUE
+     OR v_wrong->>'reason' IS DISTINCT FROM 'LOCKED' THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_LOCKOUT_NOT_ENFORCED:%',v_wrong;
+  END IF;
+
+  v_b:=public.verify_collective_portal_password('SKABCDEF0000022222333345');
+  IF coalesce((v_b->>'ok')::boolean,false) IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_ONE_ACCOUNT_LOCKOUT_AFFECTED_OTHER:%',v_b;
+  END IF;
+END;
+$stage7_portal_lookup_password_verification$;
+
+RESET ROLE;
+DO $stage7_portal_lookup_lockout_state$
+DECLARE
+  v_attempts integer;
+BEGIN
   SELECT count(*) INTO v_attempts
   FROM public.collective_portal_credentials AS c
   JOIN public.collective_portal_identities AS pi
@@ -255,19 +274,7 @@ BEGIN
   IF v_attempts<>1 THEN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_FIVE_FAILURE_LOCKOUT_NOT_SET:%',v_attempts;
   END IF;
-
-  v_wrong:=public.verify_collective_portal_password('SKABCDEF000001222299999999');
-  IF coalesce((v_wrong->>'ok')::boolean,true) IS TRUE
-     OR v_wrong->>'reason' IS DISTINCT FROM 'LOCKED' THEN
-    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_LOCKOUT_NOT_ENFORCED:%',v_wrong;
-  END IF;
-
-  v_b:=public.verify_collective_portal_password('SKABCDEF000002222233334445');
-  IF coalesce((v_b->>'ok')::boolean,false) IS NOT TRUE THEN
-    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_ONE_ACCOUNT_LOCKOUT_AFFECTED_OTHER:%',v_b;
-  END IF;
 END;
-$stage7_portal_lookup_password_verification$;
+$stage7_portal_lookup_lockout_state$;
 
-RESET ROLE;
 ROLLBACK;
