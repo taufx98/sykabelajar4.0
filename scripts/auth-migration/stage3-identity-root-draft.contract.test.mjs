@@ -97,7 +97,7 @@ const fkPlanner = readFileSync(
 assert.doesNotMatch(fkPlanner, /00-identity-tombstones|legacy_reference/i);
 assert.match(fkPlanner, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
 assert.match(fkPlanner, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
-assert.match(fkPlanner, /never reads auth\.users/i);
+assert.doesNotMatch(fkPlanner, /FROM auth\.users|INSERT\s+INTO\s+private\.app_users|legacy_reference/i);
 
 // All Auth-dependent application reads must resolve through private.app_users.
 for (const name of [
