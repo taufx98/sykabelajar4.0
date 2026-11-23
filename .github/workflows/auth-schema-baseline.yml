@@ -406,7 +406,7 @@ jobs:
 
           {
             echo ""
-            echo "- Reconstructed exact ACLs for all thirty-four reviewed Stage 3 identity-root, user-scoped and personal RPC functions from Production metadata in the disposable local database only"
+            echo "- Reconstructed exact ACLs for all thirty-six reviewed Stage 3 identity-root, user-scoped and personal RPC functions from Production metadata in the disposable local database only"
             echo "- No production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
 
