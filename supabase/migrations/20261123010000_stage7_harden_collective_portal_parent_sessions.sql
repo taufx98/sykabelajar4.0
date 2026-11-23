@@ -279,6 +279,7 @@ AS $function$
     ON cp.id=s.collective_participant_id
   JOIN public.collective_certificates AS cc
     ON cc.collective_participant_id=cp.id
+   AND cc.competition_id=s.competition_id
    AND cc.status='PUBLISHED'
   JOIN public.competitions AS c
     ON c.id=cc.competition_id
