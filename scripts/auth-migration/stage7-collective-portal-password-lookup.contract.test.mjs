@@ -80,6 +80,10 @@ for (const fn of functions) {
 
 // Keep full bcrypt verification and all existing caller/session behavior intact.
 assert.match(functions[3].source, /crypt\(coalesce\(p_password,''\),c\.password_hash\)\s+IS DISTINCT FROM c\.password_hash/i);
+assert.match(functions[3].source, /failed_attempts=failed_attempts\+1/i);
+assert.match(functions[3].source, /now\(\)\+interval '15 minutes'/i);
+assert.match(functions[3].source, /locked_until is not null and c\.locked_until>now\(\)/i);
+
 assert.match(functions[0].source, /crypt\(p_plaintext_password,gen_salt\('bf',12\)\)/i);
 assert.match(functions[1].source, /crypt\(v_password,gen_salt\('bf',12\)\)/i);
 assert.match(functions[2].source, /crypt\(raw,gen_salt\('bf',12\)\)/i);
