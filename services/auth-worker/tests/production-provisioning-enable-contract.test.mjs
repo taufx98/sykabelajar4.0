@@ -81,7 +81,7 @@ test("Stage 3 identity-root and 69-FK preconditions are read-only verified befor
   assert.match(workflow, /service_role-only wrappers/);
   assert.match(workflow, /to_regprocedure/);
   assert.match(workflow, /auth\.users/);
-  assert.match(workflow, /legacy_reference/);
+  assert.doesNotMatch(workflow, /legacy_reference|UUID-only legacy reference tombstones/);
 });
 
 test("SendPulse is the only active provider prerequisite and identity state stays empty", () => {
