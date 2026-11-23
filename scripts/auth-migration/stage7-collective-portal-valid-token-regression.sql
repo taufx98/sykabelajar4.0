@@ -401,9 +401,12 @@ SET status='PUBLISHED',issued_at=pg_catalog.clock_timestamp(),
     certificate_url='https://res.cloudinary.com/demo/image/upload/stage7-synthetic-certificate.pdf'
 WHERE id='00000000-0000-4000-8000-00000000f71c';
 
+SELECT pg_catalog.set_config('syka.allow_competition_transition','1',true);
+
 UPDATE public.competitions
 SET status='RESULT_PUBLISHED'
 WHERE id='00000000-0000-4000-8000-00000000f714';
+SELECT pg_catalog.set_config('syka.allow_competition_transition','0',true);
 
 SELECT pg_catalog.set_config('request.jwt.claims','{"role":"anon"}',true);
 SELECT pg_catalog.set_config('request.jwt.claim.role','anon',true);
