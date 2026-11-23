@@ -61,6 +61,8 @@ const certificate = migration.match(
 assert.ok(certificate);
 assert.match(certificate, /s\.expires_at>pg_catalog\.now\(\)/);
 assert.match(certificate, /private\.collective_session_participant\(p_access_token\)/);
+assert.match(certificate, /cc\.competition_id=s\.competition_id/,
+  "certificate lookup must stay inside the competition bound to the child access token");
 
 assert.match(migration, /BEGIN;[\s\S]*COMMIT;/);
 const executableMigration = migration.replace(/^--.*$/gm, "");
