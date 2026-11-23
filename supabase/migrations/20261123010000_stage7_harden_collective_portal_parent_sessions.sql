@@ -55,27 +55,28 @@ $stage7_portal_parent_preflight$;
 
 -- Pin the five parent-session functions to the exact read-only Production
 -- definitions/ACLs observed during the Stage 7 review. Fail closed on drift.
+
 DO $stage7_portal_parent_source_preflight$
 DECLARE
   v_signature text;
   v_expected_md5 text;
   v_expected_search_path text;
-  v_expected_acl text;
+  v_expected_acl text[];
   v_oid oid;
   v_owner oid;
   v_is_definer boolean;
   v_actual_md5 text;
   v_actual_search_path text[];
-  v_actual_acl text;
+  v_actual_acl text[];
 BEGIN
   FOR v_signature,v_expected_md5,v_expected_search_path,v_expected_acl IN
     SELECT expected.signature,expected.definition_md5,expected.search_path_setting,expected.expected_acl
     FROM (VALUES
-      ('private.collective_session_participant(text)','06660577ee78d7046e1d0bd8376fb08c','search_path=public, private',NULL::text),
-      ('private.collective_portal_identity(text)','b44513391f4a440a4e63e33280090fbf','search_path=public, private',NULL::text),
-      ('public.open_collective_competition_session(text,uuid,text)','2a2d96513dd151a95d3aa031e3e21cd3','search_path=public, private, extensions','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
-      ('public.revoke_collective_portal_session(text)','7f3e98402ff75d0b91c3638a340f7097','search_path=public, private','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
-      ('public.get_collective_participant_certificate(text)','3506d3a79a516bdf826de1a7c8862c38','search_path=public, private','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres,anon=X/postgres}')
+      ('private.collective_session_participant(text)','06660577ee78d7046e1d0bd8376fb08c','search_path=public, private',ARRAY['PUBLIC:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres']::text[]),
+      ('private.collective_portal_identity(text)','b44513391f4a440a4e63e33280090fbf','search_path=public, private',ARRAY['PUBLIC:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres']::text[]),
+      ('public.open_collective_competition_session(text,uuid,text)','2a2d96513dd151a95d3aa031e3e21cd3','search_path=public, private, extensions',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[]),
+      ('public.revoke_collective_portal_session(text)','7f3e98402ff75d0b91c3638a340f7097','search_path=public, private',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[]),
+      ('public.get_collective_participant_certificate(text)','3506d3a79a516bdf826de1a7c8862c38','search_path=public, private',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[])
     ) AS expected(signature,definition_md5,search_path_setting,expected_acl)
   LOOP
     v_oid := pg_catalog.to_regprocedure(v_signature);
@@ -85,7 +86,22 @@ BEGIN
 
     SELECT p.proowner,p.prosecdef,
            pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)),
-           p.proconfig,p.proacl::text
+           p.proconfig,
+           COALESCE((
+             SELECT pg_catalog.array_agg(
+               COALESCE(grantee.rolname,'PUBLIC') || ':' ||
+               acl_entry.privilege_type || ':' ||
+               acl_entry.is_grantable::text || ':' ||
+               COALESCE(grantor.rolname,'?')
+               ORDER BY COALESCE(grantee.rolname,'PUBLIC'),acl_entry.privilege_type,
+                        acl_entry.is_grantable,COALESCE(grantor.rolname,'?')
+             )
+             FROM pg_catalog.aclexplode(
+               COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))
+             ) AS acl_entry
+             LEFT JOIN pg_catalog.pg_roles AS grantee ON grantee.oid=acl_entry.grantee
+             LEFT JOIN pg_catalog.pg_roles AS grantor ON grantor.oid=acl_entry.grantor
+           ),ARRAY[]::text[])
       INTO v_owner,v_is_definer,v_actual_md5,v_actual_search_path,v_actual_acl
     FROM pg_catalog.pg_proc AS p
     WHERE p.oid=v_oid;
@@ -114,6 +130,7 @@ BEGIN
   END LOOP;
 END;
 $stage7_portal_parent_source_preflight$;
+
 
 DO $stage7_portal_search_path_preflight$
 DECLARE
@@ -620,28 +637,44 @@ $stage7_portal_search_path_postflight$;
 -- The parent-session replacements must use an empty search_path while keeping
 -- their exact existing EXECUTE ACL surfaces and the private schema non-usable
 -- by browser roles. CREATE OR REPLACE must not grant/revoke anything.
+
 DO $stage7_portal_parent_search_path_postflight$
 DECLARE
   v_signature text;
-  v_expected_acl text;
+  v_expected_acl text[];
   v_oid oid;
   v_owner oid;
-  v_acl text;
+  v_acl text[];
   v_search_path text[];
 BEGIN
   FOR v_signature,v_expected_acl IN
     SELECT expected.signature,expected.expected_acl
     FROM (VALUES
-      ('private.collective_session_participant(text)',NULL::text),
-      ('private.collective_portal_identity(text)',NULL::text),
-      ('public.open_collective_competition_session(text,uuid,text)','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
-      ('public.revoke_collective_portal_session(text)','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
-      ('public.get_collective_participant_certificate(text)','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres,anon=X/postgres}')
+      ('private.collective_session_participant(text)',ARRAY['PUBLIC:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres']::text[]),
+      ('private.collective_portal_identity(text)',ARRAY['PUBLIC:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres']::text[]),
+      ('public.open_collective_competition_session(text,uuid,text)',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[]),
+      ('public.revoke_collective_portal_session(text)',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[]),
+      ('public.get_collective_participant_certificate(text)',ARRAY['anon:EXECUTE:false:postgres','authenticated:EXECUTE:false:postgres','postgres:EXECUTE:false:postgres','service_role:EXECUTE:false:postgres']::text[])
     ) AS expected(signature,expected_acl)
   LOOP
     v_oid := pg_catalog.to_regprocedure(v_signature);
-    SELECT p.proowner,p.proacl::text,p.proconfig
-      INTO v_owner,v_acl,v_search_path
+    SELECT p.proowner,p.proconfig,
+           COALESCE((
+             SELECT pg_catalog.array_agg(
+               COALESCE(grantee.rolname,'PUBLIC') || ':' ||
+               acl_entry.privilege_type || ':' ||
+               acl_entry.is_grantable::text || ':' ||
+               COALESCE(grantor.rolname,'?')
+               ORDER BY COALESCE(grantee.rolname,'PUBLIC'),acl_entry.privilege_type,
+                        acl_entry.is_grantable,COALESCE(grantor.rolname,'?')
+             )
+             FROM pg_catalog.aclexplode(
+               COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))
+             ) AS acl_entry
+             LEFT JOIN pg_catalog.pg_roles AS grantee ON grantee.oid=acl_entry.grantee
+             LEFT JOIN pg_catalog.pg_roles AS grantor ON grantor.oid=acl_entry.grantor
+           ),ARRAY[]::text[])
+      INTO v_owner,v_search_path,v_acl
     FROM pg_catalog.pg_proc AS p
     WHERE p.oid=v_oid;
 
@@ -664,5 +697,6 @@ BEGIN
   END LOOP;
 END;
 $stage7_portal_parent_search_path_postflight$;
+
 
 COMMIT;
