@@ -208,6 +208,13 @@ BEGIN
 
   v_attempt_id := (v_result->>'attempt_id')::uuid;
   v_question_id := (v_result->'question'->>'id')::uuid;
+
+  -- Valid active child token may request reconciliation without changing a live question.
+  v_state := public.resolve_collective_linear_exam_timeout(v_attempt_id,v_access_token);
+  IF v_state->>'phase' IS DISTINCT FROM 'ACTIVE'
+     OR (v_state->>'position')::integer IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'STAGE7_VALID_ACCESS_TOKEN_COULD_NOT_RESOLVE_ACTIVE_TIMEOUT:%',v_state;
+  END IF;
   IF v_attempt_id IS NULL OR v_question_id IS NULL
      OR v_result ? 'answer_key_snapshot'
      OR v_result::text ILIKE '%accepted_answers%'
@@ -257,6 +264,37 @@ BEGIN
   );
   IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
     RAISE EXCEPTION 'STAGE7_SECOND_VALID_CHILD_SESSION_FAILED:%',v_result;
+  END IF;
+  v_access_token_lifecycle := v_result->>'access_token';
+
+  -- Revoke only this child; the portal parent must remain active and reusable.
+  v_revoked := public.revoke_collective_access_session(v_access_token_lifecycle);
+  IF v_revoked IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'STAGE7_VALID_CHILD_ACCESS_TOKEN_COULD_NOT_BE_REVOKED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_portal_token_lifecycle)
+  WHERE competition_id=v_competition;
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'STAGE7_CHILD_REVOKE_INVALIDATED_PARENT_PORTAL_SESSION:%',v_count;
+  END IF;
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(v_attempt_id,v_access_token_lifecycle);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COLLECTIVE_SESSION_INVALID' THEN
+    RAISE EXCEPTION 'STAGE7_REVOKED_CHILD_ACCESS_TOKEN_STILL_VALID:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  -- Issue a replacement child under the still-valid parent for separate parent
+  -- revocation, credential rotation, identity suspension and expiry checks.
+  v_result := public.open_collective_competition_session(
+    v_portal_token_lifecycle,v_competition,'STAGE7-VALID-001'
+  );
+  IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_VALID_PARENT_COULD_NOT_REISSUE_CHILD_AFTER_CHILD_REVOKE:%',v_result;
   END IF;
   v_access_token_lifecycle := v_result->>'access_token';
 
