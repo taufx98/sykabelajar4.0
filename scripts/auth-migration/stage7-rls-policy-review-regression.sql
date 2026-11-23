@@ -80,7 +80,7 @@ BEGIN
       AND pg_catalog.pg_has_role('authenticated', r.oid, 'USAGE');
 
     SELECT COALESCE(
-      string_agg(d.defaclobjtype || ':' || COALESCE(d.defaclacl::text, '<NULL>'), ',' ORDER BY d.defaclobjtype),
+      string_agg(d.defaclobjtype::text || ':' || COALESCE(d.defaclacl::text, '<NULL>'), ',' ORDER BY d.defaclobjtype),
       '<none>'
     )
     INTO v_default_acl
