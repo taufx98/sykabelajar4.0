@@ -29,8 +29,10 @@ assert.equal((cutover.match(/^BEGIN;$/gm) ?? []).length, 1,
 
 assert.match(expand, /ROLLBACK_BLOCKED_BETTER_AUTH_ONLY_IDENTITY_EXISTS/,
   "rollback must stop if any Better Auth-only identity has no auth.users row");
-assert.match(expand, /LEFT JOIN auth[.]users AS legacy_user/);
-assert.match(expand, /ROLLBACK_AUTH_USER_ORPHANS:/);
+assert.doesNotMatch(expand, /LEFT JOIN auth[.]users AS legacy_user/);
+assert.match(expand, /ROLLBACK_ZERO_START_FK_REFERENCE_PRESENT:/);
+assert.equal((expand.match(/ROLLBACK_ZERO_START_FK_REFERENCE_PRESENT:/g) ?? []).length, 69,
+  "rollback must require every child FK source column to remain empty");
 assert.match(expand, /ROLLBACK_CURRENT_APP_USERS_FK_DRIFT:/);
 assert.match(expand, /ROLLBACK_TEMP_FK_NAME_COLLISION:/);
 assert.match(validate, /ROLLBACK_REPLACEMENT_FK_MISSING:/);
@@ -74,4 +76,4 @@ assert.throws(() => generateRollbackPlan({
   foreign_keys: [{ ...synthetic.foreign_keys[0], name: "sample; DROP TABLE auth.users" }],
 }), /Unsafe or invalid SQL identifier/);
 
-console.log("Identity FK rollback plan contract passed: 69 reverse relationships, strict no-shadow identity guard, preserved FK semantics, bounded phases, no database execution.");
+console.log("Identity FK rollback plan contract passed: 69 reverse relationships, zero-start identity/data guard, preserved FK semantics, bounded phases, no database execution.");
