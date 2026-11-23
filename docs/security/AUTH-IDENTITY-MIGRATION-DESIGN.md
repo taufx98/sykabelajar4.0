@@ -8,7 +8,7 @@ This is the controlling data policy for the identity/FK design and supersedes al
 - private.app_users starts empty and contains only fresh Better Auth UUIDs created by trusted provisioning after cutover. The legacy_reference identity origin and UUID-only tombstone strategy are retired for this project.
 - Before re-pointing the 69 application FKs, prepare and review a table-by-table zero-start cleanup plan. It must delete/reset disposable account-linked test records and explicitly set nullable attribution FKs to NULL where the underlying system/configuration row is intentionally retained. Keep only individually reviewed system/configuration records required by the product.
 - Prove all 69 source FK columns contain no legacy UUID references and private.app_users is empty before the FK re-home. The new FKs then attach only to future fresh Better Auth identities.
-- The existing generate-app-users-fk-plan.mjs output still contains a legacy tombstone phase. It is historical/review-only and MUST NOT be used for a new zero-start cutover until a replacement generator and tests enforce the empty-data precondition and omit tombstone insertion.
+- `generate-app-users-fk-plan.mjs` has been replaced with a zero-start generator: it emits no row-seeding/tombstone SQL, fails unless `private.app_users` is empty and checks each of the 69 child FK source columns for zero non-null UUIDs before generating replacement constraints. The generator contract test pins this behavior. Its output remains review-only and cannot be run on Production without the separately approved cleanup/DDL plan.
 - This document does not authorize destructive Production execution. The cleanup allowlist, dependency ordering, zero-state assertions, and exact Production operation require separate review and explicit approval.
 
 Status: design proposal with a tested, opt-in Worker provisioning scaffold — not an executable production migration
@@ -143,12 +143,11 @@ node scripts/auth-migration/generate-app-users-fk-plan.mjs \\
   --out-dir /tmp/sykabelajar-auth-fk-plan
 ```
 
-- `00-identity-tombstones.sql`: inserts UUID-only legacy_reference tombstones sourced from the 69 application FK columns; it does not query auth.users or copy account data.
-- `01-preflight-expand.sql`: checks for orphaned child references, verifies the live FK catalog still matches the snapshot, and adds the 69 replacement constraints as `NOT VALID`.
-- `02-validate.sql`: validates each replacement constraint.
-- `03-cutover.sql`: checks that replacement constraints are validated and retain the expected semantics, then drops the old `auth.users` constraints and renames replacements to the original names.
+- `01-preflight-expand.sql`: checks that `private.app_users` is empty, checks every one of the 69 child FK source columns for zero non-null UUID references, verifies the complete live FK catalog against the approved snapshot, then adds the replacement constraints as `NOT VALID` in bounded source-table batches.
+- `02-validate.sql`: validates each of the 69 replacement constraints in bounded batches.
+- `03-cutover.sql`: performs a single atomic swap only after every replacement is validated and all original MATCH/UPDATE/DELETE/deferrability semantics still match the reviewed metadata.
 
-This remains a SQL generator only and has no database connection. Its current output includes the now-retired UUID-tombstone phase and is not compatible with the 23 November clean-start directive. Do not run its output. Replace it with a zero-start generator that has no row-seeding phase and fails unless all 69 FK source columns are empty before issuing replacement constraints; update its contract tests before Stage 3 cutover.
+The generator is a review-plan generator only: it never opens a database connection, writes no application rows and emits no tombstone seed. Its tests assert all 69 empty-source preconditions, all 69 constraint phases and absence of application-row DML. The generated SQL is not an authorization to execute the destructive zero-start cleanup or FK DDL on Production.
 
 
 ## 7. RLS and issuer separation
