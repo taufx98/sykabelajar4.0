@@ -58,6 +58,19 @@ for (const name of new Set(functions.map((f) => f.name))) {
   }
 }
 
+// The later 65-function issuer draft also replaces this RPC. It must
+// preserve the private-competition visibility/organizer boundary from the
+// earlier SECURITY DEFINER draft, not merely add the Better Auth issuer gate.
+const collectiveOptions = definitionsFor(supplemental, "get_collective_registration_options")[0] ?? "";
+assert.ok(collectiveOptions, "missing supplemental collective-options RPC replacement");
+assert.match(collectiveOptions, /private\.current_user_is_better_auth\(\)/);
+assert.match(collectiveOptions, /visibility IS DISTINCT FROM 'PUBLIC'/);
+assert.match(collectiveOptions, /private\.current_user_is_admin\(\)/);
+assert.match(collectiveOptions, /private\.current_user_is_organizer_for\(v_comp\.organizer_id\)/);
+assert.match(collectiveOptions, /RAISE EXCEPTION 'COMPETITION_NOT_FOUND'/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_COLLECTIVE_OPTIONS_ALLOWED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED/);
+
 for (const fn of functions) {
   const signature = "public." + fn.signature;
   assert.ok(regression.includes("'" + signature + "'"),
