@@ -278,4 +278,41 @@ for (const marker of [
   assert.ok(regression.includes(marker), "missing verified Admin/private-profile regression: " + marker);
 }
 
+
+const adminRpcLegacyBlock = regression.match(
+  /DO \$legacy_user_rpc_issuer_gate\$[\\s\\S]*?\$legacy_user_rpc_issuer_gate\$;/i,
+)?.[0] ?? "";
+const adminRpcBetterAuthBlock = regression.match(
+  /DO \$better_auth_issuer\$[\\s\\S]*?\$better_auth_issuer\$;/i,
+)?.[0] ?? "";
+assert.ok(adminRpcLegacyBlock, "missing legacy issuer Admin RPC regression block");
+assert.ok(adminRpcBetterAuthBlock, "missing Better Auth Admin RPC regression block");
+
+const reviewedAdminRpcCases = [
+  "admin_adjust_user_currency",
+  "admin_bulk_adjust_currency",
+  "admin_assign_organizer_plan",
+  "admin_change_username",
+  "admin_create_organizer",
+  "admin_create_organizer_payment_method",
+];
+for (const name of reviewedAdminRpcCases) {
+  assert.ok(
+    adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name,
+  );
+  assert.ok(
+    adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth positive issuer assertion: " + name,
+  );
+}
+
+const currentUserHasRole = draft.match(
+  /CREATE OR REPLACE FUNCTION private\\.current_user_has_role\\(p_role public\\.app_role\\)[\\s\\S]*?\\$function\\$;/i,
+)?.[0] ?? "";
+assert.ok(currentUserHasRole, "missing Stage 3 current_user_has_role replacement");
+assert.match(currentUserHasRole, /private\\.current_user_is_better_auth\\(\\)/);
+assert.match(currentUserHasRole, /ur\\.user_id = \\(SELECT auth\\.uid\\(\\)\\)/);
+assert.match(currentUserHasRole, /ur\\.is_active = TRUE/);
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
