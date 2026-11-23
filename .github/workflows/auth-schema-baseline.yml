@@ -783,7 +783,7 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs
 
-      - name: Test Stage 7 full-password portal lookup contract
+      - name: Test Stage 7 64-bit portal password selector contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs
 
@@ -814,7 +814,7 @@ jobs:
           echo "- Hardened child-token checks against parent portal revocation/expiry, suspended identities and disabled/rotated credentials on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preserved function owners and EXECUTE grants; no Production data or ACL was changed" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Apply Stage 7 full-password portal lookup hardening to disposable restore only
+      - name: Apply Stage 7 64-bit portal password selector hardening to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
           set -euo pipefail
@@ -825,7 +825,7 @@ jobs:
             psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage7-portal-password-lookup.sql
-          echo "- Replaced 8-character prefix lookup with a full-password SHA-256 key in all four portal credential writer/verifier functions" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Replaced the 24-bit legacy prefix with a 64-bit account selector across all four portal credential writer/verifier functions; generated temporary passwords are 24 characters" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preflight confirmed zero portal credential rows; existing function owners, search_path and EXECUTE grants remained unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Applied only to the schema-only PostgreSQL 17.6 disposable restore; no Production DDL/DML was run" >> "$GITHUB_STEP_SUMMARY"
 
@@ -869,7 +869,7 @@ jobs:
           echo "- Validated fresh synthetic participant portal password, 256-bit portal/access tokens, private competition listing, session opening, and revocation; all fixtures rolled back" >> "$GITHUB_STEP_SUMMARY"
           echo "- No legacy account or participant data was imported; no non-disposable database was touched" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Verify full-password portal lookup collisions and 5,000 synthetic keys on disposable restore
+      - name: Verify 64-bit portal selector collisions and 5,000 synthetic keys on disposable restore
         if: steps.credentials.outputs.available == 'true'
         run: |
           set -euo pipefail
@@ -880,8 +880,8 @@ jobs:
             psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage7-portal-password-lookup-regression.sql
-          echo "- Verified two distinct valid passwords sharing the same legacy eight-character prefix both provision and authenticate; wrong suffix is rejected" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Verified 5,000 synthetic passwords sharing one prefix produce 5,000 unique full-password lookup keys; all fixtures rolled back" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified two 24-character passwords sharing the legacy eight-character prefix provision and authenticate independently; a wrong six-character suffix increments the intended account's lockout" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified 5,000 synthetic passwords sharing one legacy prefix produce 5,000 unique 64-bit selectors; all fixtures rolled back" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
