@@ -79,7 +79,8 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(draft, /CREATE OR REPLACE FUNCTION private\.sync_legacy_auth_user_identity_projection|CREATE TRIGGER a_sync_app_users_identity_/i);
 assert.match(draft, /identity_origin text NOT NULL DEFAULT 'better_auth'/);
-assert.match(draft, /identity_origin = 'better_auth'/);\nassert.doesNotMatch(identityRootDdl, /legacy_reference/i);
+assert.match(draft, /identity_origin = 'better_auth'/);
+assert.doesNotMatch(identityRootDdl, /legacy_reference/i);
 assert.match(draft, /INSERT INTO private\.app_users \(id, email_verified_at, identity_origin\)[\s\S]{0,240}'better_auth'/i);
 assert.match(draft, /v_identity_origin IS DISTINCT FROM 'better_auth'/i);
 assert.match(draft, /LEGACY_REFERENCE_IDENTITY_CANNOT_AUTHENTICATE/);
@@ -93,7 +94,9 @@ const fkPlanner = readFileSync(
   path.join(here, "./generate-app-users-fk-plan.mjs"),
   "utf8",
 );
-assert.doesNotMatch(fkPlanner, /00-identity-tombstones|legacy_reference/i);\nassert.match(fkPlanner, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);\nassert.match(fkPlanner, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
+assert.doesNotMatch(fkPlanner, /00-identity-tombstones|legacy_reference/i);
+assert.match(fkPlanner, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);
+assert.match(fkPlanner, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
 assert.match(fkPlanner, /never reads auth\.users/i);
 
 // All Auth-dependent application reads must resolve through private.app_users.
