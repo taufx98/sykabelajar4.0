@@ -777,6 +777,95 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_PRIVATE_UI_SETTINGS_ALLOWED';
   END IF;
 
+  -- Stage 7 Admin/organizer tranche: the same UUID has an active Admin role,
+  -- but the legacy Supabase Auth issuer must not authorize any of these RPCs.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_adjust_user_currency(
+      '99999999-9999-4999-8999-999999999981'::uuid, 'xp', 1, 'Stage 3 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'Unauthorized: only admins can adjust currency.' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_adjust_user_currency'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_bulk_adjust_currency(
+      ARRAY['99999999-9999-4999-8999-999999999982'::uuid], 'xp', 1, 'Stage 3 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'Unauthorized: only admins can bulk adjust currency.' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_bulk_adjust_currency'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_assign_organizer_plan(
+      '99999999-9999-4999-8999-999999999983'::uuid,
+      'STAGE3_AUDIT_NO_SUCH_PLAN_20261123',
+      now(),
+      NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_assign_organizer_plan'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_change_username(
+      NULL::uuid, 'stage3-issuer-probe', 'Stage 3 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_change_username'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_create_organizer(
+      NULL::uuid, 'Stage 3 issuer probe', 'stage3-issuer-probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_create_organizer'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_create_organizer_payment_method(
+      NULL::text, 'TEST', '{}'::jsonb, 0, NULL::text, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_create_organizer_payment_method'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1017,6 +1106,90 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
+
+  -- Each Admin RPC must accept the exact Better Auth issuer and proceed to
+  -- its next business validation. Inputs deliberately cause no row writes.
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_adjust_user_currency(
+      '99999999-9999-4999-8999-999999999981'::uuid, 'xp', 1, 'Stage 3 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE 'User not found:%' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_adjust_user_currency'; END IF;
+
+  v_result := public.admin_bulk_adjust_currency(
+    ARRAY['99999999-9999-4999-8999-999999999982'::uuid], 'xp', 1, 'Stage 3 issuer probe'
+  );
+  IF v_result ->> 'success' IS DISTINCT FROM '0'
+     OR v_result ->> 'failed' IS DISTINCT FROM '1' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_bulk_adjust_currency:%', v_result;
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_assign_organizer_plan(
+      '99999999-9999-4999-8999-999999999983'::uuid,
+      'STAGE3_AUDIT_NO_SUCH_PLAN_20261123',
+      now(),
+      NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'PLAN_NOT_AVAILABLE' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_assign_organizer_plan'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_change_username(
+      NULL::uuid, 'stage3-issuer-probe', 'Stage 3 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'USER_ID_REQUIRED' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_change_username'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_create_organizer(
+      NULL::uuid, 'Stage 3 issuer probe', 'stage3-issuer-probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'OWNER_REQUIRED' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_create_organizer'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_create_organizer_payment_method(
+      NULL::text, 'TEST', '{}'::jsonb, 0, NULL::text, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'PAYMENT_METHOD_NAME_REQUIRED' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_create_organizer_payment_method'; END IF;
+
 
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
