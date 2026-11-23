@@ -20,8 +20,7 @@ assert.match(helper, /LANGUAGE sql/i);
 assert.match(helper, /IMMUTABLE/i);
 assert.match(helper, /STRICT/i);
 assert.match(helper, /SET search_path TO ''/i);
-assert.match(helper, /pg_catalog\.encode\(extensions\.digest\(p_password,'sha256'\),'hex'\)/i);
-assert.doesNotMatch(helper, /left\s*\(/i);
+assert.match(helper, /pg_catalog\.encode\(extensions\.digest\(pg_catalog\.left\(p_password,18\),'sha256'\),'hex'\)/i);
 
 assert.match(
   migration,
@@ -91,6 +90,8 @@ assert.match(functions[1].source, /private\.current_user_is_better_auth\(\)/);
 assert.match(functions[1].source, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(functions[2].source, /private\.current_user_is_better_auth\(\)/);
 assert.match(functions[2].source, /BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(functions[1].source, /substr\(encode\(gen_random_bytes\(16\),'hex'\),1,22\)/);
+assert.match(functions[2].source, /substr\(encode\(gen_random_bytes\(16\),'hex'\),1,22\)/);
 
 for (const [signature, acl] of [
   ["private.sync_collective_portal_credential(uuid,text,integer)", "PUBLIC=X/postgres"],
@@ -105,20 +106,25 @@ for (const [signature, acl] of [
 assert.match(regression, /BEGIN;/);
 assert.match(regression, /ROLLBACK;/);
 assert.match(regression, /generate_series\(1,5000\)/);
-assert.match(regression, /SKABCDEF000001/);
-assert.match(regression, /SKABCDEF000002/);
-assert.match(regression, /SKABCDEF000003/);
+assert.match(regression, /SKABCDEF0000012222333344/);
+assert.match(regression, /SKABCDEF0000022222333345/);
+assert.match(regression, /SKABCDEF0000012222999999/);
 assert.match(regression, /STAGE7_PORTAL_LOOKUP_5000_PASSWORD_SCALE_PROBE_FAILED/);
 assert.match(regression, /STAGE7_PORTAL_LOOKUP_TWO_IDENTITIES_NOT_CREATED/);
 assert.match(regression, /STAGE7_PORTAL_LOOKUP_SAME_PREFIX_VALID_PASSWORDS_FAILED/);
-assert.match(regression, /STAGE7_PORTAL_LOOKUP_WRONG_SUFFIX_PASSWORD_ACCEPTED/);
+assert.match(regression, /STAGE7_PORTAL_LOOKUP_WRONG_SUFFIX_NOT_COUNTED/);
+assert.match(regression, /STAGE7_PORTAL_LOOKUP_FIVE_FAILURE_LOCKOUT_NOT_SET/);
+assert.match(regression, /STAGE7_PORTAL_LOOKUP_LOCKOUT_NOT_ENFORCED/);
+assert.match(regression, /STAGE7_PORTAL_LOOKUP_ONE_ACCOUNT_LOCKOUT_AFFECTED_OTHER/);
+assert.match(regression, /FOR attempt_no IN 1..5 LOOP/);
+assert.match(regression, /RESET ROLE;\s*DO \$stage7_portal_lookup_lockout_state\$/);
 assert.match(regression, /SET LOCAL ROLE anon/);
 
 const parentContract = workflow.indexOf("- name: Test Stage 7 collective portal parent-session boundary contract");
 const parentHardening = workflow.indexOf("- name: Apply Stage 7 portal parent-session hardening to disposable restore only");
-const lookupContract = workflow.indexOf("- name: Test Stage 7 full-password portal lookup contract");
-const lookupMigration = workflow.indexOf("- name: Apply Stage 7 full-password portal lookup hardening to disposable restore only");
-const lookupRuntime = workflow.indexOf("- name: Verify full-password portal lookup collisions and 5,000 synthetic keys on disposable restore");
+const lookupContract = workflow.indexOf("- name: Test Stage 7 64-bit portal password selector contract");
+const lookupMigration = workflow.indexOf("- name: Apply Stage 7 64-bit portal password selector hardening to disposable restore only");
+const lookupRuntime = workflow.indexOf("- name: Verify 64-bit portal selector collisions and 5,000 synthetic keys on disposable restore");
 const rls = workflow.indexOf("- name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore");
 assert.ok(parentContract >= 0 && lookupContract > parentContract, "lookup contract must follow the parent-session source contract");
 assert.ok(lookupMigration > lookupContract && parentHardening >= 0 && lookupMigration > parentHardening, "lookup migration must run after both source contracts and parent-session migration");
@@ -136,4 +142,4 @@ for (const path of [
   assert.ok(workflow.includes("\"" + path + "\""), "workflow path filter must include " + path);
 }
 
-console.log("Stage 7 portal password lookup contract passed: all writers/verifier use one full-password SHA-256 key; zero-start preflight and owner-only helper ACL are pinned; rollback-only 5,000-key and same-prefix login regression are wired to the disposable baseline.");
+console.log("Stage 7 portal password lookup contract passed: all writers/verifier use one 64-bit account selector; zero-start preflight and owner-only helper ACL are pinned; rollback-only 5,000-key and wrong-suffix lockout regression are wired to the disposable baseline.");
