@@ -32,8 +32,8 @@ assert.equal(
 );
 
 // Fresh-account-only guard: private.app_users is an identity root, not a copy
-// of Supabase Auth account data. Legacy UUID tombstones are generated separately
-// from application FK values and must never be created by reading auth.users.
+// of Supabase Auth account data. This zero-start identity root contains only
+// fresh Better Auth identities; no legacy UUID tombstones are permitted.
 const identityRootDdl = draft.match(/CREATE TABLE private\.app_users\s*\(([\s\S]*?)\n\);/i)?.[1] ?? "";
 assert.ok(identityRootDdl, "private.app_users identity-root table definition must exist");
 assert.doesNotMatch(
@@ -69,9 +69,9 @@ for (const name of [
   assert.equal(functionNames.filter((entry) => entry === name).length, 1,
     "function must be defined exactly once: " + name);
 }
-// Existing accounts are deliberately not copied into the Better Auth identity
-// root. Only the separate FK planner may preserve application UUID references
-// as non-authenticatable legacy_reference tombstones.
+// Existing accounts and application rows are deliberately not copied into the
+// Better Auth identity root. The FK planner fails closed while any legacy value
+// remains in one of the 69 child columns.
 assert.doesNotMatch(
   draft,
   /^\s*(?:FROM\s+auth\.users|SELECT\b[\s\S]{0,120}FROM\s+auth\.users|INSERT\s+INTO\s+auth\.users)\b/im,
@@ -79,7 +79,7 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(draft, /CREATE OR REPLACE FUNCTION private\.sync_legacy_auth_user_identity_projection|CREATE TRIGGER a_sync_app_users_identity_/i);
 assert.match(draft, /identity_origin text NOT NULL DEFAULT 'better_auth'/);
-assert.match(draft, /identity_origin IN \('better_auth', 'legacy_reference'\)/);
+assert.match(draft, /identity_origin = 'better_auth'/);\nassert.doesNotMatch(identityRootDdl, /legacy_reference/i);
 assert.match(draft, /INSERT INTO private\.app_users \(id, email_verified_at, identity_origin\)[\s\S]{0,240}'better_auth'/i);
 assert.match(draft, /v_identity_origin IS DISTINCT FROM 'better_auth'/i);
 assert.match(draft, /LEGACY_REFERENCE_IDENTITY_CANNOT_AUTHENTICATE/);
@@ -93,8 +93,7 @@ const fkPlanner = readFileSync(
   path.join(here, "./generate-app-users-fk-plan.mjs"),
   "utf8",
 );
-assert.match(fkPlanner, /00-identity-tombstones\.sql/);
-assert.match(fkPlanner, /identity_origin/);
+assert.doesNotMatch(fkPlanner, /00-identity-tombstones|legacy_reference/i);\nassert.match(fkPlanner, /ZERO_START_IDENTITY_ROOT_NOT_EMPTY/);\nassert.match(fkPlanner, /ZERO_START_FK_COLUMN_NOT_EMPTY/);
 assert.match(fkPlanner, /never reads auth\.users/i);
 
 // All Auth-dependent application reads must resolve through private.app_users.
@@ -247,4 +246,4 @@ assert.match(workflow, /--file=\/baseline\/auth-stage3-identity-root-draft[.]sql
 assert.match(workflow, /--file="\/plan\/\$phase"/);
 assert.match(workflow, /ROLLBACK/);
 
-console.log("Stage 3 identity-root contract passed: no legacy account backfill, UUID-only tombstones, Better Auth-only signup/verification lifecycle.");
+console.log("Stage 3 identity-root contract passed: zero-start identity root, no legacy tombstones/backfill, Better Auth-only signup/verification lifecycle.");
