@@ -54,11 +54,42 @@ INSERT INTO public.collective_participants (
   'ACTIVE'
 );
 
+-- The question entitlement guard requires a real synthetic organizer,
+-- question bank and issuer-valid Admin context. Do not bypass the production trigger.
+INSERT INTO public.user_roles (user_id,role,is_active)
+VALUES ('00000000-0000-4000-8000-00000000f711','admin'::public.app_role,true);
+
+SELECT pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-00000000f711","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  true
+);
+SELECT pg_catalog.set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000f711',true);
+
+INSERT INTO public.organizers (id,name,slug,owner_user_id,status)
+VALUES (
+  '00000000-0000-4000-8000-00000000f71a',
+  'Stage 7 Synthetic Organizer',
+  'stage7-portal-valid-token-synthetic',
+  '00000000-0000-4000-8000-00000000f711',
+  'ACTIVE'
+);
+
+INSERT INTO public.question_banks (id,organizer_id,owner_user_id,name,status)
+VALUES (
+  '00000000-0000-4000-8000-00000000f71b',
+  '00000000-0000-4000-8000-00000000f71a',
+  '00000000-0000-4000-8000-00000000f711',
+  'Stage 7 Synthetic Question Bank',
+  'PUBLISHED'
+);
+
 INSERT INTO public.questions (
-  id, competition_id, type, prompt, points, required, display_order, config, status
+  id, question_bank_id, competition_id, type, prompt, points, required, display_order, config, status
 ) VALUES
   (
     '00000000-0000-4000-8000-00000000f718',
+    '00000000-0000-4000-8000-00000000f71b',
     '00000000-0000-4000-8000-00000000f714',
     'short_answer',
     'Stage 7 synthetic question one',
@@ -70,6 +101,7 @@ INSERT INTO public.questions (
   ),
   (
     '00000000-0000-4000-8000-00000000f719',
+    '00000000-0000-4000-8000-00000000f71b',
     '00000000-0000-4000-8000-00000000f714',
     'short_answer',
     'Stage 7 synthetic question two',
