@@ -38,6 +38,7 @@ assert.match(draft, /STAGE3_ISSUER_GUARD_TABLE_COUNT_DRIFT/);
 assert.match(acceptance, /STAGE3_ISSUER_GUARD_COVERAGE_FAILED/);
 assert.match(acceptance, /STAGE3_LEGACY_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_LEGACY_ISSUER_INSERT_ALLOWED/);
+assert.doesNotMatch(acceptance, /legacy_reference/i, "zero-start issuer acceptance must not seed legacy identity tombstones");
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED/);
