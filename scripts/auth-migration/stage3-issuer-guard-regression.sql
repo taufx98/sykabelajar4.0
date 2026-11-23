@@ -1136,6 +1136,116 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_list_shop_voucher_definitions'; END IF;
 
+
+  -- Tranche 06: privileged voucher/plan/referral/content RPCs must deny
+  -- the same active Admin UUID under the legacy Supabase Auth issuer.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_organizer_voucher(
+      '99999999-9999-4999-8999-999999999941'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_ONLY' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_organizer_voucher'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_generate_organizer_vouchers(1, 0);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_generate_organizer_vouchers'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_save_organizer_payment_fields('{}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_organizer_payment_fields'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_plan_bundle(
+      'INVALID_STAGE7_PLAN', NULL::text, NULL::text, NULL::text,
+      NULL::numeric, NULL::numeric, NULL::boolean, '[]'::jsonb,
+      NULL::numeric, NULL::numeric
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_plan_bundle'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_upsert_organizer_voucher(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::numeric,
+      NULL::text, NULL::integer, NULL::text[], NULL::text[], NULL::integer,
+      NULL::timestamptz, NULL::timestamptz, NULL::boolean
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_ONLY' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_upsert_organizer_voucher'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_update_referral_program_settings_v2(
+      NULL::boolean, 100, NULL::integer, NULL::text, NULL::text,
+      NULL::timestamptz, NULL::timestamptz, '[]'::jsonb, NULL::boolean,
+      NULL::text, NULL::text, NULL::text, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_update_referral_program_settings_v2'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_competition(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+      NULL::text, NULL::text, NULL::text, NULL::public.competition_status,
+      NULL::timestamptz, NULL::timestamptz, NULL::timestamptz, NULL::timestamptz,
+      NULL::text, NULL::boolean, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_competition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_post(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::uuid, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_post'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_product(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+      NULL::text, NULL::text, NULL::text[], NULL::numeric, NULL::text,
+      NULL::text, NULL::boolean, NULL::boolean, NULL::integer, NULL::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_product'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_shop_promo_banner(
+      NULL::uuid, NULL::text, NULL::text, NULL::integer, NULL::integer, NULL::boolean
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_shop_promo_banner'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1742,6 +1852,121 @@ BEGIN
   END IF;
 END;
 $stage7_more_admin_positive$;
+
+-- Tranche 06 positive Admin tests stop at validation errors before inserts,
+-- deletes, settings upserts, or downstream reward/Realtime side effects.
+DO $stage7_admin_mutation_validation_positive$
+DECLARE
+  v_denied boolean;
+BEGIN
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_organizer_voucher(
+      '99999999-9999-4999-8999-999999999941'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'VOUCHER_NOT_FOUND' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_organizer_voucher'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_generate_organizer_vouchers(1, 0);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_DISCOUNT_PERCENT' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_generate_organizer_vouchers'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_save_organizer_payment_fields('{}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_FIELDS_PAYLOAD' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_organizer_payment_fields'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_plan_bundle(
+      'INVALID_STAGE7_PLAN', NULL::text, NULL::text, NULL::text,
+      NULL::numeric, NULL::numeric, NULL::boolean, '[]'::jsonb,
+      NULL::numeric, NULL::numeric
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_PLAN_CODE' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_plan_bundle'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_upsert_organizer_voucher(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::numeric,
+      NULL::text, NULL::integer, NULL::text[], NULL::text[], NULL::integer,
+      NULL::timestamptz, NULL::timestamptz, NULL::boolean
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'TITLE_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_upsert_organizer_voucher'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_update_referral_program_settings_v2(
+      NULL::boolean, 100, NULL::integer, NULL::text, NULL::text,
+      NULL::timestamptz, NULL::timestamptz, '[]'::jsonb, NULL::boolean,
+      NULL::text, NULL::text, NULL::text, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACTIVE_FLAG_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_update_referral_program_settings_v2'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_competition(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+      NULL::text, NULL::text, NULL::text, NULL::public.competition_status,
+      NULL::timestamptz, NULL::timestamptz, NULL::timestamptz, NULL::timestamptz,
+      NULL::text, NULL::boolean, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'TITLE_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_competition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_post(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::uuid, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'TITLE_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_post'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_product(
+      NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text,
+      NULL::text, NULL::text, NULL::text[], NULL::numeric, NULL::text,
+      NULL::text, NULL::boolean, NULL::boolean, NULL::integer, NULL::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'NAME_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_product'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_shop_promo_banner(
+      NULL::uuid, NULL::text, NULL::text, NULL::integer, NULL::integer, NULL::boolean
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_BANNER_IMAGE_URL' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_shop_promo_banner'; END IF;
+END;
+$stage7_admin_mutation_validation_positive$;
 
 -- The same user-scoped RPCs must accept the exact Better Auth issuer and
 -- continue into their existing business validation/ownership checks.
