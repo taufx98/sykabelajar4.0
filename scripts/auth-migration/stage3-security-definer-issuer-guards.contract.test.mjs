@@ -381,4 +381,30 @@ for (const [name, legacyPrefix, betterAuthPrefix] of trancheFourCases) {
     "missing Better Auth positive-path assertion: " + name);
 }
 
+
+const trancheFiveAdminCases = [
+  "admin_delete_organizer_payment_method",
+  "admin_delete_post",
+  "admin_delete_product",
+  "admin_delete_shop_promo_banner",
+  "admin_get_attempt_investigation",
+  "admin_get_competition_delete_blockers",
+  "admin_get_monitoring_dashboard",
+  "admin_list_issued_shop_vouchers",
+  "admin_list_shop_promo_banners",
+  "admin_list_shop_voucher_definitions",
+];
+const stage7MorePositive = regression.match(
+  /DO \$stage7_more_admin_positive\$[\s\S]*?\$stage7_more_admin_positive\$;/i,
+)?.[0] ?? "";
+assert.ok(stage7MorePositive, "missing tranche 05 Better Auth positive Admin block");
+for (const name of trancheFiveAdminCases) {
+  assert.ok(adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name);
+  assert.ok(stage7MorePositive.includes("admin_" + name.replace(/^admin_/, "")) || stage7MorePositive.includes("public." + name),
+    "missing Better Auth Admin positive call: " + name);
+  assert.ok(stage7MorePositive.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth Admin positive assertion: " + name);
+}
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
