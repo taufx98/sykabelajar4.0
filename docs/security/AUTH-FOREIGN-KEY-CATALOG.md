@@ -1,5 +1,9 @@
 # Supabase auth.users foreign-key catalog snapshot
 
+## Superseding clean-start rule — 23 November 2026
+
+This catalog remains a schema-metadata reference only; its old row-preservation guardrails are superseded. No old user/account data is to be backed up, copied, migrated, restored, or attached to a new Better Auth identity. Before any FK re-home, the separate zero-start cleanup plan must remove disposable user-linked demo/test rows and clear nullable attribution columns on any explicitly retained system/configuration rows. The new private.app_users begins empty; no legacy_reference tombstones are allowed. The 69 constraints may be re-pointed only after all 69 child FK columns have no legacy values and the cleanup allowlist/sequence has been separately approved. The metadata snapshot itself contains no row values and remains valid as a structural FK reference.
+
 Snapshot date: 4 November 2026  
 Source: read-only PostgreSQL catalog query against the current production project `mvdczyitbkxkldjughor`. Only schema metadata was returned; no application rows, UUID values, emails, credentials, or tokens were exported.
 
@@ -107,7 +111,7 @@ This mapping is the reference when constructing a replacement constraint to `pri
 
 ## Migration guardrails
 
-1. Do not execute a production FK migration from this snapshot alone. First prove every referenced UUID has a corresponding row in the identity root.
+1. Do not execute a production FK migration from this snapshot alone. First prove the approved zero-start cleanup has left no legacy UUID references in child columns and the new identity root is empty.
 2. Add replacement constraints and validate them before dropping the old constraints.
 3. Preserve the exact constraint names above to simplify rollback and application schema comparison.
 4. Keep the 18 `SET NULL` relationships nullable and preserve attribution/audit rows.
