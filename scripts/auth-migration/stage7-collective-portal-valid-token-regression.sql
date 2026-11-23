@@ -262,6 +262,13 @@ BEGIN
   v_attempt_id := (v_result->>'attempt_id')::uuid;
   v_question_id := (v_result->'question'->>'id')::uuid;
 
+  -- A repeated start call for the same active participant/token must reuse the
+  -- existing active attempt instead of creating a duplicate attempt.
+  v_state := public.start_collective_linear_exam_attempt(v_competition,v_access_token);
+  IF (v_state->>'attempt_id')::uuid IS DISTINCT FROM v_attempt_id THEN
+    RAISE EXCEPTION 'STAGE7_REPLAYED_START_CREATED_DIFFERENT_ATTEMPT:%',v_state;
+  END IF;
+
   -- Participant B has a separate valid portal identity, credential and child session.
   v_result := public.verify_collective_portal_password(v_other_password);
   IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
@@ -351,7 +358,14 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT:%',v_state;
   END IF;
 
-    -- Valid active child token may request reconciliation without changing a live question.
+    -- Re-read participant A's state after the cross-participant probes; answer-key
+  -- assertions below must inspect A's own active attempt, never participant B's.
+  v_result := public.get_collective_linear_exam_state(v_attempt_id,v_access_token);
+  IF v_result->>'phase' IS DISTINCT FROM 'ACTIVE' THEN
+    RAISE EXCEPTION 'STAGE7_VALID_ACCESS_TOKEN_OWN_STATE_UNAVAILABLE_AFTER_IDOR_PROBES:%',v_result;
+  END IF;
+
+  -- Valid active child token may request reconciliation without changing a live question.
   v_state := public.resolve_collective_linear_exam_timeout(v_attempt_id,v_access_token);
   IF v_state->>'phase' IS DISTINCT FROM 'ACTIVE'
      OR (v_state->>'position')::integer IS DISTINCT FROM 1 THEN
