@@ -116,22 +116,24 @@ CREATE POLICY better_auth_issuer_guard
   USING ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth')
   WITH CHECK ((SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth');
 
--- Simulate one retained legacy Admin UUID and one new Better Auth Admin.
--- The legacy role row is kept, but must not satisfy any authenticated Admin helper.
+-- The clean-start identity root contains only fresh Better Auth identities.
+-- Reuse one fresh Admin UUID with an old Supabase Auth issuer claim below; the
+-- same subject must be denied despite its real Better Auth profile and Admin role.
 INSERT INTO private.app_users (id, identity_origin)
 VALUES
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'legacy_reference'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'better_auth'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'better_auth'),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'better_auth');
 
 -- Synthetic profiles exercise the SECURITY DEFINER privacy boundary after
--- Stage 3. A legacy owner and a Better Auth owner both have private profiles;
--- public profile C publishes only its following list, not its followers list.
+-- Stage 3. Two fresh Better Auth owners have private profiles; public profile C
+-- publishes only its following list, not its followers list. A Supabase Auth
+-- issuer is later tested against owner B's exact same UUID.
 INSERT INTO public.profiles (id, username, full_name, is_public)
 VALUES
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_legacy_private', 'Legacy Probe', false),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_ba_private_a', 'Better Auth Private Probe A', false),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true),
@@ -195,7 +197,7 @@ INSERT INTO public.participants (
 )
 VALUES
   ('55555555-5555-4555-8555-555555555551', '33333333-3333-4333-8333-333333333333',
-   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Legacy Private Participant'),
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Better Auth Private Participant A'),
   ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant');
 
@@ -217,7 +219,7 @@ VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
 INSERT INTO public.user_badges (user_id, badge_id, award_source, reason, source_reference)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Legacy private badge probe', '33333333-3333-4333-8333-333333333333'),
+   'MANUAL', 'Better Auth private badge probe A', '33333333-3333-4333-8333-333333333333'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', '88888888-8888-4888-8888-888888888881',
    'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333');
 INSERT INTO public.user_roles (user_id, role, is_active)
@@ -319,11 +321,12 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 
 -- Supabase Auth is not a trusted application login after this cutover.
--- Even a legacy Auth subject that was previously valid is now denied.
+-- Use the exact UUID of a fresh Better Auth Admin with a valid private profile
+-- and role; changing only the issuer to Supabase Auth must deny that same subject.
 SELECT set_config('request.jwt.claims',
-  '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
   true);
-SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 DO $all_user_rpc_legacy_issuer$
 DECLARE
   v_signature text;
@@ -467,14 +470,14 @@ BEGIN
   IF has_schema_privilege(current_user, 'private', 'USAGE') THEN
     RAISE EXCEPTION 'STAGE3_PRIVATE_SCHEMA_USAGE_UNEXPECTED';
   END IF;
-  IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
+  IF public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
   END IF;
 
-  -- Matching a private profile UUID does not make a legacy Supabase Auth
-  -- session its Better Auth owner.
+  -- Matching a private profile UUID does not make a Supabase Auth issuer
+  -- the Better Auth owner for that same subject.
   SELECT count(*) INTO v_count
-  FROM public.get_profile_connections('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid, 'following');
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_PROFILE_OWNER_BYPASS'; END IF;
 
   v_denied := false;
@@ -489,8 +492,8 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_SOCIAL_SUMMARY_ALLOWED'; END IF;
 
-  -- An old Supabase Auth subject must be rejected before a SECURITY DEFINER
-  -- exam RPC can inspect an attempt owned by the same legacy UUID.
+  -- A Supabase Auth issuer claiming the same subject must be rejected before a
+  -- SECURITY DEFINER exam RPC can inspect any attempt.
   v_denied := false;
   BEGIN
     PERFORM public.get_linear_exam_state('ffffffff-ffff-4fff-8fff-fffffffffff4'::uuid);
