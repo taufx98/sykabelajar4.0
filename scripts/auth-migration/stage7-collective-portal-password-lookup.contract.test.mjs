@@ -34,12 +34,14 @@ assert.match(migration, /STAGE7_PORTAL_LOOKUP_SOURCE_DEFINITION_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_SOURCE_ACL_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_POST_ACL_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_LOOKUP_HELPER_ACL_POSTCONDITION_FAILED/);
+assert.match(migration, /pg_catalog\.md5\(p\.prosrc\)/);
+assert.match(migration, /STAGE7_PORTAL_LOOKUP_STAGE3_BETTER_AUTH_ISSUER_GUARD_MISSING/);
 
 const expectedSourceFingerprints = [
-  "deeaff8a6abcf615b4b368d6fb58efb7",
-  "754fe1bf3e11bb714d183cf6127a86c0",
-  "9631e5525fef8faf6dcf9bd3ae7fd07c",
-  "d85f7c2a1d194151663b4c536c064dad",
+  "e4a007bcd32d3d135ccb48df8636bbd0",
+  "1ae119812cdf0497239c9564c5ca9c87",
+  "0f9a8c6b114e362e8d228ea40ce2fad4",
+  "f5d01e7ab270b1ff332467f2cf80a2f8",
 ];
 for (const fingerprint of expectedSourceFingerprints) {
   assert.ok(migration.includes(fingerprint), "missing reviewed Production source fingerprint: " + fingerprint);
@@ -85,6 +87,10 @@ assert.match(functions[2].source, /crypt\(raw,gen_salt\('bf',12\)\)/i);
 assert.match(functions[2].source, /previous_credential_invalidated/);
 assert.match(functions[1].source, /AUTH_REQUIRED/);
 assert.match(functions[2].source, /AUTH_REQUIRED/);
+assert.match(functions[1].source, /private\.current_user_is_better_auth\(\)/);
+assert.match(functions[1].source, /BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(functions[2].source, /private\.current_user_is_better_auth\(\)/);
+assert.match(functions[2].source, /BETTER_AUTH_ISSUER_REQUIRED/);
 
 for (const [signature, acl] of [
   ["private.sync_collective_portal_credential(uuid,text,integer)", "PUBLIC=X/postgres"],
