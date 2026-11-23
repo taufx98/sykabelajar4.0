@@ -14,6 +14,7 @@ const helper = migration.match(
   /CREATE OR REPLACE FUNCTION private\.collective_session_participant\(p_token text\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(helper, "missing child access token scope helper");
+assert.match(helper, /VOLATILE/i);
 assert.match(helper, /SECURITY DEFINER/i);
 assert.match(helper, /SET search_path TO ''/i);
 assert.match(helper, /JOIN public\.collective_portal_sessions AS ps/);
@@ -59,6 +60,7 @@ const certificate = migration.match(
   /CREATE OR REPLACE FUNCTION public\.get_collective_participant_certificate\(p_access_token text\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(certificate);
+assert.match(certificate, /VOLATILE/i);
 assert.match(certificate, /s\.expires_at>pg_catalog\.now\(\)/);
 assert.match(certificate, /private\.collective_session_participant\(p_access_token\)/);
 assert.match(certificate, /cc\.competition_id=s\.competition_id/,
