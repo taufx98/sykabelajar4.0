@@ -1808,6 +1808,19 @@ begin
   where c.id = p_competition_id;
 
   if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+
+  -- SECURITY DEFINER bypasses competitions_select RLS. Preserve the same
+  -- private-competition boundary here: only an active Better Auth admin or
+  -- the competition's authorized organizer may read private registration options.
+  IF v_comp.visibility IS DISTINCT FROM 'PUBLIC'
+     AND NOT private.current_user_is_admin()
+     AND (
+       v_comp.organizer_id IS NULL
+       OR NOT private.current_user_is_organizer_for(v_comp.organizer_id)
+     ) THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
   if not private.competition_allows_collective(v_comp.participant_mode, v_comp.config) then
     raise exception 'COMPETITION_NOT_COLLECTIVE';
   end if;
