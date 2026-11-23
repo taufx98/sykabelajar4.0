@@ -18,7 +18,10 @@ BEGIN
     'private.collective_portal_identity(text)',
     'public.open_collective_competition_session(text,uuid,text)',
     'public.revoke_collective_portal_session(text)',
-    'public.get_collective_participant_certificate(text)'
+    'public.get_collective_participant_certificate(text)',
+    'public.list_collective_portal_competitions(text)',
+    'public.revoke_collective_access_session(text)',
+    'public.verify_collective_portal_password(text)'
   ] LOOP
     v_oid := pg_catalog.to_regprocedure(v_signature);
     IF v_oid IS NULL THEN
@@ -47,6 +50,54 @@ BEGIN
   END IF;
 END;
 $stage7_portal_parent_preflight$;
+
+
+DO $stage7_portal_search_path_preflight$
+DECLARE
+  v_signature text;
+  v_expected_md5 text;
+  v_expected_search_path text;
+  v_oid oid;
+  v_owner oid;
+  v_actual_md5 text;
+  v_actual_search_path text[];
+  v_acl aclitem[];
+BEGIN
+  FOR v_signature,v_expected_md5,v_expected_search_path IN
+    SELECT expected.signature,expected.definition_md5,expected.search_path_setting
+    FROM (VALUES
+      ('public.list_collective_portal_competitions(text)','ea78645f37913438f2f0e300b1bdcdf9','search_path=public, private'),
+      ('public.revoke_collective_access_session(text)','1e5abe9a8d31beef996ce1091045de2d','search_path=public, private, pg_catalog'),
+      ('public.verify_collective_portal_password(text)','d85f7c2a1d194151663b4c536c064dad','search_path=public, private, extensions')
+    ) AS expected(signature,definition_md5,search_path_setting)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_MISSING:%',v_signature;
+    END IF;
+    SELECT pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)),p.proconfig,p.proacl,p.proowner
+      INTO v_actual_md5,v_actual_search_path,v_acl,v_owner
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=v_oid;
+    IF v_actual_md5 IS DISTINCT FROM v_expected_md5 THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_DEFINITION_DRIFT:%:%',v_signature,v_actual_md5;
+    END IF;
+    IF v_actual_search_path IS DISTINCT FROM ARRAY[v_expected_search_path]::text[] THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_SEARCH_PATH_DRIFT:%:%',v_signature,v_actual_search_path;
+    END IF;
+    IF NOT pg_catalog.has_function_privilege('anon',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role',v_oid,'EXECUTE')
+       OR EXISTS (
+         SELECT 1
+         FROM pg_catalog.aclexplode(coalesce(v_acl,pg_catalog.acldefault('f',v_owner))) AS a
+         WHERE a.grantee=0 AND a.privilege_type='EXECUTE'
+       ) THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_PUBLIC_EXECUTE_BASELINE_DRIFT:%',v_signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_portal_search_path_preflight$;
 
 -- An exam access token is a child credential, not an independent login. Every
 -- use must prove that both the child token and its originating portal session
@@ -291,6 +342,139 @@ AS $function$
   LIMIT 1;
 $function$;
 
+
+-- Pin the remaining portal RPCs to an empty search_path. Their behavior and
+-- EXECUTE ACLs are preserved; every non-catalog dependency is schema-qualified.
+CREATE OR REPLACE FUNCTION public.list_collective_portal_competitions(p_portal_token text)
+RETURNS TABLE(
+  participant_id uuid,
+  competition_id uuid,
+  competition_title text,
+  competition_status text,
+  starts_at timestamp with time zone,
+  ends_at timestamp with time zone,
+  participant_code text,
+  participant_status text
+)
+LANGUAGE sql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT cp.id,c.id,c.title,c.status,c.starts_at,c.ends_at,cp.participant_code,cp.status
+  FROM public.collective_portal_sessions AS ps
+  JOIN public.collective_portal_identities AS pi
+    ON pi.id=ps.portal_identity_id
+  JOIN public.collective_participants AS cp
+    ON cp.roster_student_id=pi.roster_student_id
+   AND cp.managed_by_user_id=pi.owner_user_id
+  JOIN public.competitions AS c
+    ON c.id=cp.competition_id
+  JOIN public.collective_portal_credentials AS pc
+    ON pc.portal_identity_id=pi.id
+   AND pc.enabled IS TRUE
+   AND pc.password_version=ps.credential_version
+  WHERE ps.token_hash=private.hash_collective_token(pg_catalog.btrim(coalesce(p_portal_token,'')))
+    AND ps.revoked_at IS NULL
+    AND ps.expires_at>pg_catalog.now()
+    AND pi.status='ACTIVE'
+    AND cp.status='ACTIVE'
+  ORDER BY coalesce(c.starts_at,c.created_at),c.id;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.revoke_collective_access_session(p_access_token text)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_hash text := private.hash_collective_token(pg_catalog.btrim(coalesce(p_access_token,'')));
+  v_updated integer;
+BEGIN
+  IF pg_catalog.length(pg_catalog.btrim(coalesce(p_access_token,'')))<16 THEN
+    RETURN false;
+  END IF;
+  UPDATE public.collective_access_sessions
+  SET revoked_at=coalesce(revoked_at,pg_catalog.now()),
+      last_seen_at=pg_catalog.now()
+  WHERE token_hash=v_hash
+    AND revoked_at IS NULL;
+  GET DIAGNOSTICS v_updated=ROW_COUNT;
+  RETURN v_updated>0;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.verify_collective_portal_password(p_password text)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  c public.collective_portal_credentials%rowtype;
+  pi public.collective_portal_identities%rowtype;
+  token text;
+  lk text;
+BEGIN
+  lk := pg_catalog.encode(
+    extensions.digest(
+      pg_catalog.left(pg_catalog.btrim(coalesce(p_password,'')),8),
+      'sha256'
+    ),
+    'hex'
+  );
+  SELECT *
+    INTO c
+  FROM public.collective_portal_credentials
+  WHERE enabled IS TRUE
+    AND password_lookup_key=lk
+  LIMIT 1;
+  IF c.id IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
+  END IF;
+  IF c.locked_until IS NOT NULL AND c.locked_until>pg_catalog.now() THEN
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','LOCKED');
+  END IF;
+  IF extensions.crypt(coalesce(p_password,''),c.password_hash) IS DISTINCT FROM c.password_hash THEN
+    UPDATE public.collective_portal_credentials
+    SET failed_attempts=failed_attempts+1,
+        locked_until=CASE
+          WHEN failed_attempts+1>=5 THEN pg_catalog.now()+interval '15 minutes'
+          ELSE locked_until
+        END,
+        updated_at=pg_catalog.now()
+    WHERE id=c.id;
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
+  END IF;
+  SELECT *
+    INTO pi
+  FROM public.collective_portal_identities
+  WHERE id=c.portal_identity_id
+    AND status='ACTIVE';
+  IF pi.id IS NULL THEN
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','ACCESS_NOT_READY');
+  END IF;
+  UPDATE public.collective_portal_credentials
+  SET failed_attempts=0,
+      locked_until=NULL,
+      last_login_at=pg_catalog.now(),
+      updated_at=pg_catalog.now()
+  WHERE id=c.id;
+  token := pg_catalog.encode(extensions.gen_random_bytes(32),'hex');
+  INSERT INTO public.collective_portal_sessions(
+    portal_identity_id,credential_version,token_hash,expires_at
+  )
+  VALUES(
+    pi.id,c.password_version,private.hash_collective_token(token),
+    pg_catalog.now()+interval '8 hours'
+  );
+  RETURN pg_catalog.jsonb_build_object('ok',true,'portal_token',token,'portal_identity_id',pi.id);
+END;
+$function$;
+
 DO $stage7_portal_parent_postflight$
 DECLARE
   v_signature text;
@@ -303,7 +487,10 @@ BEGIN
     'private.collective_portal_identity(text)',
     'public.open_collective_competition_session(text,uuid,text)',
     'public.revoke_collective_portal_session(text)',
-    'public.get_collective_participant_certificate(text)'
+    'public.get_collective_participant_certificate(text)',
+    'public.list_collective_portal_competitions(text)',
+    'public.revoke_collective_access_session(text)',
+    'public.verify_collective_portal_password(text)'
   ] LOOP
     v_oid := pg_catalog.to_regprocedure(v_signature);
     SELECT pg_catalog.pg_get_userbyid(p.proowner),p.prosecdef
@@ -329,5 +516,41 @@ BEGIN
   END IF;
 END;
 $stage7_portal_parent_postflight$;
+
+
+DO $stage7_portal_search_path_postflight$
+DECLARE
+  v_signature text;
+  v_oid oid;
+  v_path text[];
+  v_owner oid;
+  v_acl aclitem[];
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.list_collective_portal_competitions(text)',
+    'public.revoke_collective_access_session(text)',
+    'public.verify_collective_portal_password(text)'
+  ] LOOP
+    v_oid := pg_catalog.to_regprocedure(v_signature);
+    SELECT p.proconfig,p.proowner,p.proacl
+      INTO v_path,v_owner,v_acl
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=v_oid;
+    IF v_path IS DISTINCT FROM ARRAY['search_path=""']::text[] THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_EMPTY_SEARCH_PATH_POSTCONDITION_FAILED:%:%',v_signature,v_path;
+    END IF;
+    IF NOT pg_catalog.has_function_privilege('anon',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role',v_oid,'EXECUTE')
+       OR EXISTS (
+         SELECT 1
+         FROM pg_catalog.aclexplode(coalesce(v_acl,pg_catalog.acldefault('f',v_owner))) AS a
+         WHERE a.grantee=0 AND a.privilege_type='EXECUTE'
+       ) THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_RPC_EXECUTE_ACL_POSTCONDITION_DRIFT:%',v_signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_portal_search_path_postflight$;
 
 COMMIT;

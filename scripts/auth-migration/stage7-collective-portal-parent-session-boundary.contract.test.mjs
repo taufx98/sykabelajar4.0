@@ -66,6 +66,46 @@ assert.match(certificate, /private\.collective_session_participant\(p_access_tok
 assert.match(certificate, /cc\.competition_id=s\.competition_id/,
   "certificate lookup must stay inside the competition bound to the child access token");
 
+
+const remainingPortalRpcs = [
+  {
+    signature: "public.list_collective_portal_competitions",
+    definition: migration.match(/CREATE OR REPLACE FUNCTION public\.list_collective_portal_competitions\(p_portal_token text\)[\s\S]*?\$function\$;/i)?.[0] ?? "",
+    required: [/VOLATILE/i, /SECURITY DEFINER/i, /SET search_path TO ''/i, /private\.hash_collective_token\(/i, /pg_catalog\.btrim\(/i, /pg_catalog\.now\(/i],
+  },
+  {
+    signature: "public.revoke_collective_access_session",
+    definition: migration.match(/CREATE OR REPLACE FUNCTION public\.revoke_collective_access_session\(p_access_token text\)[\s\S]*?\$function\$;/i)?.[0] ?? "",
+    required: [/VOLATILE/i, /SECURITY DEFINER/i, /SET search_path TO ''/i, /private\.hash_collective_token\(/i, /pg_catalog\.btrim\(/i, /pg_catalog\.length\(/i, /pg_catalog\.now\(/i],
+  },
+  {
+    signature: "public.verify_collective_portal_password",
+    definition: migration.match(/CREATE OR REPLACE FUNCTION public\.verify_collective_portal_password\(p_password text\)[\s\S]*?\$function\$;/i)?.[0] ?? "",
+    required: [/VOLATILE/i, /SECURITY DEFINER/i, /SET search_path TO ''/i, /extensions\.digest\(/i, /extensions\.crypt\(/i, /extensions\.gen_random_bytes\(/i, /pg_catalog\.encode\(/i, /pg_catalog\.jsonb_build_object\(/i],
+  },
+];
+for (const rpc of remainingPortalRpcs) {
+  assert.ok(rpc.definition, "missing hardened portal RPC: " + rpc.signature);
+  for (const rule of rpc.required) assert.match(rpc.definition, rule, rpc.signature + " missing " + rule);
+  assert.doesNotMatch(
+    rpc.definition,
+    /(?<![.\w])(?:trim|length|now|encode|left|crypt|digest|gen_random_bytes|jsonb_build_object)\s*\(/i,
+    rpc.signature + " contains an unqualified function call under an empty search_path",
+  );
+}
+for (const fingerprint of [
+  "ea78645f37913438f2f0e300b1bdcdf9",
+  "1e5abe9a8d31beef996ce1091045de2d",
+  "d85f7c2a1d194151663b4c536c064dad",
+]) {
+  assert.ok(migration.includes(fingerprint), "missing exact Production function-definition preflight fingerprint: " + fingerprint);
+}
+assert.match(migration, /STAGE7_PORTAL_RPC_DEFINITION_DRIFT/);
+assert.match(migration, /STAGE7_PORTAL_RPC_SEARCH_PATH_DRIFT/);
+assert.match(migration, /STAGE7_PORTAL_RPC_PUBLIC_EXECUTE_BASELINE_DRIFT/);
+assert.match(migration, /STAGE7_PORTAL_RPC_EMPTY_SEARCH_PATH_POSTCONDITION_FAILED/);
+assert.match(migration, /STAGE7_PORTAL_RPC_EXECUTE_ACL_POSTCONDITION_DRIFT/);
+
 assert.match(migration, /BEGIN;[\s\S]*COMMIT;/);
 const executableMigration = migration.replace(/^--.*$/gm, "");
 assert.doesNotMatch(executableMigration, /\b(?:GRANT|REVOKE)\b/i,
@@ -84,6 +124,19 @@ for (const marker of [
 ]) {
   assert.ok(regression.includes(marker), "missing runtime parent-boundary assertion: " + marker);
 }
+for (const signature of [
+  "'public.list_collective_portal_competitions(text)'",
+  "'public.revoke_collective_access_session(text)'",
+  "'public.verify_collective_portal_password(text)'",
+]) {
+  assert.ok(migration.includes(signature), "missing preflight/postflight registration: " + signature);
+}
+assert.ok(regression.includes("STAGE7_VALID_ACCESS_TOKEN_COULD_NOT_RESOLVE_ACTIVE_TIMEOUT"));
+assert.ok(regression.includes("STAGE7_VALID_CHILD_ACCESS_TOKEN_COULD_NOT_BE_REVOKED"));
+assert.ok(regression.includes("STAGE7_CHILD_REVOKE_INVALIDATED_PARENT_PORTAL_SESSION"));
+assert.ok(regression.includes("STAGE7_REVOKED_CHILD_ACCESS_TOKEN_STILL_VALID"));
+assert.match(regression, /public\.revoke_collective_access_session\(v_access_token_lifecycle\)/);
+assert.match(regression, /public\.resolve_collective_linear_exam_timeout\(v_attempt_id,v_access_token\)/);
 assert.match(regression, /public\.revoke_collective_portal_session\(v_portal_token\)/);
 assert.match(regression, /public\.get_collective_participant_certificate\(v_access_token\)/);
 assert.match(regression, /ROLLBACK;/);
