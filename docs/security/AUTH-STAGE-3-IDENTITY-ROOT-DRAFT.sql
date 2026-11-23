@@ -1121,7 +1121,7 @@ REVOKE ALL ON FUNCTION private.process_referral_email_confirmation()
 -- Production gates — this draft does not perform the FK cutover itself:
 -- 1. Review and execute only on a complete disposable schema-only PostgreSQL 17.6 restore.
 -- 2. Generate the 69-FK plan from the live catalog and inspect all three phases.
--- 3. Require an empty identity root and 69 empty child FK columns, then expand, validate every replacement FK, and perform one atomic cutover.
+-- 3. Require an empty identity root and all 69 child FK columns empty; then expand, validate and atomically cut over the FKs.
 -- 4. Run the full production-shaped regression and Better Auth provisioning/email/phone tests.
 -- 5. Verify issuer restriction, hosted OIDC, frontend/backend gates and rollback.
 -- 6. Keep production Supabase, production Worker/DNS and all live accounts unchanged.
