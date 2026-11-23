@@ -1039,6 +1039,103 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_transition_order'; END IF;
 
+
+  -- Tranche 05: remaining Admin delete/read RPCs must reject the legacy
+  -- Supabase Auth issuer before any row read, delete or diagnostic projection.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_organizer_payment_method(
+      '99999999-9999-4999-8999-999999999951'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_organizer_payment_method'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_post(
+      '99999999-9999-4999-8999-999999999952'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_post'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_product(
+      '99999999-9999-4999-8999-999999999953'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_product'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_delete_shop_promo_banner(
+      '99999999-9999-4999-8999-999999999954'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_delete_shop_promo_banner'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_get_attempt_investigation(
+      '99999999-9999-4999-8999-999999999955'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_get_attempt_investigation'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_get_competition_delete_blockers(
+      '99999999-9999-4999-8999-999999999956'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_get_competition_delete_blockers'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_get_monitoring_dashboard(
+      NULL::uuid, NULL::text, NULL::text, 25, 0
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_get_monitoring_dashboard'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_list_issued_shop_vouchers();
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_list_issued_shop_vouchers'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_list_shop_promo_banners();
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_list_shop_promo_banners'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.admin_list_shop_voucher_definitions();
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ADMIN_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_list_shop_voucher_definitions'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1539,6 +1636,112 @@ BEGIN
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
 END;
 $better_auth_issuer$;
+
+-- Tranche 05 positive Admin tests execute only against the schema-only
+-- disposable restore. Missing synthetic IDs stop delete RPCs before mutation;
+-- read RPCs return only their normal shape/empty projections.
+DO $stage7_more_admin_positive$
+DECLARE
+  v_count integer;
+  v_result jsonb;
+  v_deleted boolean;
+BEGIN
+  BEGIN
+    PERFORM public.admin_delete_organizer_payment_method(
+      '99999999-9999-4999-8999-999999999951'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'PAYMENT_METHOD_NOT_FOUND' THEN
+      v_count := 1;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF v_count IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_organizer_payment_method';
+  END IF;
+
+  v_count := 0;
+  BEGIN
+    PERFORM public.admin_delete_post(
+      '99999999-9999-4999-8999-999999999952'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'POST_NOT_FOUND' THEN v_count := 1; ELSE RAISE; END IF;
+  END;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_post';
+  END IF;
+
+  v_count := 0;
+  BEGIN
+    PERFORM public.admin_delete_product(
+      '99999999-9999-4999-8999-999999999953'::uuid, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'PRODUCT_NOT_FOUND' THEN v_count := 1; ELSE RAISE; END IF;
+  END;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_product';
+  END IF;
+
+  v_deleted := public.admin_delete_shop_promo_banner(
+    '99999999-9999-4999-8999-999999999954'::uuid
+  );
+  IF v_deleted IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_delete_shop_promo_banner';
+  END IF;
+
+  v_count := 0;
+  BEGIN
+    v_result := public.admin_get_attempt_investigation(
+      '99999999-9999-4999-8999-999999999955'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_count := 1; ELSE RAISE; END IF;
+  END;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_attempt_investigation';
+  END IF;
+
+  v_count := 0;
+  BEGIN
+    v_result := public.admin_get_competition_delete_blockers(
+      '99999999-9999-4999-8999-999999999956'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_count := 1; ELSE RAISE; END IF;
+  END;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_competition_delete_blockers';
+  END IF;
+
+  v_result := public.admin_get_monitoring_dashboard(
+    NULL::uuid, NULL::text, NULL::text, 25, 0
+  );
+  IF jsonb_typeof(v_result) IS DISTINCT FROM 'object'
+     OR jsonb_typeof(v_result -> 'summary') IS DISTINCT FROM 'object'
+     OR jsonb_typeof(v_result -> 'attempts') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(v_result -> 'competitions') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_monitoring_dashboard';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.admin_list_issued_shop_vouchers();
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_list_issued_shop_vouchers';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.admin_list_shop_promo_banners();
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_list_shop_promo_banners';
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.admin_list_shop_voucher_definitions();
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_list_shop_voucher_definitions';
+  END IF;
+END;
+$stage7_more_admin_positive$;
 
 -- The same user-scoped RPCs must accept the exact Better Auth issuer and
 -- continue into their existing business validation/ownership checks.
