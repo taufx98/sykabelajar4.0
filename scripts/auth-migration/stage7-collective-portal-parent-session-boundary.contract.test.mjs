@@ -202,6 +202,22 @@ assert.match(regression, /public\.answer_collective_linear_exam_question\(\s*v_o
 
 assert.ok(regression.includes("STAGE7_REPLAYED_START_CREATED_DIFFERENT_ATTEMPT"),"missing idempotent active-attempt replay regression");
 assert.ok(regression.includes("STAGE7_VALID_ACCESS_TOKEN_OWN_STATE_UNAVAILABLE_AFTER_IDOR_PROBES"),"missing own-attempt state recovery after cross-participant probes");
+assert.ok(regression.includes("STAGE7_CROSS_PARTICIPANT_SKIP_WRITE"),"missing reciprocal exam/revoke isolation regression: STAGE7_CROSS_PARTICIPANT_SKIP_WRITE");
+assert.ok(regression.includes("STAGE7_CROSS_PARTICIPANT_CHOOSE_TIMEOUT"),"missing reciprocal exam/revoke isolation regression: STAGE7_CROSS_PARTICIPANT_CHOOSE_TIMEOUT");
+assert.ok(regression.includes("STAGE7_CROSS_PARTICIPANT_RESOLVE_TIMEOUT"),"missing reciprocal exam/revoke isolation regression: STAGE7_CROSS_PARTICIPANT_RESOLVE_TIMEOUT");
+assert.ok(regression.includes("STAGE7_OTHER_TOKEN_SKIP_FOREIGN_ATTEMPT"),"missing reciprocal exam/revoke isolation regression: STAGE7_OTHER_TOKEN_SKIP_FOREIGN_ATTEMPT");
+assert.ok(regression.includes("STAGE7_OTHER_TOKEN_CHOOSE_TIMEOUT_FOREIGN_ATTEMPT"),"missing reciprocal exam/revoke isolation regression: STAGE7_OTHER_TOKEN_CHOOSE_TIMEOUT_FOREIGN_ATTEMPT");
+assert.ok(regression.includes("STAGE7_OTHER_TOKEN_RESOLVE_TIMEOUT_FOREIGN_ATTEMPT"),"missing reciprocal exam/revoke isolation regression: STAGE7_OTHER_TOKEN_RESOLVE_TIMEOUT_FOREIGN_ATTEMPT");
+assert.ok(regression.includes("STAGE7_REVOKE_A_CHILD_INVALIDATED_B_CHILD"),"missing reciprocal exam/revoke isolation regression: STAGE7_REVOKE_A_CHILD_INVALIDATED_B_CHILD");
+assert.ok(regression.includes("STAGE7_REVOKE_A_CHILD_INVALIDATED_B_PARENT"),"missing reciprocal exam/revoke isolation regression: STAGE7_REVOKE_A_CHILD_INVALIDATED_B_PARENT");
+assert.ok(regression.includes("STAGE7_REVOKE_A_PARENT_INVALIDATED_B_CHILD"),"missing reciprocal exam/revoke isolation regression: STAGE7_REVOKE_A_PARENT_INVALIDATED_B_CHILD");
+assert.ok(regression.includes("STAGE7_REVOKE_A_PARENT_INVALIDATED_B_PARENT"),"missing reciprocal exam/revoke isolation regression: STAGE7_REVOKE_A_PARENT_INVALIDATED_B_PARENT");
+assert.ok(regression.includes("STAGE7_REVOKED_A_CHILD_TOKEN_STILL_WORKS"),"missing reciprocal exam/revoke isolation regression: STAGE7_REVOKED_A_CHILD_TOKEN_STILL_WORKS");
+assert.match(regression, /public\.skip_collective_linear_exam_question\(v_other_attempt_id,v_access_token\)/);
+assert.match(regression, /public\.choose_collective_linear_exam_timeout\(v_other_attempt_id,v_access_token,'CONTINUE'\)/);
+assert.match(regression, /public\.resolve_collective_linear_exam_timeout\(v_other_attempt_id,v_access_token\)/);
+assert.match(regression, /DO \$stage7_cross_participant_revoke_isolation\$/);
+
 assert.match(regression, /ROLLBACK;/);
 
 const applyStep = workflow.indexOf("- name: Apply Stage 7 portal parent-session hardening to disposable restore only");
