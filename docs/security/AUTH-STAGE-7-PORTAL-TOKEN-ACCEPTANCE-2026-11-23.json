@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Stage 7 collective participant portal token acceptance evidence",
-  "capturedAt": "2026-11-23T08:36:32.480144Z",
+  "capturedAt": "2026-11-23T10:58:43Z",
   "projectRef": "mvdczyitbkxkldjughor",
   "database": "Production DB2 PostgreSQL 17.6",
   "sourceCapture": {
@@ -20,19 +20,20 @@
   "acceptance": {
     "baseline": {
       "name": "Auth Production Schema Baseline",
-      "runId": 45139283555,
-      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45139283555",
-      "commit": "165c0a9f0d618c98d428b012d91bb6b836bc33f3",
+      "runId": 45160288425,
+      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45160288425",
+      "commit": "f186d9daa0aefaa45c0302cfae90f68bd8f7b14a",
       "result": "success",
-      "stepsPassed": 62,
-      "stepsTotal": 62
+      "stepsPassed": 65,
+      "stepsTotal": 65
     },
     "localAuth": {
-      "runId": 45139283588,
-      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45139283588",
+      "runId": 45160288445,
+      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45160288445",
       "result": "success",
       "stepsPassed": 23,
-      "stepsTotal": 23
+      "stepsTotal": 23,
+      "commit": "f186d9daa0aefaa45c0302cfae90f68bd8f7b14a"
     },
     "environment": {
       "restore": "schema-only Production export restored to isolated disposable PostgreSQL 17.6",
@@ -45,6 +46,58 @@
       "productionDml": false,
       "productionGrantsChanged": false,
       "productionPoliciesChanged": false
+    },
+    "passwordLookupHardening": {
+      "status": "passed_on_schema_only_disposable_restore",
+      "migration": "supabase/migrations/20261123020000_stage7_harden_collective_portal_password_lookup.sql",
+      "generatedTemporaryPassword": {
+        "format": "SK plus 22 uppercase hexadecimal characters",
+        "totalCharacters": 24,
+        "selectorCharacters": 18,
+        "bcryptVerifiedSuffixCharacters": 6
+      },
+      "selector": {
+        "algorithm": "SHA-256 of pg_catalog.btrim(password)'s first 18 characters",
+        "output": "64-character lowercase hexadecimal digest",
+        "entropyBits": 64,
+        "legacyPrefixCharacters": 8
+      },
+      "writersAndVerifier": [
+        "private.sync_collective_portal_credential(uuid,text,integer)",
+        "public.provision_collective_registration(uuid)",
+        "public.regenerate_collective_participant_password(uuid)",
+        "public.verify_collective_portal_password(text)"
+      ],
+      "retainedSecurityControls": [
+        "full bcrypt verification of the original password",
+        "five failed suffix attempts trigger a 15-minute lockout",
+        "a wrong suffix with the correct selector increments only that credential's failed_attempts",
+        "the independent participant credential remains usable",
+        "Better Auth issuer checks remain in both provisioning RPCs",
+        "the parent-session verifier retains SET search_path TO empty and fully qualified dependencies",
+        "the helper is immutable, strict, owner-only, and uses an empty search_path"
+      ],
+      "preflightAndPostflight": [
+        "migration aborts if any collective_portal_credentials row exists",
+        "four function owners, SECURITY DEFINER state, exact source fingerprints, per-function search_path and EXECUTE ACLs are checked",
+        "no Production grant, owner, trigger, schema or table was changed"
+      ],
+      "runtimeRegression": {
+        "runId": 45160288425,
+        "baselineStep": 53,
+        "result": "passed",
+        "generatedPasswords": 5000,
+        "sharedLegacyPrefixCharacters": 8,
+        "distinct64BitSelectors": 5000,
+        "sameLegacyPrefixParticipants": 2,
+        "bothParticipantsAuthenticatedToTheirOwnIdentity": true,
+        "wrongSuffixLockoutAfterFiveAttempts": true,
+        "otherParticipantUnaffected": true,
+        "transaction": "rollback-only",
+        "database": "schema-only PostgreSQL 17.6 disposable restore"
+      },
+      "productionApply": "pending separately authorized zero-start Production cutover; this migration was not applied to Production",
+      "productionChanged": false
     }
   },
   "runtimeEvidence": {
@@ -444,9 +497,9 @@
     {
       "id": "portal-password-lookup-prefix-collision",
       "severity": "availability-risk",
-      "status": "confirmed-read-only-source-review",
-      "description": "Portal password lookup keys are currently derived from SHA-256 of the first eight password characters. Auto-generated temporary passwords use the format SK plus 12 hex characters, so the indexed lookup prefix has only 24 bits of entropy. The global UNIQUE(password_lookup_key) constraint can cause provisioning/regeneration collisions and fail a registration transaction.",
-      "securityImpact": "Not demonstrated as an authentication bypass: the full password is still verified with crypt(). The demonstrated concern is availability/integrity of credential provisioning and login lookup under scale.",
+      "status": "migration-merged-and-disposable-validated; production-apply-pending",
+      "description": "The legacy Production implementation derived the indexed selector from only the first eight temporary-password characters (24 bits), creating a significant collision risk at the planned participant scale. A dedicated zero-start-only migration now derives a 64-bit selector from the first 18 trimmed characters of newly generated 24-character passwords (SK plus 22 hex characters); the final six characters remain bcrypt-verified.",
+      "securityImpact": "The original finding was an availability/provisioning-integrity risk, not a demonstrated authentication bypass. The replacement retains bcrypt verification and the five-failure/15-minute lockout by resolving the credential row using the 64-bit selector before checking the secret suffix.",
       "estimatedBirthdayCollisionProbability": {
         "participants2000": "11.2%",
         "participants5000": "52.5%",
@@ -459,8 +512,13 @@
         "public.provision_collective_registration",
         "public.regenerate_collective_participant_password"
       ],
-      "nextRequiredWork": "Inventory every password_lookup_key writer/constraint/test; replace the truncated prefix with a full-password cryptographic lookup key (or equivalent collision-safe indexed design) consistently across writers/verifier; rehearse migration and provisioning of 5k+ synthetic participants on disposable PostgreSQL before rollout.",
-      "productionChanged": false
+      "nextRequiredWork": "Apply the merged migration only as part of the separately authorized zero-start Production DB2 cutover, after all other GO gates are complete. Its preflight rejects any non-empty collective_portal_credentials table. Do not execute it independently or against a populated credential set.",
+      "productionChanged": false,
+      "validation": {
+        "baselineRunId": 45160288425,
+        "result": "65/65 passed",
+        "runtimeRegression": "5,000 synthetic selectors, same-prefix two-participant login, wrong-suffix lockout and cross-account isolation passed on the rollback-only disposable restore"
+      }
     }
   ],
   "overallProductionGate": {
