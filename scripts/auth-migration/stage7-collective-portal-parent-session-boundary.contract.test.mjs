@@ -145,9 +145,9 @@ assert.ok(regression.includes("STAGE7_RESULT_SCORE_LEAKED_BEFORE_PUBLICATION"));
 assert.ok(regression.includes("STAGE7_VALID_PUBLISHED_CERTIFICATE_NOT_RETURNED"));
 assert.ok(regression.includes("STAGE7_VALID_PUBLISHED_RESULT_NOT_RETURNED"));
 assert.ok(regression.includes("STAGE7_VALID_TOKEN_TIMEOUT_DECISION_CHANGED_COMPLETED_ATTEMPT"));
-assert.match(regression, /public\\.get_collective_participant_result\\(v_token\\)/);
-assert.match(regression, /public\\.choose_collective_linear_exam_timeout\\(v_attempt,v_token,'CONTINUE'\\)/);
-assert.match(regression, /public\\.get_collective_participant_certificate\\(v_token\\)/);
+assert.match(regression, /public\.get_collective_participant_result\(v_token\)/);
+assert.match(regression, /public\.choose_collective_linear_exam_timeout\(v_attempt,v_token,'CONTINUE'\)/);
+assert.match(regression, /public\.get_collective_participant_certificate\(v_token\)/);
 
 assert.match(regression, /ROLLBACK;/);
 
