@@ -33,6 +33,8 @@ on:
       - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
+      - "scripts/auth-migration/stage7-disposable-table-acl-restore.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-7-DISPOSABLE-TABLE-ACL-RESTORE.sql"
       - "scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs"
       - "scripts/auth-migration/stage7-collective-portal-token-regression.sql"
       - "scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs"
