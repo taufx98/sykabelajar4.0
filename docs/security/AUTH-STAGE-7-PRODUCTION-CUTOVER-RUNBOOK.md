@@ -1,5 +1,18 @@
 # Current provider and Stage 7 instruction — 22 November 2026
 
+## Superseding owner directive — 23 November 2026 (highest priority)
+
+This directive overrides every older instruction in this runbook that asks to back up, retain, export, restore, re-home, or migrate existing account/application data:
+
+- SYKABELAJAR starts from a clean zero-user/zero-test-data state. Do not migrate, import, merge, backfill, or attach any old Supabase Auth account, password, identity, session, profile, role, referral, wallet, order, registration, exam, participant, or other user-linked data to a fresh Better Auth identity.
+- Do not create or require a new account/user/application-data backup, row export, or data restore for this cutover. The historical November 14 archive is not a prerequisite, migration source, or rollback requirement. Never restore it for this project start.
+- Schema-only catalog export to a disposable local PostgreSQL instance is allowed for code/security acceptance, provided it contains no application rows, account rows, credential values, or other user data.
+- Treat existing demo/test accounts and user-linked test records as disposable. Keep only reviewed application schema and explicitly required system/configuration records; do not assume business/test rows must be retained.
+- Do not run a destructive Production reset, bulk TRUNCATE/DELETE, FK switch, or account cleanup until its table allowlist, dependencies, preservation exceptions, zero-state assertions, and execution order are reviewed in a separate plan. Production execution remains blocked until that exact operation is approved.
+- New users must be provisioned with fresh Better Auth UUIDs and fresh application profiles/roles. Matching an old email must never inherit the old UUID, role, profile, wallet, referral, or activity.
+
+The older backup and application-row-preservation sections below are historical records only wherever they conflict with this directive.
+
 **SendPulse remains the tested primary transactional-email provider. Do not configure or use any additional provider unless the owner explicitly requests it.** The approved managed provider list is SendPulse, Brevo, Mailjet, Mailtrap Email Sending, Resend and Custom HTTP.
 
 **Latest isolated rehearsal — 22 November 2026:** PR [#210](https://github.com/taufx98/sykabelajar4.0/pull/210) merged as `440a75bbd77cc486a277661f336eb2464e08f285`. Auth Worker CI [#44968023698](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023698), Supabase Local Auth Claims CI [#44968023980](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023980), and read-only staging preflight [#44968023648](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023648) passed. Auth Production Schema Baseline [#44968023703](https://github.com/taufx98/sykabelajar4.0/actions/runs/44968023703) passed all 50 steps using a read-only Production schema export and a disposable PostgreSQL 17.6 restore. The Stage 5 ACL draft removed browser-role/PUBLIC privileges only inside the disposable restore, confirmed no CRUD/TRUNCATE/REFERENCES/TRIGGER access remained for anon/authenticated, and preserved service_role/postgres CRUD. This run did not execute any Production DB2 DDL/DML or alter staging resources. It does not mark the 23-table RLS review or 202-function SECURITY DEFINER review complete.
@@ -82,30 +95,13 @@ After Better Auth issuer guards are enabled, Supabase Auth JWTs are rejected on 
 
 Before Production GO, the owner must explicitly acknowledge that this fresh-start behavior is intended for the Production population, not only staging tests. Do not invent email-based account merges or silently reassign business data.
 
-## 5. Mandatory backup and restore gate
+## 5. Historical backup activity — superseded; not a cutover gate
 
-Production DB2 is on Supabase Free. Its automatic daily backup and PITR protections are unavailable. The successful schema-only CI export is **not** a full data backup.
+The earlier November 14 full database archive/restore rehearsal is historical evidence only. Per the 23 November owner directive, it must not be used as a source for account or application-data migration, and its external checksum is not a release gate. Do not rerun the Production DB2 backup workflow, create a replacement account/data archive, or restore old rows.
 
-A guarded workflow is prepared at `.github/workflows/auth-production-db2-backup.yml`. It performs a read-only full `pg_dump` of Production DB2, verifies table-data entries, restores the application database into a separate database inside an isolated Supabase local/PostgreSQL 17.6 stack, checks catalog invariants without selecting or printing application rows, encrypts the original full archive with age, and uploads only the encrypted file/checksum/manifest. The restore connects as the local Supabase bootstrap role `supabase_admin`, and first verifies that the role actually has the PostgreSQL `SUPERUSER` attribute. This is required for restoring Supabase-managed functions such as `realtime.list_changes`, whose definition sets the superuser-only `log_min_messages` parameter; the regular local `postgres` login is not used as the restore administrator. Supabase configures `pg_cron` to run only from its canonical `postgres` database; therefore the isolated application restore intentionally excludes the `pg_cron` extension and its scheduler-owned `cron` objects so Production scheduled jobs are not replayed in the disposable runner. Those objects remain present in the original encrypted full-database archive. No local `pg_cron` installation is required for this isolated application restore. It does not run Production DDL/DML.
+The Stage 7 baseline workflow may continue to export schema and catalog metadata only for disposable acceptance. Its manifest must continue to prove that no table rows, Auth accounts, profiles, credentials, or application data are present in the export/restore fixture.
 
-The age recipient and database URL secrets are already configured, and the full backup/restore rehearsal has passed in Run #7. Do not regenerate the keypair or rerun the workflow just to repeat completed work.
-
-**Owner action before Production identity DDL:**
-
-The owner has confirmed that the backup has been copied to durable storage outside GitHub. No further copy is requested. Keep the private age identity offline and separate. Record the destination checksum verification and retain the backup through the cutover and rollback observation window; do not disclose the storage location or private key in this repository.
-
-
-### Verified backup evidence — 14 November 2026
-
-The guarded workflow [Run #7](https://github.com/taufx98/sykabelajar4.0/actions/runs/43549547338) completed successfully. The full Production dump was created read-only; its archive catalog contained table-data entries; the isolated restore used the verified local Supabase `supabase_admin` superuser; the PostgreSQL 17.6 application restore and catalog assertions passed; the original full dump was age-encrypted; and the cleanup step removed plaintext temporary files.
-
-The uploaded artifact is `sykabelajar-production-db2-encrypted-backup` (ID `14095658580`; available until 12 February 2027 03:02 UTC). It contains the encrypted custom-format dump, checksum and manifest only. The encrypted dump is 2,364,714 bytes with SHA-256 `78e395cf81ffdd03ce8c2c317d4b95b9bb592ce4690740d46c3d9fd6f4e0330f`. Its uploaded ZIP SHA-256 is `78e52102270ca31eaa7334b45827da32b6848945573975a33787b38a9a9b664a`. The artifact was downloaded and both hashes independently verified. No private age identity was included. The original encrypted dump retains `pg_cron` and its scheduler data; only the disposable restore list excluded those objects to prevent scheduled jobs from running in the test database.
-
-**The owner confirmed on 14 November 2026 that the backup has been copied to durable storage outside GitHub.** The backup/restore rehearsal is passed. This session cannot inspect the owner's external storage, so retain the destination checksum-verification result in the private release record. Keep the private age identity offline and separate. The GitHub artifact remains only a temporary transfer copy.
-
-The encrypted artifact is a transfer mechanism, not the final backup vault. It contains the Production database dump, including legacy Auth rows, only for disaster recovery. It is not a user migration: no legacy account or role is imported into Better Auth. Cloudinary media remains outside this PostgreSQL database backup.
-
-Do not create paid Supabase branches, enable paid PITR, upgrade the organization or purchase a backup add-on without explicit cost approval. References: [Supabase backups](https://supabase.com/docs/guides/platform/backups) and [Supabase pricing](https://supabase.com/pricing).
+Rollback for the fresh-start release is code/configuration rollback and fail-closed routing recovery, not restoring legacy account/application rows. If a clean reset is later required, first review the exact table allowlist and dependency order; do not create an unapproved broad truncate/delete script.
 
 ## 6. Ordered Production cutover
 
@@ -236,8 +232,8 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 
 - [x] Owner-run staging acceptance: 5/5; Stages 1, 2, 4, 5 and 6 are accepted for the agreed authentication-only scope.
 - [x] Owner approved the Production cutover architecture and fresh-account model. Exact Production DB2 DDL still requires its immediate preflight and explicit operation approval.
-- [x] Full encrypted Production DB2 backup and disposable PostgreSQL 17.6 restore passed; owner confirmed the encrypted archive is outside GitHub.
-- [ ] Verify and record the external backup destination checksum in the private owner release record; keep the private age identity offline. This remains a hard pre-DDL gate.
+- [x] Owner directive 23 November: no legacy account/application-data migration, no new account/data backup, and no restore/import of historical user data. Schema-only disposable acceptance remains allowed.
+- [ ] Complete the reviewed zero-start Production data-cleanup allowlist and dependency order; assert no legacy account or user-linked records are imported or attached to new identities. Destructive execution requires separate exact approval.
 - [x] Production D1 migrations 0000–0010 and 23-table baseline verified in #44341594485; email verification is required, failover default exists, and user/account/session/verification/OAuth/provider rows were empty.
 - [x] Dedicated Production Worker sykabelajar-auth-prod is deployed on auth-prod.sykabelajar.my.id with its own Production D1 and secrets; hosted health/discovery/JWKS/PKCE/CORS/closed-signup and staging non-regression passed in #44348084987.
 - [x] Production DB2 Custom OIDC issuer https://auth-prod.sykabelajar.my.id/api/auth is registered and verified exactly once by guarded run #44349164162 (attempt 2); integration id def142a5-e811-446a-9e7d-db21c093ed2a. PKCE S256 and public ES256/P-256 JWKS checks passed. A real Production account token has not yet been accepted.
@@ -246,7 +242,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [x] Fresh read-only DB2 inventory on 20 November 2026 still shows 69 application FKs to auth.users, no private.app_users, 3 legacy auth.users triggers, 12 Auth users/identities, 46 sessions, 76 refresh tokens, 12 profiles and 17 business-role rows. No application data was read or changed.
 - [x] Deploy the closed-signup Production Worker code through the owner-dispatched workflow [#44833402559](https://github.com/taufx98/sykabelajar4.0/actions/runs/44833402559), attempt 2; version `b3bb0c0c-8a32-4e87-9027-06a4950cd306`. Runtime, closed-signup and D1/secret/staging-preservation postflight checks passed. The Actions red conclusion is only its cleanup command failure after deployment/postflight.
 - [ ] Configure the Production SendPulse provider through the owner-only sender bootstrap; confirm connection only. No email is sent by that operation.
-- [ ] Apply Stage 3 core identity-root/provisioning/FK and legacy-trigger DDL to Production DB2 only after the backup checksum, immediate catalog preflight and explicit DDL approval.
+- [ ] Apply Stage 3 core identity-root/provisioning/FK and legacy-trigger DDL to Production DB2 only after the zero-start table allowlist, immediate catalog preflight and explicit DDL approval.
 - [ ] Prepare and pass a dedicated owner-gated Production provisioning-enable workflow; verify Stage 3 core identity/FK/RPC state, active SendPulse provider and Production provisioning-key binding, then set only SUPABASE_PROVISIONING_ENABLED=true while AUTH_SIGNUP_DISABLED=true.
 - [ ] Create the single pinned owner account, receive and complete the six-digit OTP, verify the same UUID in D1/private.app_users/profile, and confirm a genuine Production OIDC token against the DB2 Data API.
 - [ ] Apply both issuer guard drafts in the tested order, verify all 61 restrictive policies and SECURITY DEFINER paths, then grant the first Admin with the owner UUID.
@@ -254,7 +250,7 @@ References: [Workers limits](https://developers.cloudflare.com/workers/platform/
 - [ ] Deploy the Production frontend auth configuration and pass the full login/session/API/Storage/Realtime/Edge smoke suite.
 - [ ] Verify monitoring/alerts and the Better Auth-compatible rollback path; close Stage 7 only after the observation gate is green.
 
-**Current decision: NO-GO for the Production app/auth cutover.** Production OIDC registration and the closed Worker code update are complete, but there is no real Production owner session/token. The external backup destination checksum is not recorded; no SendPulse provider row, bootstrap token, Production provisioning credential, owner account/OTP or Admin role exists. Stage 3 DB2 DDL, provisioning activation, issuer guards and frontend cutover remain pending. Existing Production Auth/application rows and accepted staging state are intact. The site is unreleased, so no scheduled public maintenance window is needed.
+**Current decision: NO-GO for the Production app/auth cutover.** Production OIDC registration and the closed Worker code update are complete, but there is no real Production owner session/token. The zero-start reset allowlist and execution order are not yet accepted; no SendPulse provider row, bootstrap token, Production provisioning credential, owner account/OTP or Admin role exists. Stage 3 DB2 DDL, provisioning activation, issuer guards and frontend cutover remain pending. Existing Production Auth/application rows and accepted staging state are intact. The site is unreleased, so no scheduled public maintenance window is needed.
 
 ## 9A. Historical staging migration 0013 and provider correction — updated 19 November 2026
 
