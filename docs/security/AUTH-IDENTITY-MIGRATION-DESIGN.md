@@ -163,7 +163,7 @@ Supabase's Custom OIDC integration requires an HTTPS issuer with discovery/JWKS,
 The synthetic fixtures are exercised by [Supabase Local Auth Claims CI #41860723261](https://github.com/taufx98/sykabelajar4.0/actions/runs/41860723261), which passed **73/73 pgTAP assertions across three files** on 5 November 2026:
 
 - 8 JWT/RLS assertions for UUID `sub` → `auth.uid()`, owner/cross-user boundaries, and the invariant that JWT `role` is PostgreSQL `authenticated`.
-- 12 FK rehome assertions for UUID-only tombstone seed, FK target replacement, and preservation of all four delete actions.
+- Zero-start FK assertions: empty identity root, all 69 source columns empty, exact FK target replacement, and preservation of all four delete actions.
 - 53 provisioning/referral assertions for server-only execution, preservation of the business-role enum/table, permitted basic-role mapping, rejection of admin self-registration, retry safety, no `auth.users` shadow row, trusted email verification, referral qualification and idempotent Edu Coin rewards.
 
 The provisioning/referral fixture now has 68 assertions, including wrapper grants and service-role calls through the PostgREST wrapper, profile bootstrap projection for date of birth/institution/education level/favorite categories, role mapping, idempotency, rollback, trusted email verification, referral qualification and Edu Coin ledger cases. Across the three local SQL test files, Supabase Local Auth Claims CI [#42257123937](https://github.com/taufx98/sykabelajar4.0/actions/runs/42257123937) passed **88/88 pgTAP assertions**. The corresponding Worker hooks and transient D1 profile-bootstrap cleanup are implemented on the branch and covered by Worker integration/unit tests, but remain disabled until an isolated hosted Supabase project accepts Custom OIDC and the reviewed identity projection is installed there.
@@ -300,7 +300,7 @@ This is a technically validated candidate, not an operationally enabled provider
 
 ## Stage 3 disposable acceptance — 8 November 2026
 
-The 7 November disposable acceptance run [#42398676006](https://github.com/taufx98/sykabelajar4.0/actions/runs/42398676006) validated an earlier Stage 3 draft that still allowed two issuers. It is historical evidence only and does **not** validate the revised fresh-account-only draft. The revised draft now uses UUID-only `legacy_reference` tombstones, drops the three old Auth triggers, and accepts only the Better Auth issuer. A new full-schema disposable run is active as [#42468784050](https://github.com/taufx98/sykabelajar4.0/actions/runs/42468784050); do not mark the revised Stage 3 accepted until that run finishes green.
+The 7 November disposable acceptance run [#42398676006](https://github.com/taufx98/sykabelajar4.0/actions/runs/42398676006) is historical evidence only; it used an earlier issuer design and does not validate the current zero-start model. Its tombstone-seed behavior is retired. The current generator requires an empty identity root and empty values in each of the 69 application FK source columns, and the current issuer regression denies the old Supabase Auth issuer even when it claims the same UUID as a fresh Better Auth Admin. Current Stage 7 evidence is recorded in the 23 November roadmap/runbook checkpoint.
 
 The real production database remains unchanged: no `private.app_users` table, 69 FKs to `auth.users`, and three non-internal Auth triggers were reconfirmed read-only on 8 November 2026. Production DDL and the FK/issuer cutover require explicit owner approval before execution.
 
