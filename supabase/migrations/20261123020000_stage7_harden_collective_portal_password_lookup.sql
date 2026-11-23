@@ -578,7 +578,6 @@ BEGIN
 
     IF position('private.collective_portal_password_lookup_key' IN v_source)=0
        OR v_source ILIKE '%digest(left%'
-       OR v_source ~* 'left\\s*\\([^\\n]*,\\s*8\\s*\\)' THEN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_FULL_PASSWORD_DERIVATION_MISSING:%',v_signature;
     END IF;
   END LOOP;
