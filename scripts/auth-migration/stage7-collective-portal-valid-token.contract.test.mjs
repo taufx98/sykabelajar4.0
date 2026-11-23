@@ -43,7 +43,7 @@ assert.match(sql, /STAGE7_REVOKED_ACCESS_TOKEN_NOT_REJECTED/);
 assert.match(sql, /RESET ROLE;[\s\S]*ROLLBACK;/);
 assert.doesNotMatch(sql.replace(/^--.*$/gm, ""), /\b(?:COMMIT|TRUNCATE|DROP TABLE|CREATE TABLE|DELETE FROM)\b/i);
 
-const marker = "- name: Verify all 14 collective portal RPCs reject invalid anon tokens on disposable restore only";
+const marker = "- name: Verify all 14 collective portal RPCs reject invalid anon tokens on disposable restore";
 const positive = "- name: Verify valid collective portal password, listing, opening and revocation on disposable restore only";
 const invalidAt = workflow.indexOf(marker);
 const positiveAt = workflow.indexOf(positive);
