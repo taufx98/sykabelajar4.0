@@ -14,6 +14,15 @@ const regression = readFileSync(
 );
 const issuer = "https://auth-prod.sykabelajar.my.id/api/auth";
 
+assert.doesNotMatch(regression, /legacy_reference/,
+  "zero-start fixtures must never seed a legacy identity origin");
+assert.match(regression, /\('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'better_auth'\)/,
+  "all synthetic identity-root rows must be fresh Better Auth identities");
+assert.match(regression, /\"sub\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\"[\\s\\S]*?supabase\.co\/auth\/v1/,
+  "negative legacy-issuer fixture must reuse a real synthetic Better Auth subject");
+assert.match(regression, /get_profile_connections\('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following'\)/,
+  "legacy issuer must not obtain owner access even when sub equals the private profile UUID");
+
 assert.match(draft, /CREATE OR REPLACE FUNCTION private\.current_user_is_better_auth\(\)/);
 assert.match(draft, /auth\.jwt\(\)\s*->>\s*'iss'/);
 assert.ok(draft.includes(issuer), "all identity guards must pin the exact Production issuer");
