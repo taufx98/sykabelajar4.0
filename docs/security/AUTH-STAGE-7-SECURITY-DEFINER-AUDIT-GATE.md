@@ -2,6 +2,13 @@
 
 Status: **blocking, updated 23 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
+
+## Partial manual review — 23 November 2026
+
+A separate dated report, [Tranche 01](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-01-2026-11-23.md), records **7/202** exact signatures source-reviewed and runtime-tested on the PostgreSQL 17.6 disposable restore: six Admin/organizer RPCs plus `admin_evaluate_badges()`. The seven live `md5(pg_proc.prosrc)` values matched the canonical 21 November triage snapshot. The first six were added by PR #250; the existing Stage 3 regression covers the badge evaluator's legacy-issuer denial, anon EXECUTE removal and Better Auth Admin path. **195 signatures remain.**
+
+Keep the 21 November triage JSON as the immutable source snapshot; its `reviewStatus: not_reviewed` values describe the original triage file, not this later manual review record. The final activation manifest deliberately remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`: it is the all-functions, exact post-Stage-3/pre-issuer-guard fingerprint allowlist, not a partial-review counter. This tranche is not Production approval and does not change the global Stage 7 NO-GO.
+
 ## Read-only live snapshot — 21 November 2026
 
 A fresh Supabase Security Advisor query at 2026-11-21T01:17:16Z reported the following external-facing findings:
