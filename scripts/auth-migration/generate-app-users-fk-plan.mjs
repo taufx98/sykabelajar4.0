@@ -87,17 +87,14 @@ function relation(fk) {
     quoteIdentifier(fk.source_table, "source_table");
 }
 
-function orphanCheck(fk) {
+function zeroStartCheck(fk) {
   const column = quoteIdentifier(fk.source_columns[0], "source_column");
   return `  IF EXISTS (
     SELECT 1
     FROM ${relation(fk)} AS child
-    LEFT JOIN private.app_users AS identity_root
-      ON identity_root.id = child.${column}
     WHERE child.${column} IS NOT NULL
-      AND identity_root.id IS NULL
   ) THEN
-    RAISE EXCEPTION ${quoteLiteral("IDENTITY_ROOT_ORPHANS: " + fk.source_schema + "." + fk.source_table + "." + fk.source_columns[0])};
+    RAISE EXCEPTION ${quoteLiteral("ZERO_START_FK_COLUMN_NOT_EMPTY: " + fk.source_schema + "." + fk.source_table + "." + fk.source_columns[0])};
   END IF;`;
 }
 
@@ -159,11 +156,12 @@ function boundedTimeoutGuard() {
 }
 
 /**
- * Generate review-only SQL in four phases:
- * 0) seed UUID-only tombstones from application FK columns (never read auth.users),
- * 1) full preflight + resumable, bounded per-source-table expansion batches,
- * 2) resumable, bounded per-source-table validation batches,
+ * Generate review-only SQL for a zero-start baseline in three phases:
+ * 1) require an empty private.app_users root and empty values in all 69 child FK columns,
+ * 2) resumable, bounded per-source-table expansion and validation batches,
  * 3) one globally atomic cutover after all replacement constraints validate.
+ *
+ * No legacy UUIDs are seeded, retained or copied into the Better Auth identity root.
  *
  * The operator must set finite lock_timeout and statement_timeout values on
  * the psql session after measuring the current workload. This generator does
@@ -181,31 +179,10 @@ export function generatePlan(snapshot) {
     "-- This generator never connects to a database and never executes SQL.",
     "-- REQUIRED: Set finite session lock_timeout and statement_timeout values",
     "-- chosen from current workload measurements before running this file.",
+    "-- Clean-start invariant: private.app_users and all 69 source FK columns are empty.",
+    "-- No legacy identity, account or application rows are imported.",
     "-- Do not invoke psql with --single-transaction: expand/validate commits are",
     "-- intentionally bounded one-source-table batches for safe resume/reconciliation.",
-    "",
-  ].join("\n");
-
-  const tombstoneSources = records.map((fk) => {
-    const rel = relation(fk);
-    const column = quoteIdentifier(fk.source_columns[0], "source_column");
-    return "SELECT " + column + " AS id FROM " + rel + " WHERE " + column + " IS NOT NULL";
-  });
-  const tombstoneSql = [
-    "-- GENERATED REVIEW PLAN ONLY — UUID-only FK compatibility tombstones.",
-    "-- This reads only the 69 application FK source columns; it never reads auth.users.",
-    "-- No email, credentials, sessions, provider identities, verification or user roles are copied.",
-    "-- Every inserted row is non-authenticatable and is marked legacy_reference.",
-    "BEGIN;",
-    boundedTimeoutGuard(),
-    "INSERT INTO private.app_users (id, identity_origin)",
-    "SELECT DISTINCT referenced.id, 'legacy_reference'",
-    "FROM (",
-    tombstoneSources.map((sql) => "  " + sql).join("\n  UNION\n"),
-    ") AS referenced",
-    "WHERE referenced.id IS NOT NULL",
-    "ON CONFLICT (id) DO NOTHING;",
-    "COMMIT;",
     "",
   ].join("\n");
 
@@ -213,6 +190,9 @@ export function generatePlan(snapshot) {
     [
       "  IF to_regclass('private.app_users') IS NULL THEN",
       "    RAISE EXCEPTION 'IDENTITY_ROOT_PRIVATE_APP_USERS_MISSING';",
+      "  END IF;",
+      "  IF EXISTS (SELECT 1 FROM private.app_users) THEN",
+      "    RAISE EXCEPTION 'ZERO_START_IDENTITY_ROOT_NOT_EMPTY';",
       "  END IF;",
     ].join("\n"),
     ...records.flatMap((fk, index) => {
@@ -250,7 +230,7 @@ export function generatePlan(snapshot) {
         "    RAISE EXCEPTION " + quoteLiteral("TEMP_FK_NAME_COLLISION: " + tempName) + ";",
         "  END IF;",
       ].join("\n");
-      return [oldFkCheck, tempFkCheck, orphanCheck(fk)];
+      return [oldFkCheck, tempFkCheck, zeroStartCheck(fk)];
     }),
   ];
 
@@ -379,8 +359,7 @@ export function generatePlan(snapshot) {
   ]);
 
   return {
-    "00-identity-tombstones.sql": tombstoneSql,
-    "01-preflight-expand.sql": header("full preflight + resumable bounded expansion") +
+    "01-preflight-expand.sql": header("zero-start preflight + resumable bounded expansion") +
       boundedTimeoutGuard() + "\n\n" +
       "DO " + "$" + "$" + "\nBEGIN\n" + preflightChecks.join("\n\n") + "\nEND\n" + "$" + "$;\n\n" +
       expandBatches.join("\n\n") + "\n",
@@ -408,7 +387,7 @@ async function main() {
   if (args.help || !args.catalog || !args.outDir) {
     process.stdout.write(
       "Usage: node generate-app-users-fk-plan.mjs --catalog <json> --out-dir </absolute/outside/repo>\n" +
-      "Generates three review-only SQL files. It does not connect to or execute SQL against any database.\n",
+      "Generates three zero-start review-only FK SQL files. It does not connect to or execute SQL against any database.\n",
     );
     if (!args.help) process.exitCode = 2;
     return;
