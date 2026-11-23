@@ -20,6 +20,19 @@ assert.match(sql, /extensions\.digest\('PortalTe', 'sha256'\)/);
 assert.match(sql, /verify_collective_portal_password\(v_password\)/);
 assert.match(sql, /list_collective_portal_competitions\(v_portal_token\)/);
 assert.match(sql, /open_collective_competition_session\(/);
+assert.match(sql, /INVALID_PARTICIPANT_CODE/);
+assert.match(sql, /public\.questions/);
+assert.match(sql, /start_collective_linear_exam_attempt\(v_competition, v_access_token\)/);
+assert.match(sql, /save_collective_linear_exam_draft\(/);
+assert.match(sql, /answer_collective_linear_exam_question\(/);
+assert.match(sql, /skip_collective_linear_exam_question\(/);
+assert.match(sql, /get_collective_linear_exam_state\(/);
+assert.match(sql, /STAGE7_VALID_ACCESS_TOKEN_COULD_NOT_START_LINEAR_EXAM/);
+assert.match(sql, /STAGE7_VALID_ACCESS_TOKEN_DRAFT_AUTOSAVE_FAILED/);
+assert.match(sql, /STAGE7_VALID_ACCESS_TOKEN_LINEAR_ANSWER_ADVANCE_FAILED/);
+assert.match(sql, /STAGE7_VALID_ACCESS_TOKEN_LINEAR_SKIP_COMPLETION_FAILED/);
+assert.match(sql, /STAGE7_LINEAR_EXAM_STATE_LEAKED_ANSWER_KEY/);
+assert.match(sql, /STAGE7_REVOKED_ACCESS_TOKEN_LINEAR_EXAM_NOT_DENIED/);
 assert.match(sql, /revoke_collective_access_session\(v_access_token\)/);
 assert.match(sql, /revoke_collective_portal_session\(v_portal_token\)/);
 assert.match(sql, /STAGE7_VALID_PORTAL_PASSWORD_REJECTED/);
@@ -39,4 +52,4 @@ assert.ok(invalidAt >= 0 && positiveAt > invalidAt && rollbackAt > positiveAt,
   "positive-token acceptance must run after negative-token acceptance and before rollback");
 assert.match(workflow.slice(positiveAt, rollbackAt), /stage7-collective-portal-valid-token-regression\.sql/);
 
-console.log("Stage 7 valid participant portal token contract passed: fresh synthetic identity, valid password/token, private competition listing, access opening, revocation and transaction rollback.");
+console.log("Stage 7 valid participant portal token contract passed: fresh synthetic identity, private competition scope, 256-bit tokens, linear exam start/autosave/answer/skip, answer-key non-disclosure, revocation and transaction rollback.");
