@@ -128,8 +128,10 @@ BEGIN
 END;
 $stage7_portal_lookup_source_preflight$;
 
--- One canonical key derivation: the full, exact password string. This matches
--- the byte-for-byte input supplied to crypt(); no short prefix or trimming.
+-- One canonical account selector: SHA-256 of the first 18 characters. New
+-- passwords are 24 chars (SK + 22 hex); the 18-char selector is 64 random bits
+-- and the final six hex chars remain the bcrypt-verified secret suffix. A wrong
+-- suffix still resolves the intended row so the existing lockout counter works.
 CREATE FUNCTION private.collective_portal_password_lookup_key(p_password text)
 RETURNS text
 LANGUAGE sql
@@ -137,7 +139,7 @@ IMMUTABLE
 STRICT
 SET search_path TO ''
 AS $function$
-  SELECT pg_catalog.encode(extensions.digest(p_password,'sha256'),'hex');
+  SELECT pg_catalog.encode(extensions.digest(pg_catalog.left(p_password,18),'sha256'),'hex');
 $function$;
 
 -- Only the database owner may execute the helper directly. Existing public
@@ -281,7 +283,7 @@ BEGIN
     v_password:='';
 
     IF v_portal.id IS NULL THEN
-      v_password:='SK'||upper(substr(encode(gen_random_bytes(7),'hex'),1,12));
+      v_password:='SK'||upper(substr(encode(gen_random_bytes(16),'hex'),1,22));
 
       INSERT INTO public.collective_portal_credentials(
         portal_identity_id,password_hash,password_lookup_key,password_version,
@@ -296,7 +298,7 @@ BEGIN
       RETURNING * INTO v_portal;
 
     ELSIF NOT v_portal.enabled THEN
-      v_password:='SK'||upper(substr(encode(gen_random_bytes(7),'hex'),1,12));
+      v_password:='SK'||upper(substr(encode(gen_random_bytes(16),'hex'),1,22));
 
       UPDATE public.collective_portal_credentials
       SET password_hash=crypt(v_password,gen_salt('bf',12)),
@@ -393,7 +395,7 @@ BEGIN
     RAISE EXCEPTION 'ACCESS_NOT_READY';
   END IF;
 
-  raw:='SK'||upper(substr(encode(gen_random_bytes(7),'hex'),1,12));
+  raw:='SK'||upper(substr(encode(gen_random_bytes(16),'hex'),1,22));
   v_new:=v_old+1;
 
   UPDATE public.participant_access_credentials
