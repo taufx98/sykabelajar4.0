@@ -970,6 +970,75 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_update_referral_program_settings'; END IF;
 
+
+  -- Tranche 04: certificate/award RPCs must reject a legacy issuer before
+  -- reading the protected attempt, competition, award or certificate rows.
+  v_denied := false;
+  BEGIN
+    PERFORM public.auto_grade_essay_item(
+      '99999999-9999-4999-8999-999999999961'::uuid,
+      '99999999-9999-4999-8999-999999999962'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ALLOWED:auto_grade_essay_item'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.generate_awards_for_competition(
+      '99999999-9999-4999-8999-999999999963'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ALLOWED:generate_awards_for_competition'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.issue_certificate_for_award(
+      '99999999-9999-4999-8999-999999999964'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_USER_RPC_ALLOWED:issue_certificate_for_award'; END IF;
+
+  -- Direct Admin certificate/order functions must also deny the matching
+  -- active role when presented with the old Supabase Auth issuer.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_set_certificate_status(
+      '99999999-9999-4999-8999-999999999965'::uuid,
+      'PUBLISHED'::public.certificate_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_certificate_status'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_transition_certificate(
+      '99999999-9999-4999-8999-999999999966'::uuid,
+      'PUBLISHED'::public.certificate_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_transition_certificate'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_transition_order(
+      '99999999-9999-4999-8999-999999999967'::uuid,
+      'COMPLETED'::public.order_status, 'Stage 7 issuer probe', NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_transition_order'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1395,6 +1464,73 @@ BEGIN
     IF SQLERRM = 'ACTIVE_FLAG_REQUIRED' THEN v_exam_denied := true; ELSE RAISE; END IF;
   END;
   IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_update_referral_program_settings'; END IF;
+
+  -- Tranche 04: valid Better Auth issuer passes the identity gate, then
+  -- reaches not-found business validation without any fixture-row writes.
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.auto_grade_essay_item(
+      '99999999-9999-4999-8999-999999999961'::uuid,
+      '99999999-9999-4999-8999-999999999962'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:auto_grade_essay_item'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.generate_awards_for_competition(
+      '99999999-9999-4999-8999-999999999963'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:generate_awards_for_competition'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.issue_certificate_for_award(
+      '99999999-9999-4999-8999-999999999964'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'AWARD_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_USER_RPC_ISSUER_GATE_FAILED:issue_certificate_for_award'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_set_certificate_status(
+      '99999999-9999-4999-8999-999999999965'::uuid,
+      'PUBLISHED'::public.certificate_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'CERTIFICATE_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_set_certificate_status'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_transition_certificate(
+      '99999999-9999-4999-8999-999999999966'::uuid,
+      'PUBLISHED'::public.certificate_status, 'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'CERTIFICATE_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_transition_certificate'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_transition_order(
+      '99999999-9999-4999-8999-999999999967'::uuid,
+      'COMPLETED'::public.order_status, 'Stage 7 issuer probe', NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ORDER_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_transition_order'; END IF;
+
 
   IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_create_organizer_payment_method'; END IF;
 
