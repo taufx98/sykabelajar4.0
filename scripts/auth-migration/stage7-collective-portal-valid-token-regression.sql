@@ -347,6 +347,92 @@ $stage7_collective_portal_valid_token$;
 -- Inspect the disposable fixture as owner and prove parent revocation marked
 -- its child, while the newly opened child never outlives its parent session.
 RESET ROLE;
+INSERT INTO public.collective_certificates (
+  id,collective_participant_id,competition_id,status,serial_number,verification_code
+) VALUES (
+  '00000000-0000-4000-8000-00000000f71c',
+  '00000000-0000-4000-8000-00000000f715',
+  '00000000-0000-4000-8000-00000000f714',
+  'ELIGIBLE','STAGE7-CERT-SERIAL-001','STAGE7-CERT-VERIFY-001'
+);
+
+SET LOCAL ROLE anon;
+DO $stage7_portal_unpublished_result_and_certificate$
+DECLARE
+  v_token text := pg_catalog.current_setting('stage7.access_token_lifecycle',true);
+  v_attempt uuid := pg_catalog.current_setting('stage7.attempt_id',true)::uuid;
+  v_state jsonb;
+BEGIN
+  v_state := public.get_collective_participant_certificate(v_token);
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_EXPOSED_BEFORE_PUBLICATION:%',v_state;
+  END IF;
+
+  v_state := public.get_collective_participant_result(v_token);
+  IF coalesce((v_state->>'has_result')::boolean,false) IS NOT TRUE
+     OR coalesce((v_state->>'published')::boolean,true) IS NOT FALSE
+     OR v_state ? 'score' OR v_state ? 'rank' OR v_state ? 'attempt_id' THEN
+    RAISE EXCEPTION 'STAGE7_RESULT_SCORE_LEAKED_BEFORE_PUBLICATION:%',v_state;
+  END IF;
+
+  v_state := public.get_collective_linear_exam_state(v_attempt,v_token);
+  IF v_state->>'phase' IS DISTINCT FROM 'COMPLETED' THEN
+    RAISE EXCEPTION 'STAGE7_VALID_TOKEN_CANNOT_READ_COMPLETED_EXAM_STATE:%',v_state;
+  END IF;
+
+  v_state := public.choose_collective_linear_exam_timeout(v_attempt,v_token,'CONTINUE');
+  IF v_state->>'phase' IS DISTINCT FROM 'COMPLETED' THEN
+    RAISE EXCEPTION 'STAGE7_VALID_TOKEN_TIMEOUT_DECISION_CHANGED_COMPLETED_ATTEMPT:%',v_state;
+  END IF;
+END;
+$stage7_portal_unpublished_result_and_certificate$;
+
+RESET ROLE;
+SELECT pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-00000000f711","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  true
+);
+SELECT pg_catalog.set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000f711',true);
+SELECT pg_catalog.set_config('request.jwt.claim.role','authenticated',true);
+
+UPDATE public.collective_certificates
+SET status='PUBLISHED',issued_at=pg_catalog.clock_timestamp(),
+    certificate_url='https://res.cloudinary.com/demo/image/upload/stage7-synthetic-certificate.pdf'
+WHERE id='00000000-0000-4000-8000-00000000f71c';
+
+UPDATE public.competitions
+SET status='RESULT_PUBLISHED'
+WHERE id='00000000-0000-4000-8000-00000000f714';
+
+SELECT pg_catalog.set_config('request.jwt.claims','{"role":"anon"}',true);
+SELECT pg_catalog.set_config('request.jwt.claim.role','anon',true);
+SET LOCAL ROLE anon;
+DO $stage7_portal_published_result_and_certificate$
+DECLARE
+  v_token text := pg_catalog.current_setting('stage7.access_token_lifecycle',true);
+  v_certificate jsonb;
+  v_result jsonb;
+BEGIN
+  v_certificate := public.get_collective_participant_certificate(v_token);
+  IF v_certificate->>'certificate_id' IS DISTINCT FROM '00000000-0000-4000-8000-00000000f71c'
+     OR v_certificate->>'verification_code' IS DISTINCT FROM 'STAGE7-CERT-VERIFY-001'
+     OR v_certificate->>'serial_number' IS DISTINCT FROM 'STAGE7-CERT-SERIAL-001'
+     OR v_certificate->>'status' IS DISTINCT FROM 'PUBLISHED' THEN
+    RAISE EXCEPTION 'STAGE7_VALID_PUBLISHED_CERTIFICATE_NOT_RETURNED:%',v_certificate;
+  END IF;
+
+  v_result := public.get_collective_participant_result(v_token);
+  IF coalesce((v_result->>'has_result')::boolean,false) IS NOT TRUE
+     OR coalesce((v_result->>'published')::boolean,false) IS NOT TRUE
+     OR (v_result->>'score')::numeric IS DISTINCT FROM 5::numeric
+     OR (v_result->>'rank')::bigint IS DISTINCT FROM 1::bigint THEN
+    RAISE EXCEPTION 'STAGE7_VALID_PUBLISHED_RESULT_NOT_RETURNED:%',v_result;
+  END IF;
+END;
+$stage7_portal_published_result_and_certificate$;
+
+RESET ROLE;
 DO $stage7_portal_parent_cascade_and_expiry$
 DECLARE
   v_parent_token text := pg_catalog.current_setting('stage7.portal_token_parent',true);
