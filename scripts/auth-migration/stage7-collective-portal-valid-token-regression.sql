@@ -351,6 +351,68 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_READ_FOREIGN_ATTEMPT:%',coalesce(v_error,'<no error>');
   END IF;
 
+  -- Both valid child tokens must be scoped to their own attempts for every
+  -- linear-exam mutation/reconciliation entry point, not just state/draft/answer.
+  v_error := NULL;
+  BEGIN
+    PERFORM public.skip_collective_linear_exam_question(v_other_attempt_id,v_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_SKIP_WRITE:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.choose_collective_linear_exam_timeout(v_other_attempt_id,v_access_token,'CONTINUE');
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_CHOOSE_TIMEOUT:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.resolve_collective_linear_exam_timeout(v_other_attempt_id,v_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_CROSS_PARTICIPANT_RESOLVE_TIMEOUT:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.skip_collective_linear_exam_question(v_attempt_id,v_other_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_SKIP_FOREIGN_ATTEMPT:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.choose_collective_linear_exam_timeout(v_attempt_id,v_other_access_token,'CONTINUE');
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_CHOOSE_TIMEOUT_FOREIGN_ATTEMPT:%',coalesce(v_error,'<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.resolve_collective_linear_exam_timeout(v_attempt_id,v_other_access_token);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_OTHER_TOKEN_RESOLVE_TIMEOUT_FOREIGN_ATTEMPT:%',coalesce(v_error,'<no error>');
+  END IF;
+
   -- The participant result endpoint must not return another participant's finalized result.
   v_state := public.get_collective_participant_result(v_other_access_token);
   IF coalesce((v_state->>'has_result')::boolean,true) IS TRUE
@@ -771,6 +833,89 @@ BEGIN
   END IF;
 END;
 $stage7_expired_parent_session$;
+
+-- Revoke a fresh Participant A child token and then its parent. Participant B's
+-- independent parent/child pair must remain usable throughout both revocations.
+SET LOCAL ROLE anon;
+SELECT pg_catalog.set_config('request.jwt.claims','{"role":"anon"}',true);
+SELECT pg_catalog.set_config('request.jwt.claim.role','anon',true);
+DO $stage7_cross_participant_revoke_isolation$
+DECLARE
+  v_password constant text := 'PortalTest#2026!';
+  v_competition constant uuid := '00000000-0000-4000-8000-00000000f714';
+  v_parent text;
+  v_child text;
+  v_other_parent text := pg_catalog.current_setting('stage7.other_portal_token',true);
+  v_other_child text := pg_catalog.current_setting('stage7.other_access_token',true);
+  v_other_attempt uuid := pg_catalog.current_setting('stage7.other_attempt_id',true)::uuid;
+  v_result jsonb;
+  v_state jsonb;
+  v_count bigint;
+  v_revoked boolean;
+BEGIN
+  v_result := public.verify_collective_portal_password(v_password);
+  IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_ISOLATION_A_LOGIN_FAILED:%',v_result;
+  END IF;
+  v_parent := v_result->>'portal_token';
+
+  v_result := public.open_collective_competition_session(
+    v_parent,v_competition,'STAGE7-VALID-001'
+  );
+  IF coalesce((v_result->>'ok')::boolean,false) IS NOT TRUE
+     OR v_result->>'participant_id' IS DISTINCT FROM '00000000-0000-4000-8000-00000000f715' THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_ISOLATION_A_OPEN_FAILED:%',v_result;
+  END IF;
+  v_child := v_result->>'access_token';
+
+  v_revoked := public.revoke_collective_access_session(v_child);
+  IF v_revoked IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_ISOLATION_A_CHILD_REVOKE_FAILED';
+  END IF;
+
+  v_state := public.get_collective_linear_exam_state(v_other_attempt,v_other_child);
+  IF v_state IS NULL OR v_state->>'phase' IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_A_CHILD_INVALIDATED_B_CHILD:%',v_state;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_other_parent)
+  WHERE participant_id='00000000-0000-4000-8000-00000000f721';
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_A_CHILD_INVALIDATED_B_PARENT:%',v_count;
+  END IF;
+
+  v_revoked := public.revoke_collective_portal_session(v_parent);
+  IF v_revoked IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_ISOLATION_A_PARENT_REVOKE_FAILED';
+  END IF;
+
+  v_state := public.get_collective_linear_exam_state(v_other_attempt,v_other_child);
+  IF v_state IS NULL OR v_state->>'phase' IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_A_PARENT_INVALIDATED_B_CHILD:%',v_state;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_collective_portal_competitions(v_other_parent)
+  WHERE participant_id='00000000-0000-4000-8000-00000000f721';
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'STAGE7_REVOKE_A_PARENT_INVALIDATED_B_PARENT:%',v_count;
+  END IF;
+
+  v_state := NULL;
+  BEGIN
+    v_state := public.get_collective_linear_exam_state(
+      (SELECT (pg_catalog.current_setting('stage7.attempt_id',true))::uuid),
+      v_child
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'COLLECTIVE_SESSION_INVALID' THEN
+      RAISE;
+    END IF;
+  END;
+  IF v_state IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_REVOKED_A_CHILD_TOKEN_STILL_WORKS:%',v_state;
+  END IF;
+END;
+$stage7_cross_participant_revoke_isolation$;
 
 RESET ROLE;
 ROLLBACK;
