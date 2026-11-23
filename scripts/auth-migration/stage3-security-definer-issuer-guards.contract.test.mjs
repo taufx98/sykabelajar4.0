@@ -350,7 +350,7 @@ const issuerFirstFunctionNames = [
 ];
 for (const name of issuerFirstFunctionNames) {
   const definition = draft.match(
-    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\\\([\\\\s\\\\S]*?\\\\$function\\\\$;", "i"),
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
   )?.[0] ?? "";
   assert.ok(definition, "missing guarded function definition: " + name);
   const issuerCheck = definition.search(/private\.current_user_is_better_auth\(\)/i);
