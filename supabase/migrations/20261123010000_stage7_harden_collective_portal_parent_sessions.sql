@@ -52,6 +52,69 @@ END;
 $stage7_portal_parent_preflight$;
 
 
+
+-- Pin the five parent-session functions to the exact read-only Production
+-- definitions/ACLs observed during the Stage 7 review. Fail closed on drift.
+DO $stage7_portal_parent_source_preflight$
+DECLARE
+  v_signature text;
+  v_expected_md5 text;
+  v_expected_search_path text;
+  v_expected_acl text;
+  v_oid oid;
+  v_owner oid;
+  v_is_definer boolean;
+  v_actual_md5 text;
+  v_actual_search_path text[];
+  v_actual_acl text;
+BEGIN
+  FOR v_signature,v_expected_md5,v_expected_search_path,v_expected_acl IN
+    SELECT expected.signature,expected.definition_md5,expected.search_path_setting,expected.expected_acl
+    FROM (VALUES
+      ('private.collective_session_participant(text)','06660577ee78d7046e1d0bd8376fb08c','search_path=public, private',NULL::text),
+      ('private.collective_portal_identity(text)','b44513391f4a440a4e63e33280090fbf','search_path=public, private',NULL::text),
+      ('public.open_collective_competition_session(text,uuid,text)','2a2d96513dd151a95d3aa031e3e21cd3','search_path=public, private, extensions','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
+      ('public.revoke_collective_portal_session(text)','7f3e98402ff75d0b91c3638a340f7097','search_path=public, private','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
+      ('public.get_collective_participant_certificate(text)','3506d3a79a516bdf826de1a7c8862c38','search_path=public, private','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres,anon=X/postgres}')
+    ) AS expected(signature,definition_md5,search_path_setting,expected_acl)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_SOURCE_FUNCTION_MISSING:%',v_signature;
+    END IF;
+
+    SELECT p.proowner,p.prosecdef,
+           pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)),
+           p.proconfig,p.proacl::text
+      INTO v_owner,v_is_definer,v_actual_md5,v_actual_search_path,v_actual_acl
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=v_oid;
+
+    IF pg_catalog.pg_get_userbyid(v_owner) IS DISTINCT FROM 'postgres'
+       OR v_is_definer IS DISTINCT FROM true THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_SOURCE_OWNER_OR_KIND_DRIFT:%',v_signature;
+    END IF;
+    IF v_actual_md5 IS DISTINCT FROM v_expected_md5 THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_SOURCE_DEFINITION_DRIFT:%:%',v_signature,v_actual_md5;
+    END IF;
+    IF v_actual_search_path IS DISTINCT FROM ARRAY[v_expected_search_path]::text[] THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_SOURCE_SEARCH_PATH_DRIFT:%:%',v_signature,v_actual_search_path;
+    END IF;
+    IF v_actual_acl IS DISTINCT FROM v_expected_acl THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_SOURCE_ACL_DRIFT:%:%',v_signature,v_actual_acl;
+    END IF;
+
+    IF v_signature LIKE 'private.%' AND (
+      pg_catalog.has_schema_privilege('anon','private','USAGE')
+      OR pg_catalog.has_schema_privilege('authenticated','private','USAGE')
+      OR pg_catalog.has_schema_privilege('service_role','private','USAGE')
+    ) THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_PRIVATE_SCHEMA_USAGE_DRIFT:%',v_signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_portal_parent_source_preflight$;
+
 DO $stage7_portal_search_path_preflight$
 DECLARE
   v_signature text;
@@ -552,5 +615,54 @@ BEGIN
   END LOOP;
 END;
 $stage7_portal_search_path_postflight$;
+
+
+-- The parent-session replacements must use an empty search_path while keeping
+-- their exact existing EXECUTE ACL surfaces and the private schema non-usable
+-- by browser roles. CREATE OR REPLACE must not grant/revoke anything.
+DO $stage7_portal_parent_search_path_postflight$
+DECLARE
+  v_signature text;
+  v_expected_acl text;
+  v_oid oid;
+  v_owner oid;
+  v_acl text;
+  v_search_path text[];
+BEGIN
+  FOR v_signature,v_expected_acl IN
+    SELECT expected.signature,expected.expected_acl
+    FROM (VALUES
+      ('private.collective_session_participant(text)',NULL::text),
+      ('private.collective_portal_identity(text)',NULL::text),
+      ('public.open_collective_competition_session(text,uuid,text)','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
+      ('public.revoke_collective_portal_session(text)','{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}'),
+      ('public.get_collective_participant_certificate(text)','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres,anon=X/postgres}')
+    ) AS expected(signature,expected_acl)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_signature);
+    SELECT p.proowner,p.proacl::text,p.proconfig
+      INTO v_owner,v_acl,v_search_path
+    FROM pg_catalog.pg_proc AS p
+    WHERE p.oid=v_oid;
+
+    IF pg_catalog.pg_get_userbyid(v_owner) IS DISTINCT FROM 'postgres' THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_POST_OWNER_DRIFT:%',v_signature;
+    END IF;
+    IF v_search_path IS DISTINCT FROM ARRAY['search_path=""']::text[] THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_EMPTY_SEARCH_PATH_POSTCONDITION_FAILED:%:%',v_signature,v_search_path;
+    END IF;
+    IF v_acl IS DISTINCT FROM v_expected_acl THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_EXECUTE_ACL_POSTCONDITION_DRIFT:%:%',v_signature,v_acl;
+    END IF;
+    IF v_signature LIKE 'private.%' AND (
+      pg_catalog.has_schema_privilege('anon','private','USAGE')
+      OR pg_catalog.has_schema_privilege('authenticated','private','USAGE')
+      OR pg_catalog.has_schema_privilege('service_role','private','USAGE')
+    ) THEN
+      RAISE EXCEPTION 'STAGE7_PORTAL_PARENT_PRIVATE_SCHEMA_USAGE_POSTCONDITION_FAILED:%',v_signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_portal_parent_search_path_postflight$;
 
 COMMIT;
