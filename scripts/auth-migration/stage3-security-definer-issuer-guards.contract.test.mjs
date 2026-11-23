@@ -14,6 +14,17 @@ const regression = readFileSync(
 );
 const issuer = "https://auth-prod.sykabelajar.my.id/api/auth";
 
+assert.doesNotMatch(regression, /legacy_reference/,
+  "zero-start issuer fixtures must not create legacy identity tombstones");
+assert.ok(regression.includes("('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'better_auth')"),
+  "synthetic identity-root data must be fresh Better Auth only");
+assert.ok(regression.includes(String.raw`'{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}'`),
+  "the negative issuer case must use the UUID of a real synthetic Better Auth admin");
+assert.match(regression, /is_active_admin\('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid\)/,
+  "the same subject must fail Admin authorization under the legacy issuer");
+assert.match(regression, /get_profile_connections\('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following'\)/,
+  "the same subject must fail private-profile owner access under the legacy issuer");
+
 assert.match(draft, /CREATE OR REPLACE FUNCTION private\.current_user_is_better_auth\(\)/);
 assert.match(draft, /auth\.jwt\(\)\s*->>\s*'iss'/);
 assert.ok(draft.includes(issuer), "all identity guards must pin the exact Production issuer");
