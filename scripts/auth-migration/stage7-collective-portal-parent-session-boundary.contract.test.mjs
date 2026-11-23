@@ -106,6 +106,32 @@ assert.match(migration, /STAGE7_PORTAL_RPC_PUBLIC_EXECUTE_BASELINE_DRIFT/);
 assert.match(migration, /STAGE7_PORTAL_RPC_EMPTY_SEARCH_PATH_POSTCONDITION_FAILED/);
 assert.match(migration, /STAGE7_PORTAL_RPC_EXECUTE_ACL_POSTCONDITION_DRIFT/);
 
+
+const parentSourcePreflight = migration.slice(
+  migration.indexOf("DO $stage7_portal_parent_source_preflight$"),
+  migration.indexOf("$stage7_portal_parent_source_preflight$;", migration.indexOf("DO $stage7_portal_parent_source_preflight$")) + "$stage7_portal_parent_source_preflight$;".length,
+);
+assert.ok(parentSourcePreflight.includes("STAGE7_PORTAL_PARENT_SOURCE_DEFINITION_DRIFT"));
+assert.ok(parentSourcePreflight.includes("STAGE7_PORTAL_PARENT_SOURCE_SEARCH_PATH_DRIFT"));
+assert.ok(parentSourcePreflight.includes("STAGE7_PORTAL_PARENT_SOURCE_ACL_DRIFT"));
+assert.ok(parentSourcePreflight.includes("STAGE7_PORTAL_PARENT_PRIVATE_SCHEMA_USAGE_DRIFT"));
+for (const fingerprint of [
+  "06660577ee78d7046e1d0bd8376fb08c",
+  "b44513391f4a440a4e63e33280090fbf",
+  "2a2d96513dd151a95d3aa031e3e21cd3",
+  "7f3e98402ff75d0b91c3638a340f7097",
+  "3506d3a79a516bdf826de1a7c8862c38",
+]) {
+  assert.ok(parentSourcePreflight.includes(fingerprint), "missing parent-session Production fingerprint: " + fingerprint);
+}
+const parentPostflight = migration.slice(
+  migration.indexOf("DO $stage7_portal_parent_search_path_postflight$"),
+  migration.indexOf("$stage7_portal_parent_search_path_postflight$;", migration.indexOf("DO $stage7_portal_parent_search_path_postflight$")) + "$stage7_portal_parent_search_path_postflight$;".length,
+);
+assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_EMPTY_SEARCH_PATH_POSTCONDITION_FAILED"));
+assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_EXECUTE_ACL_POSTCONDITION_DRIFT"));
+assert.ok(parentPostflight.includes("STAGE7_PORTAL_PARENT_PRIVATE_SCHEMA_USAGE_POSTCONDITION_FAILED"));
+
 assert.match(migration, /BEGIN;[\s\S]*COMMIT;/);
 const executableMigration = migration.replace(/^--.*$/gm, "");
 assert.doesNotMatch(executableMigration, /\b(?:GRANT|REVOKE)\b/i,
