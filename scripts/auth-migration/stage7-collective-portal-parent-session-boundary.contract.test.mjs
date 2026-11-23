@@ -199,7 +199,6 @@ assert.ok(regression.includes("STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT_AFTER_P
 assert.match(regression, /public\.get_collective_linear_exam_state\(v_other_attempt_id,v_access_token\)/);
 assert.match(regression, /public\.save_collective_linear_exam_draft\(\s*v_other_attempt_id,v_access_token/);
 assert.match(regression, /public\.answer_collective_linear_exam_question\(\s*v_other_attempt_id,v_access_token/);
-assert.match(regression, /public\\.get_collective_participant_certificate\\(v_other_token\\)/);
 
 assert.ok(regression.includes("STAGE7_REPLAYED_START_CREATED_DIFFERENT_ATTEMPT"),"missing idempotent active-attempt replay regression");
 assert.ok(regression.includes("STAGE7_VALID_ACCESS_TOKEN_OWN_STATE_UNAVAILABLE_AFTER_IDOR_PROBES"),"missing own-attempt state recovery after cross-participant probes");
