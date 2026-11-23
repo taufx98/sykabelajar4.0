@@ -28,7 +28,6 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      PRODUCTION_DB2_BACKUP_SHA256: ${{ secrets.PRODUCTION_DB2_BACKUP_SHA256 }}
       CONFIRMATION: ${{ inputs.confirmation }}
 
     steps:
@@ -37,7 +36,7 @@ jobs:
         with:
           ref: security/auth-poc-stage-1
 
-      - name: Verify owner dispatch, immutable target and backup attestation
+      - name: Verify owner dispatch and immutable clean-start target
         run: |
           set -euo pipefail
           test "$GITHUB_ACTOR" = "taufx98"
@@ -47,11 +46,6 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$SUPABASE_DB_URL"
-          [[ "$PRODUCTION_DB2_BACKUP_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] || {
-            echo "Blocked: add the verified off-GitHub Production DB2 backup SHA-256 as Actions secret PRODUCTION_DB2_BACKUP_SHA256. Its value is never printed."
-            exit 1
-          }
-
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const production = readFileSync("wrangler.production.toml", "utf8");
@@ -137,9 +131,9 @@ jobs:
             }
             signatures.add(item.signature);
           }
-          console.log("PASS: exact Production target, unchanged staging config, backup checksum attestation format and full SECURITY DEFINER audit manifest structure.");
+          console.log("PASS: exact Production target, unchanged staging config and full SECURITY DEFINER audit manifest structure. No legacy account/data backup is part of the clean-start release gate.");
           NODE
-          echo "No secret value or backup checksum was printed."
+          echo "No secret value was read or printed."
 
       - name: Install pinned Worker toolchain and checks
         uses: actions/setup-node@v7
@@ -312,6 +306,8 @@ jobs:
                 WHERE tgrelid='auth.users'::regclass AND NOT tgisinternal
                   AND tgname IN ('on_auth_user_created','trg_referral_email_confirmed','trg_referral_signup_attribution'))::int,
               (SELECT count(*) FROM private.app_users WHERE identity_origin='better_auth')::int,
+              (SELECT count(*) FROM private.app_users)::int,
+              (SELECT count(*) FROM private.app_users WHERE identity_origin IS DISTINCT FROM 'better_auth')::int,
               (SELECT count(*) FROM wrappers WHERE oid IS NOT NULL)::int,
               (SELECT count(*) FROM wrappers w
                 WHERE w.oid IS NOT NULL
@@ -349,23 +345,60 @@ jobs:
                     ) acl
                     WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'
                   ))::int,
-              (SELECT count(*) FROM private.app_users
-                WHERE identity_origin='legacy_reference')::int
+              (SELECT count(*) FROM private.app_users WHERE identity_origin IS DISTINCT FROM 'better_auth')::int
           " )"
-          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS INNER_FUNCTIONS_SECURE LEGACY_TOMBSTONES <<< "$DB2_STATE"
+          IFS='|' read -r AUTH_FKS APP_USERS_FKS USER_TRIGGERS NAMED_LEGACY_TRIGGERS BETTER_AUTH_ROWS APP_USERS_ROWS NON_BETTER_AUTH_ROWS WRAPPERS WRAPPERS_SECURE INNER_FUNCTIONS INNER_FUNCTIONS_SECURE NON_BETTER_AUTH_ROWS_CHECK <<< "$DB2_STATE"
 
           test "$AUTH_FKS" = "0" || { echo "Blocked: application FKs still reference auth.users."; exit 1; }
           test "$APP_USERS_FKS" = "69" || { echo "Blocked: expected exactly 69 application FKs to private.app_users."; exit 1; }
           test "$USER_TRIGGERS" = "0" || { echo "Blocked: auth.users custom lifecycle triggers have not all been retired."; exit 1; }
           test "$NAMED_LEGACY_TRIGGERS" = "0" || { echo "Blocked: legacy Supabase Auth triggers remain."; exit 1; }
           test "$BETTER_AUTH_ROWS" = "0" || { echo "Blocked: a Better Auth identity already exists; first-owner sequencing requires manual reconciliation."; exit 1; }
+          test "$APP_USERS_ROWS" = "0" || { echo "Blocked: private.app_users must be empty before the first fresh Better Auth owner is created."; exit 1; }
+          test "$NON_BETTER_AUTH_ROWS" = "0" || { echo "Blocked: identity root contains a non-Better Auth origin; legacy/tombstone identities are forbidden."; exit 1; }
           test "$WRAPPERS" = "2" || { echo "Blocked: required Better Auth provisioning wrappers are missing."; exit 1; }
           test "$WRAPPERS_SECURE" = "2" || { echo "Blocked: wrapper ownership, search_path or execute grants are not the reviewed server-only contract."; exit 1; }
           test "$INNER_FUNCTIONS" = "2" || { echo "Blocked: trusted private provisioning helpers are missing."; exit 1; }
           test "$INNER_FUNCTIONS_SECURE" = "2" || { echo "Blocked: private provisioning helpers must remain postgres-owned, empty-search-path and non-executable by browser/server API roles."; exit 1; }
 
-          echo "PASS: DB2 Stage 3 core identity foundation, 69 application FK cutover, trigger retirement and service_role-only wrappers verified. Legacy Auth users/roles were not enumerated or changed."
-          echo "UUID-only legacy reference tombstones: $LEGACY_TOMBSTONES (count only)."
+          ZERO_START_STATE="$(psql --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "
+            DO \$zero_start_provisioning_preflight\$
+            DECLARE r record; v_count bigint; v_fk_count integer := 0;
+            BEGIN
+              IF EXISTS (SELECT 1 FROM private.app_users) THEN
+                RAISE EXCEPTION 'ZERO_START_IDENTITY_ROOT_NOT_EMPTY';
+              END IF;
+              FOR r IN
+                SELECT ns.nspname AS schema_name, tbl.relname AS table_name,
+                       att.attname AS column_name, con.conname
+                FROM pg_catalog.pg_constraint con
+                JOIN pg_catalog.pg_class tbl ON tbl.oid=con.conrelid
+                JOIN pg_catalog.pg_namespace ns ON ns.oid=tbl.relnamespace
+                JOIN pg_catalog.pg_attribute att ON att.attrelid=tbl.oid AND att.attnum=con.conkey[1]
+                WHERE con.contype='f'
+                  AND con.confrelid='private.app_users'::regclass
+                  AND ns.nspname IN ('public','private')
+                ORDER BY ns.nspname,tbl.relname,con.conname
+              LOOP
+                v_fk_count := v_fk_count + 1;
+                EXECUTE pg_catalog.format(
+                  'SELECT count(*) FROM %I.%I WHERE %I IS NOT NULL',
+                  r.schema_name,r.table_name,r.column_name
+                ) INTO v_count;
+                IF v_count <> 0 THEN
+                  RAISE EXCEPTION 'ZERO_START_FK_COLUMN_NOT_EMPTY:%:%:%:%',
+                    r.schema_name,r.table_name,r.column_name,v_count;
+                END IF;
+              END LOOP;
+              IF v_fk_count <> 69 THEN
+                RAISE EXCEPTION 'ZERO_START_FK_COUNT_DRIFT:%',v_fk_count;
+              END IF;
+            END;
+            \$zero_start_provisioning_preflight\$;
+          " )"
+          test -n "$ZERO_START_STATE"
+          echo "PASS: Production identity root is empty and all 69 application FK source columns contain zero legacy UUID references."
+          echo "PASS: Stage 3 FK structure and service_role-only provisioning wrappers are ready for a fresh owner identity."
 
       - name: Verify exact Production Worker, D1, SendPulse and secret bindings before activation
         run: |
