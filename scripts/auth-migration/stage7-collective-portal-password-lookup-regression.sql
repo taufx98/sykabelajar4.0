@@ -157,10 +157,12 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_KEY_NOT_FULL_SHA256';
   END IF;
 
-  IF pg_catalog.encode(extensions.digest('SKABCDEF','sha256'),'hex')
-       IS DISTINCT FROM
-     pg_catalog.encode(extensions.digest('SKABCDEF','sha256'),'hex') THEN
-    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_LEGACY_PREFIX_CONTROL_INVALID';
+  IF pg_catalog.encode(
+       extensions.digest(pg_catalog.left('SKABCDEF000001',8),'sha256'),'hex'
+     ) IS DISTINCT FROM pg_catalog.encode(
+       extensions.digest(pg_catalog.left('SKABCDEF000002',8),'sha256'),'hex'
+     ) THEN
+    RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_LEGACY_PREFIX_COLLISION_CONTROL_CHANGED';
   END IF;
 END;
 $stage7_portal_lookup_seed_credentials$;
