@@ -45,6 +45,9 @@ on:
       - "scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs"
       - "scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql"
       - "supabase/migrations/20261123020000_stage7_harden_collective_portal_password_lookup.sql"
+      - "supabase/migrations/20261123030000_stage7_revoke_legacy_certificate_verification_rpc.sql"
+      - "scripts/auth-migration/stage7-public-certificate-verification-rpc.contract.test.mjs"
+      - "scripts/auth-migration/stage7-public-certificate-verification-rpc-regression.sql"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
       - "docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"
@@ -767,6 +770,10 @@ jobs:
               --file=/baseline/stage3-issuer-guard-regression.sql
           echo "- Verified legacy Supabase and Better Auth issuer access; rejected an untrusted issuer; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Test Stage 7 public certificate verification RPC retirement contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-public-certificate-verification-rpc.contract.test.mjs
+
       - name: Test Stage 7 application RLS table-boundary review
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
@@ -828,6 +835,32 @@ jobs:
           echo "- Replaced the 24-bit legacy prefix with a 64-bit account selector across all four portal credential writer/verifier functions; generated temporary passwords are 24 characters" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preflight confirmed zero portal credential rows; existing function owners, search_path and EXECUTE grants remained unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Applied only to the schema-only PostgreSQL 17.6 disposable restore; no Production DDL/DML was run" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 7 legacy certificate verification RPC revocation to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/supabase/migrations/20261123030000_stage7_revoke_legacy_certificate_verification_rpc.sql:/baseline/stage7-certificate-rpc-revocation.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-certificate-rpc-revocation.sql
+          echo "- Removed only inherited PUBLIC and direct browser EXECUTE grants from the unused legacy certificate verification SECURITY DEFINER RPC; retained service_role and the public view on the disposable restore" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Stage 7 public certificate verification projection after RPC retirement
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-public-certificate-verification-rpc-regression.sql:/baseline/stage7-certificate-rpc-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-certificate-rpc-regression.sql
+          echo "- Confirmed anon/authenticated cannot invoke the obsolete RPC, service_role retains EXECUTE, and both browser roles retain the security-invoker public certificate view restricted by RLS to PUBLISHED/REVOKED records; all checks used the empty disposable restore" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore
         if: steps.credentials.outputs.available == 'true'
