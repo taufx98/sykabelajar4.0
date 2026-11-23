@@ -68,6 +68,9 @@ jobs:
       - name: Verify collective participant portal token boundary
         run: node scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs
 
+      - name: Verify Stage 7 portal password selector and lockout contract
+        run: node scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs
+
       - name: Verify Stage 5 ACL, payment, and Cloudinary boundaries
         run: |
           node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs

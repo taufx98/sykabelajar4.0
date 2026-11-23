@@ -42,6 +42,9 @@ on:
       - "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql"
       - "scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs"
       - "supabase/migrations/20261123010000_stage7_harden_collective_portal_parent_sessions.sql"
+      - "scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs"
+      - "scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql"
+      - "supabase/migrations/20261123020000_stage7_harden_collective_portal_password_lookup.sql"
       - "scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs"
       - "docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql"
       - "docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"
@@ -780,6 +783,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs
 
+      - name: Test Stage 7 64-bit portal password selector contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs
+
       - name: Apply Stage 5 no-policy table ACL draft to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
@@ -806,6 +813,21 @@ jobs:
               --file=/baseline/stage7-portal-parent-session-hardening.sql
           echo "- Hardened child-token checks against parent portal revocation/expiry, suspended identities and disabled/rotated credentials on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preserved function owners and EXECUTE grants; no Production data or ACL was changed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 7 64-bit portal password selector hardening to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/supabase/migrations/20261123020000_stage7_harden_collective_portal_password_lookup.sql:/baseline/stage7-portal-password-lookup.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-portal-password-lookup.sql
+          echo "- Replaced the 24-bit legacy prefix with a 64-bit account selector across all four portal credential writer/verifier functions; generated temporary passwords are 24 characters" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preflight confirmed zero portal credential rows; existing function owners, search_path and EXECUTE grants remained unchanged" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Applied only to the schema-only PostgreSQL 17.6 disposable restore; no Production DDL/DML was run" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore
         if: steps.credentials.outputs.available == 'true'
@@ -846,6 +868,20 @@ jobs:
               --file=/baseline/stage7-collective-portal-valid-token-regression.sql
           echo "- Validated fresh synthetic participant portal password, 256-bit portal/access tokens, private competition listing, session opening, and revocation; all fixtures rolled back" >> "$GITHUB_STEP_SUMMARY"
           echo "- No legacy account or participant data was imported; no non-disposable database was touched" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify 64-bit portal selector collisions and 5,000 synthetic keys on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql:/baseline/stage7-portal-password-lookup-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-portal-password-lookup-regression.sql
+          echo "- Verified two 24-character passwords sharing the legacy eight-character prefix provision and authenticate independently; a wrong six-character suffix increments the intended account's lockout" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified 5,000 synthetic passwords sharing one legacy prefix produce 5,000 unique 64-bit selectors; all fixtures rolled back" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Simulate fail-closed 69-FK rollback on disposable restore only
         if: steps.credentials.outputs.available == 'true'
