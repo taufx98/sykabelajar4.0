@@ -233,6 +233,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs
 
+      - name: Test Stage 7 disposable table ACL restore contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-disposable-table-acl-restore.contract.test.mjs
+
       - name: Test Stage 5 payment service-role claim draft contract
         run: node scripts/auth-migration/stage5-payment-service-role-claim-draft.contract.test.mjs
 
@@ -413,6 +417,21 @@ jobs:
             echo "- Restored the payment fulfillment function's exact service_role-only ACL from Production metadata on the disposable database only"
             echo "- No Production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore reviewed no-browser table ACLs in disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-7-DISPOSABLE-TABLE-ACL-RESTORE.sql:/baseline/stage7-disposable-table-acl-restore.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-disposable-table-acl-restore.sql
+          echo "- Reconstructed the exact no-browser direct ACL boundary for 17 reviewed tables on the disposable restore only; service_role/postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Kept the three intentionally broad-grant tables unchanged for the canonical Stage 5 ACL draft" >> "$GITHUB_STEP_SUMMARY"
+          echo "- No Production or staging grant/revoke statement was executed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify the restored production schema shape and zero imported user rows
         if: steps.credentials.outputs.available == 'true'
