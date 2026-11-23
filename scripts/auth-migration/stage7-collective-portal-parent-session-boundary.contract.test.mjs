@@ -139,6 +139,16 @@ assert.match(regression, /public\.revoke_collective_access_session\(v_access_tok
 assert.match(regression, /public\.resolve_collective_linear_exam_timeout\(v_attempt_id,v_access_token\)/);
 assert.match(regression, /public\.revoke_collective_portal_session\(v_portal_token\)/);
 assert.match(regression, /public\.get_collective_participant_certificate\(v_access_token\)/);
+
+assert.ok(regression.includes("STAGE7_CERTIFICATE_EXPOSED_BEFORE_PUBLICATION"));
+assert.ok(regression.includes("STAGE7_RESULT_SCORE_LEAKED_BEFORE_PUBLICATION"));
+assert.ok(regression.includes("STAGE7_VALID_PUBLISHED_CERTIFICATE_NOT_RETURNED"));
+assert.ok(regression.includes("STAGE7_VALID_PUBLISHED_RESULT_NOT_RETURNED"));
+assert.ok(regression.includes("STAGE7_VALID_TOKEN_TIMEOUT_DECISION_CHANGED_COMPLETED_ATTEMPT"));
+assert.match(regression, /public\\.get_collective_participant_result\\(v_token\\)/);
+assert.match(regression, /public\\.choose_collective_linear_exam_timeout\\(v_attempt,v_token,'CONTINUE'\\)/);
+assert.match(regression, /public\\.get_collective_participant_certificate\\(v_token\\)/);
+
 assert.match(regression, /ROLLBACK;/);
 
 const applyStep = workflow.indexOf("- name: Apply Stage 7 portal parent-session hardening to disposable restore only");
