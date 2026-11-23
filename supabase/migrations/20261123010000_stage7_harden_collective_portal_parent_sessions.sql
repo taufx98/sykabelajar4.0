@@ -54,7 +54,7 @@ $stage7_portal_parent_preflight$;
 CREATE OR REPLACE FUNCTION private.collective_session_participant(p_token text)
 RETURNS uuid
 LANGUAGE sql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path TO ''
 AS $function$
@@ -259,7 +259,7 @@ $function$;
 CREATE OR REPLACE FUNCTION public.get_collective_participant_certificate(p_access_token text)
 RETURNS jsonb
 LANGUAGE sql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path TO ''
 AS $function$
