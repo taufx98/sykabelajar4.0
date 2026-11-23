@@ -10,6 +10,7 @@ DECLARE
   v_signature text;
   v_expected_md5 text;
   v_expected_acl text[];
+  v_expected_search_path text[];
   v_oid oid;
   v_owner oid;
   v_security_definer boolean;
@@ -46,30 +47,34 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_PRIVATE_SCHEMA_USAGE_DRIFT';
   END IF;
 
-  FOR v_signature,v_expected_md5,v_expected_acl IN
-    SELECT expected.signature,expected.source_md5,expected.execute_acl
+  FOR v_signature,v_expected_md5,v_expected_acl,v_expected_search_path IN
+    SELECT expected.signature,expected.source_md5,expected.execute_acl,expected.search_path_setting
     FROM (VALUES
       (
         'private.sync_collective_portal_credential(uuid,text,integer)',
         'e4a007bcd32d3d135ccb48df8636bbd0',
-        ARRAY['PUBLIC=X/postgres','postgres=X/postgres']::text[]
+        ARRAY['PUBLIC=X/postgres','postgres=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.provision_collective_registration(uuid)',
         '1ae119812cdf0497239c9564c5ca9c87',
-        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.regenerate_collective_participant_password(uuid)',
         '0f9a8c6b114e362e8d228ea40ce2fad4',
-        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.verify_collective_portal_password(text)',
-        'f5d01e7ab270b1ff332467f2cf80a2f8',
-        ARRAY['anon=X/postgres','authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        '4561302b0ce91bbf252daf1dc2f88553',
+        ARRAY['anon=X/postgres','authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=""']::text[]
       )
-    ) AS expected(signature,source_md5,execute_acl)
+    ) AS expected(signature,source_md5,execute_acl,search_path_setting)
   LOOP
     v_oid := pg_catalog.to_regprocedure(v_signature);
     IF v_oid IS NULL THEN
@@ -99,7 +104,7 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_SOURCE_OWNER_OR_KIND_DRIFT:%',v_signature;
     END IF;
 
-    IF v_search_path IS DISTINCT FROM ARRAY['search_path=public, private, extensions']::text[] THEN
+    IF v_search_path IS DISTINCT FROM v_expected_search_path THEN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_SOURCE_SEARCH_PATH_DRIFT:%:%',v_signature,v_search_path;
     END IF;
 
@@ -139,7 +144,7 @@ IMMUTABLE
 STRICT
 SET search_path TO ''
 AS $function$
-  SELECT pg_catalog.encode(extensions.digest(pg_catalog.left(p_password,18),'sha256'),'hex');
+  SELECT pg_catalog.encode(extensions.digest(pg_catalog.left(pg_catalog.btrim(p_password),18),'sha256'),'hex');
 $function$;
 
 -- Only the database owner may execute the helper directly. Existing public
@@ -471,8 +476,9 @@ $function$;
 CREATE OR REPLACE FUNCTION public.verify_collective_portal_password(p_password text)
 RETURNS jsonb
 LANGUAGE plpgsql
+VOLATILE
 SECURITY DEFINER
-SET search_path TO 'public', 'private', 'extensions'
+SET search_path TO ''
 AS $function$
 DECLARE
   c public.collective_portal_credentials%rowtype;
@@ -480,58 +486,54 @@ DECLARE
   token text;
   lk text;
 BEGIN
-  lk:=private.collective_portal_password_lookup_key(coalesce(p_password,''));
+  lk := private.collective_portal_password_lookup_key(coalesce(p_password,''));
 
-  SELECT * INTO c
+  SELECT *
+    INTO c
   FROM public.collective_portal_credentials
-  WHERE enabled=true
+  WHERE enabled IS TRUE
     AND password_lookup_key=lk
   LIMIT 1;
-
   IF c.id IS NULL THEN
-    RETURN jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
   END IF;
-
-  IF c.locked_until IS NOT NULL AND c.locked_until>now() THEN
-    RETURN jsonb_build_object('ok',false,'reason','LOCKED');
+  IF c.locked_until IS NOT NULL AND c.locked_until>pg_catalog.now() THEN
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','LOCKED');
   END IF;
-
-  IF crypt(coalesce(p_password,''),c.password_hash) IS DISTINCT FROM c.password_hash THEN
+  IF extensions.crypt(coalesce(p_password,''),c.password_hash) IS DISTINCT FROM c.password_hash THEN
     UPDATE public.collective_portal_credentials
     SET failed_attempts=failed_attempts+1,
-        locked_until=CASE WHEN failed_attempts+1>=5 THEN now()+interval '15 minutes' ELSE locked_until END,
-        updated_at=now()
+        locked_until=CASE
+          WHEN failed_attempts+1>=5 THEN pg_catalog.now()+interval '15 minutes'
+          ELSE locked_until
+        END,
+        updated_at=pg_catalog.now()
     WHERE id=c.id;
-
-    RETURN jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','INVALID_CREDENTIALS');
   END IF;
-
-  SELECT * INTO pi
+  SELECT *
+    INTO pi
   FROM public.collective_portal_identities
   WHERE id=c.portal_identity_id
     AND status='ACTIVE';
-
   IF pi.id IS NULL THEN
-    RETURN jsonb_build_object('ok',false,'reason','ACCESS_NOT_READY');
+    RETURN pg_catalog.jsonb_build_object('ok',false,'reason','ACCESS_NOT_READY');
   END IF;
-
   UPDATE public.collective_portal_credentials
   SET failed_attempts=0,
-      locked_until=null,
-      last_login_at=now(),
-      updated_at=now()
+      locked_until=NULL,
+      last_login_at=pg_catalog.now(),
+      updated_at=pg_catalog.now()
   WHERE id=c.id;
-
-  token:=encode(gen_random_bytes(32),'hex');
-
+  token := pg_catalog.encode(extensions.gen_random_bytes(32),'hex');
   INSERT INTO public.collective_portal_sessions(
     portal_identity_id,credential_version,token_hash,expires_at
   )
   VALUES(
-    pi.id,c.password_version,private.hash_collective_token(token),now()+interval '8 hours'
+    pi.id,c.password_version,private.hash_collective_token(token),
+    pg_catalog.now()+interval '8 hours'
   );
-
-  RETURN jsonb_build_object('ok',true,'portal_token',token,'portal_identity_id',pi.id);
+  RETURN pg_catalog.jsonb_build_object('ok',true,'portal_token',token,'portal_identity_id',pi.id);
 END;
 $function$;
 
@@ -541,6 +543,7 @@ DO $stage7_portal_lookup_postflight$
 DECLARE
   v_signature text;
   v_expected_acl text[];
+  v_expected_search_path text[];
   v_oid oid;
   v_owner oid;
   v_security_definer boolean;
@@ -548,26 +551,30 @@ DECLARE
   v_actual_acl text[];
   v_source text;
 BEGIN
-  FOR v_signature,v_expected_acl IN
-    SELECT expected.signature,expected.execute_acl
+  FOR v_signature,v_expected_acl,v_expected_search_path IN
+    SELECT expected.signature,expected.execute_acl,expected.search_path_setting
     FROM (VALUES
       (
         'private.sync_collective_portal_credential(uuid,text,integer)',
-        ARRAY['PUBLIC=X/postgres','postgres=X/postgres']::text[]
+        ARRAY['PUBLIC=X/postgres','postgres=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.provision_collective_registration(uuid)',
-        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.regenerate_collective_participant_password(uuid)',
-        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        ARRAY['authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=public, private, extensions']::text[]
       ),
       (
         'public.verify_collective_portal_password(text)',
-        ARRAY['anon=X/postgres','authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[]
+        ARRAY['anon=X/postgres','authenticated=X/postgres','postgres=X/postgres','service_role=X/postgres']::text[],
+        ARRAY['search_path=""']::text[]
       )
-    ) AS expected(signature,execute_acl)
+    ) AS expected(signature,execute_acl,search_path_setting)
   LOOP
     v_oid:=pg_catalog.to_regprocedure(v_signature);
 
@@ -594,7 +601,7 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_POST_OWNER_OR_KIND_DRIFT:%',v_signature;
     END IF;
 
-    IF v_search_path IS DISTINCT FROM ARRAY['search_path=public, private, extensions']::text[] THEN
+    IF v_search_path IS DISTINCT FROM v_expected_search_path THEN
       RAISE EXCEPTION 'STAGE7_PORTAL_LOOKUP_POST_SEARCH_PATH_DRIFT:%:%',v_signature,v_search_path;
     END IF;
 
