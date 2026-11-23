@@ -108,13 +108,14 @@ assert.match(regression, /STAGE7_PORTAL_LOOKUP_SAME_PREFIX_VALID_PASSWORDS_FAILE
 assert.match(regression, /STAGE7_PORTAL_LOOKUP_WRONG_SUFFIX_PASSWORD_ACCEPTED/);
 assert.match(regression, /SET LOCAL ROLE anon/);
 
+const parentContract = workflow.indexOf("- name: Test Stage 7 collective portal parent-session boundary contract");
 const parentHardening = workflow.indexOf("- name: Apply Stage 7 portal parent-session hardening to disposable restore only");
 const lookupContract = workflow.indexOf("- name: Test Stage 7 full-password portal lookup contract");
 const lookupMigration = workflow.indexOf("- name: Apply Stage 7 full-password portal lookup hardening to disposable restore only");
 const lookupRuntime = workflow.indexOf("- name: Verify full-password portal lookup collisions and 5,000 synthetic keys on disposable restore");
 const rls = workflow.indexOf("- name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore");
-assert.ok(parentHardening >= 0 && lookupContract > parentHardening, "lookup contract must follow parent-session contract ordering");
-assert.ok(lookupMigration > lookupContract && lookupMigration > parentHardening, "lookup migration must run after its source contract and parent-session migration");
+assert.ok(parentContract >= 0 && lookupContract > parentContract, "lookup contract must follow the parent-session source contract");
+assert.ok(lookupMigration > lookupContract && parentHardening >= 0 && lookupMigration > parentHardening, "lookup migration must run after both source contracts and parent-session migration");
 assert.ok(rls > lookupMigration, "lookup migration must precede Stage 7 runtime tests");
 assert.ok(lookupRuntime > lookupMigration, "lookup runtime regression must run after migration");
 assert.match(workflow.slice(lookupMigration, lookupRuntime), /127\.0\.0\.1:55432/);
