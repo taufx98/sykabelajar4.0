@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 1,
+  "title": "Stage 7 collective participant portal token acceptance evidence",
+  "capturedAt": "2026-11-23T08:36:32.480144Z",
+  "projectRef": "mvdczyitbkxkldjughor",
+  "database": "Production DB2 PostgreSQL 17.6",
+  "sourceCapture": {
+    "method": "read-only pg_catalog/information_schema query",
+    "productionDefinitionsOrAclChanged": false,
+    "functions": 14,
+    "helpers": 3,
+    "functionOwnerAndKind": "all 14 public portal RPCs are owned by postgres and SECURITY DEFINER"
+  },
+  "classification": {
+    "suggestedClassification": "participant_portal_token",
+    "count": 14,
+    "executionModel": "intentionally anon/authenticated callable guest portal RPCs; authorization is by high-entropy scoped portal/child bearer tokens, expiry, revocation and participant/attempt binding—not Supabase auth.uid()",
+    "manual202FunctionReview": "not accepted by this evidence"
+  },
+  "acceptance": {
+    "baseline": {
+      "name": "Auth Production Schema Baseline",
+      "runId": 45139283555,
+      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45139283555",
+      "commit": "165c0a9f0d618c98d428b012d91bb6b836bc33f3",
+      "result": "success",
+      "stepsPassed": 62,
+      "stepsTotal": 62
+    },
+    "localAuth": {
+      "runId": 45139283588,
+      "url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45139283588",
+      "result": "success",
+      "stepsPassed": 23,
+      "stepsTotal": 23
+    },
+    "environment": {
+      "restore": "schema-only Production export restored to isolated disposable PostgreSQL 17.6",
+      "importedAuthAccounts": 0,
+      "importedProfiles": 0,
+      "importedApplicationRows": 0,
+      "fixtureRows": "synthetic only",
+      "fixtureTransaction": "rollback-only",
+      "productionDdl": false,
+      "productionDml": false,
+      "productionGrantsChanged": false,
+      "productionPoliciesChanged": false
+    }
+  },
+  "runtimeEvidence": {
+    "invalidTokenBoundary": {
+      "result": "passed",
+      "rpcCount": 14,
+      "fixture": "anon role; wrong/never-provisioned password and invalid portal/child tokens; exact denial outcomes asserted"
+    },
+    "validLifecycle": {
+      "result": "passed",
+      "checks": [
+        "two independent valid portal logins",
+        "256-bit parent and child tokens",
+        "private competition listing and own participant-code opening",
+        "linear exam start, autosave, answer, skip, timeout reconciliation",
+        "answer-key non-disclosure",
+        "child revoke without parent revoke",
+        "parent revoke cascading only to its own child sessions",
+        "credential disable/rotation, identity suspension and parent expiry invalidate child tokens",
+        "score/rank withheld before result publication and returned after publication",
+        "certificate withheld before certificate publication and returned after publication"
+      ]
+    },
+    "twoParticipantIdor": {
+      "result": "passed",
+      "participants": 2,
+      "competition": "same synthetic private competition",
+      "tokens": "two valid independent parent/child token trees",
+      "cases": [
+        "A and B each list only their own participant",
+        "A parent token cannot open B's participant code",
+        "A and B access tokens can read only their own exam state",
+        "A token cannot read/write B's attempt through state, draft, answer, skip, choose-timeout or resolve-timeout RPCs; reciprocal checks are present for state, skip and both timeout RPCs",
+        "B token cannot read A attempt through state, skip or timeout RPCs",
+        "B token receives only B's certificate and cannot obtain A's result",
+        "A child revocation leaves B parent and child usable",
+        "A parent revocation and its child cascade leave B parent and child usable",
+        "active-attempt replay returns the same attempt ID"
+      ]
+    }
+  },
+  "functions": [
+    {
+      "signature": "public.answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean)",
+      "args": "p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "43d3b67295d64a1eb02c765a2d891484",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "A token -> B attempt denied; reciprocal B -> A not exercised for this RPC",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.choose_collective_linear_exam_timeout(uuid,text,text)",
+      "args": "p_attempt_id uuid, p_access_token text, p_decision text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "d4a7bf44ea58ec008c1e684f1d823b78",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.get_collective_linear_exam_state(uuid,text)",
+      "args": "p_attempt_id uuid, p_access_token text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "b2f899ffa77aeca528e79c51f52ce87a",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both A -> B and B -> A reads denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.get_collective_participant_certificate(text)",
+      "args": "p_access_token text",
+      "returns": "jsonb",
+      "language": "sql",
+      "searchPath": [
+        "search_path=public, private"
+      ],
+      "sourceMd5": "3506d3a79a516bdf826de1a7c8862c38",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "token-derived certificate binding; unpublished withheld and each participant receives only its own published certificate",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.get_collective_participant_result(text)",
+      "args": "p_access_token text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "02bae25f70a3a249eb77d21bd4b0f593",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "participant B token cannot obtain participant A result before or after publication; participant A receives own result after publication",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.list_collective_portal_competitions(text)",
+      "args": "p_portal_token text",
+      "returns": "TABLE(participant_id uuid, competition_id uuid, competition_title text, competition_status text, starts_at timestamp with time zone, ends_at timestamp with time zone, participant_code text, participant_status text)",
+      "language": "sql",
+      "searchPath": [
+        "search_path=public, private"
+      ],
+      "sourceMd5": "ea78645f37913438f2f0e300b1bdcdf9",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both valid parent tokens list only their own participant in the same private competition",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.open_collective_competition_session(text,uuid,text)",
+      "args": "p_portal_token text, p_competition_id uuid, p_participant_code text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=public, private, extensions"
+      ],
+      "sourceMd5": "2a2d96513dd151a95d3aa031e3e21cd3",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "participant A token is denied when given participant B code; B opens its own participant session",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.resolve_collective_linear_exam_timeout(uuid,text)",
+      "args": "p_attempt_id uuid, p_access_token text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "78a8aa95d3e42f405c4af2b26071bf43",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.revoke_collective_access_session(text)",
+      "args": "p_access_token text",
+      "returns": "boolean",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=public, private, pg_catalog"
+      ],
+      "sourceMd5": "1e5abe9a8d31beef996ce1091045de2d",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "revoking A child leaves B parent and B child usable",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.revoke_collective_portal_session(text)",
+      "args": "p_portal_token text",
+      "returns": "boolean",
+      "language": "sql",
+      "searchPath": [
+        "search_path=public, private"
+      ],
+      "sourceMd5": "7f3e98402ff75d0b91c3638a340f7097",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "revoking A parent (and cascading A child) leaves B parent and B child usable",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.save_collective_linear_exam_draft(uuid,text,uuid,jsonb)",
+      "args": "p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "754e055e5ca0f37ba32b215a74576903",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "A token -> B draft write denied with ATTEMPT_NOT_FOUND; reciprocal B -> A not exercised for this RPC",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.skip_collective_linear_exam_question(uuid,text)",
+      "args": "p_attempt_id uuid, p_access_token text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "7d13018b775dc37a2b93ccd5d862f6c6",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both A -> B and B -> A attempts denied with ATTEMPT_NOT_FOUND",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.start_collective_linear_exam_attempt(uuid,text)",
+      "args": "p_competition_id uuid, p_access_token text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "sourceMd5": "f01300e4165bf8147046559fc90df8b4",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "passed",
+      "validOwnPath": "passed",
+      "crossParticipant": "both valid participants start only their token-bound attempt; repeating A start returns the same attempt ID",
+      "owner": "postgres",
+      "securityDefiner": true
+    },
+    {
+      "signature": "public.verify_collective_portal_password(text)",
+      "args": "p_password text",
+      "returns": "jsonb",
+      "language": "plpgsql",
+      "searchPath": [
+        "search_path=public, private, extensions"
+      ],
+      "sourceMd5": "d85f7c2a1d194151663b4c536c064dad",
+      "executeAcl": [
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "negativeToken": "invalid password denied",
+      "validOwnPath": "passed",
+      "crossParticipant": "two independent participant credentials each produce separate valid parent sessions",
+      "owner": "postgres",
+      "securityDefiner": true
+    }
+  ],
+  "helpers": [
+    {
+      "signature": "private.assert_collective_linear_exam_access(uuid,text)",
+      "args": "p_attempt_id uuid, p_access_token text",
+      "returns": "void",
+      "language": "plpgsql",
+      "owner": "postgres",
+      "securityDefiner": true,
+      "searchPath": [
+        "search_path=\"\""
+      ],
+      "executeAcl": [
+        "postgres=X/postgres"
+      ],
+      "sourceMd5": "3be13605cffa800b9120fc9b9b87c40c",
+      "role": "private owner-only assertion; maps token to participant and requires the target attempt's collective_participant_id to match"
+    },
+    {
+      "signature": "private.collective_portal_identity(text)",
+      "args": "p_token text",
+      "returns": "uuid",
+      "language": "sql",
+      "owner": "postgres",
+      "securityDefiner": true,
+      "searchPath": [
+        "search_path=public, private"
+      ],
+      "executeAcl": [
+        "PUBLIC=X/postgres",
+        "postgres=X/postgres"
+      ],
+      "sourceMd5": "b44513391f4a440a4e63e33280090fbf",
+      "role": "portal-session token to identity helper; private schema USAGE remains unavailable to browser/service roles"
+    },
+    {
+      "signature": "private.collective_session_participant(text)",
+      "args": "p_token text",
+      "returns": "uuid",
+      "language": "sql",
+      "owner": "postgres",
+      "securityDefiner": true,
+      "searchPath": [
+        "search_path=public, private"
+      ],
+      "executeAcl": [
+        "PUBLIC=X/postgres",
+        "postgres=X/postgres"
+      ],
+      "sourceMd5": "06660577ee78d7046e1d0bd8376fb08c",
+      "role": "child access-token to participant helper; Stage 7 migration binds child session to active parent/identity/credential"
+    }
+  ],
+  "limitations": [
+    "This is a portal-token runtime acceptance sub-scope, not a complete manual caller/issuer review of the 202 authenticated-executable SECURITY DEFINER functions.",
+    "The 202-function allowlist remains blocked at 0/202 individually accepted; no entries in the global allowlist were changed.",
+    "Guest portal APIs are intentionally usable by anon with a valid portal token; a Supabase user JWT alone is not the portal credential. A legacy-Supabase-JWT denial case is not used as the acceptance criterion for this guest-token classification.",
+    "Per-RPC cross-participant coverage is recorded above; do not interpret a token-derived self-only API as having arbitrary target-IDOR coverage."
+  ],
+  "followUpFindings": [
+    {
+      "id": "portal-password-lookup-prefix-collision",
+      "severity": "availability-risk",
+      "status": "confirmed-read-only-source-review",
+      "description": "Portal password lookup keys are currently derived from SHA-256 of the first eight password characters. Auto-generated temporary passwords use the format SK plus 12 hex characters, so the indexed lookup prefix has only 24 bits of entropy. The global UNIQUE(password_lookup_key) constraint can cause provisioning/regeneration collisions and fail a registration transaction.",
+      "securityImpact": "Not demonstrated as an authentication bypass: the full password is still verified with crypt(). The demonstrated concern is availability/integrity of credential provisioning and login lookup under scale.",
+      "estimatedBirthdayCollisionProbability": {
+        "participants2000": "11.2%",
+        "participants5000": "52.5%",
+        "participants6000": "65.8%",
+        "participants15000": "99.9%"
+      },
+      "affectedPaths": [
+        "public.verify_collective_portal_password",
+        "private.sync_collective_portal_credential",
+        "public.provision_collective_registration",
+        "public.regenerate_collective_participant_password"
+      ],
+      "nextRequiredWork": "Inventory every password_lookup_key writer/constraint/test; replace the truncated prefix with a full-password cryptographic lookup key (or equivalent collision-safe indexed design) consistently across writers/verifier; rehearse migration and provisioning of 5k+ synthetic participants on disposable PostgreSQL before rollout.",
+      "productionChanged": false
+    }
+  ],
+  "overallProductionGate": {
+    "status": "NO-GO",
+    "securityDefinerReview": "0/202 individually accepted",
+    "productionDdlAuthorized": false,
+    "productionCutoverAuthorized": false
+  }
+}
