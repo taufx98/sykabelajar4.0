@@ -220,7 +220,7 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-app-users-fk-rollback-plan.test.mjs
 
-      - name: Test UUID-only, no-account-migration FK tombstone plan contract
+      - name: Test zero-start identity and FK plan contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/generate-app-users-fk-plan.test.mjs
 
@@ -626,15 +626,9 @@ jobs:
             --catalog scripts/auth-migration/live-auth-users-fk-catalog.json \
             --out-dir "$PLAN_DIR"
 
-          # Preserve only UUID parent references required by existing application rows.
-          # Never backfill Auth users, emails, credentials or verification data.
-          docker run --rm --network host \
-            -e PGPASSWORD=postgres \
-            -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
-            -v "$PLAN_DIR:/plan:ro" \
-            postgres:17.6-alpine \
-            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
-              -X -q --set=ON_ERROR_STOP=1 --file=/plan/00-identity-tombstones.sql
+          # Schema-only restore starts with zero rows. The generated preflight
+          # must fail closed if any identity root row or legacy FK value exists.
+          # No legacy identities, tombstones, accounts or application data are seeded.
 
           for phase in 01-preflight-expand.sql 02-validate.sql 03-cutover.sql; do
             docker run --rm --network host \
@@ -682,7 +676,7 @@ jobs:
             echo "Observed: $actual"
             exit 1
           fi
-          echo "- Simulated all 69 replacement FKs, validation and the atomic cutover on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Simulated all 69 replacement FKs from an empty identity root and empty source columns; no legacy tombstones or user rows were imported" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Better Auth provisioning, referral, email, phone and organizer acceptance on disposable restore
         if: steps.credentials.outputs.available == 'true'
