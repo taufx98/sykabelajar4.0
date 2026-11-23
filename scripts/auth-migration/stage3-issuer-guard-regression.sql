@@ -321,9 +321,9 @@ SET LOCAL ROLE authenticated;
 -- Supabase Auth is not a trusted application login after this cutover.
 -- A Supabase Auth issuer is no longer trusted, even for a fresh UUID that has an active role.
 SELECT set_config('request.jwt.claims',
-  '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
   true);
-SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 DO $all_user_rpc_legacy_issuer$
 DECLARE
   v_signature text;
@@ -467,14 +467,14 @@ BEGIN
   IF has_schema_privilege(current_user, 'private', 'USAGE') THEN
     RAISE EXCEPTION 'STAGE3_PRIVATE_SCHEMA_USAGE_UNEXPECTED';
   END IF;
-  IF public.is_active_admin('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid) THEN
+  IF public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_LEGACY_ISSUER_IS_ACTIVE_ADMIN_ALLOWED';
   END IF;
 
   -- Matching a private profile UUID does not make a legacy Supabase Auth
   -- session its Better Auth owner.
   SELECT count(*) INTO v_count
-  FROM public.get_profile_connections('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid, 'following');
+  FROM public.get_profile_connections('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid, 'following');
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_LEGACY_PRIVATE_PROFILE_OWNER_BYPASS'; END IF;
 
   v_denied := false;
