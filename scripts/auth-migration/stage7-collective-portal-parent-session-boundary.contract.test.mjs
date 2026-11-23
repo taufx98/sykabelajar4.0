@@ -62,13 +62,13 @@ assert.ok(certificate);
 assert.match(certificate, /s\.expires_at>pg_catalog\.now\(\)/);
 assert.match(certificate, /private\.collective_session_participant\(p_access_token\)/);
 
-assert.match(migration, /BEGIN;[\\s\\S]*COMMIT;/);
+assert.match(migration, /BEGIN;[\s\S]*COMMIT;/);
 const executableMigration = migration.replace(/^--.*$/gm, "");
-assert.doesNotMatch(executableMigration, /\\b(?:GRANT|REVOKE)\\b/i,
+assert.doesNotMatch(executableMigration, /\b(?:GRANT|REVOKE)\b/i,
   "CREATE OR REPLACE must preserve the reviewed function ACLs; do not change grants here");
-assert.doesNotMatch(executableMigration, /\\b(?:CREATE|DROP)\\s+POLICY\\b/i);
-assert.doesNotMatch(executableMigration, /\\b(?:CREATE|DROP|ALTER)\\s+TABLE\\b/i);
-assert.doesNotMatch(executableMigration, /\\b(?:DELETE\\s+FROM|TRUNCATE\\s+TABLE)\\b/i);
+assert.doesNotMatch(executableMigration, /\b(?:CREATE|DROP)\s+POLICY\b/i);
+assert.doesNotMatch(executableMigration, /\b(?:CREATE|DROP|ALTER)\s+TABLE\b/i);
+assert.doesNotMatch(executableMigration, /\b(?:DELETE\s+FROM|TRUNCATE\s+TABLE)\b/i);
 
 for (const marker of [
   "STAGE7_PARENT_REVOCATION_DID_NOT_REVOKE_CHILD",
