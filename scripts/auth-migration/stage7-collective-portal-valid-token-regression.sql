@@ -128,7 +128,7 @@ INSERT INTO public.collective_portal_credentials (
   '00000000-0000-4000-8000-00000000f717',
   '00000000-0000-4000-8000-00000000f716',
   extensions.crypt('PortalTest#2026!', extensions.gen_salt('bf')),
-  pg_catalog.encode(extensions.digest('PortalTe', 'sha256'), 'hex'),
+  private.collective_portal_password_lookup_key('PortalTest#2026!'),
   1,
   true
 );
@@ -168,7 +168,7 @@ INSERT INTO public.collective_portal_credentials (
   '00000000-0000-4000-8000-00000000f723',
   '00000000-0000-4000-8000-00000000f722',
   extensions.crypt('OtherPortal#2026!',extensions.gen_salt('bf')),
-  pg_catalog.encode(extensions.digest('OtherPor','sha256'),'hex'),
+  private.collective_portal_password_lookup_key('OtherPortal#2026!'),
   1,
   true
 );
