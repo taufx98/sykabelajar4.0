@@ -736,4 +736,23 @@ assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
 assert.ok(trancheElevenOrganizerPositive.includes("77777777-7777-4777-8777-777777777791"),
   "organizer-positive runtime fixture must use the existing synthetic owner membership");
 
-console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: issuer-first Admin and organizer RPCs have positive and negative disposable-runtime coverage.");
+const trancheElevenOutsiderStart = regression.indexOf("DO $stage7_tranche11_unrelated_user$");
+const trancheElevenOutsiderEnd = regression.indexOf(
+  "$stage7_tranche11_unrelated_user$;",
+  trancheElevenOutsiderStart,
+);
+assert.ok(trancheElevenOutsiderStart >= 0 && trancheElevenOutsiderEnd > trancheElevenOutsiderStart,
+  "missing unrelated Better Auth user IDOR-denial block");
+const trancheElevenOutsider = regression.slice(trancheElevenOutsiderStart, trancheElevenOutsiderEnd);
+for (const name of trancheElevenFunctions) {
+  assert.ok(trancheElevenOutsider.includes("public." + name + "("),
+    "missing unrelated-user scope test: " + name);
+  assert.ok(trancheElevenOutsider.includes("STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:" + name),
+    "missing unrelated-user denial assertion: " + name);
+}
+assert.ok(trancheElevenOutsider.includes("'ATTEMPT_NOT_FOUND'"));
+assert.ok(trancheElevenOutsider.includes("'COMPETITION_NOT_FOUND'"));
+assert.ok(trancheElevenOutsider.includes("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+  "IDOR test must use the distinct synthetic Better Auth student identity");
+
+console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
