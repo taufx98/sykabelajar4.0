@@ -579,6 +579,18 @@ assert.ok(
   "teacher achievement report must validate issuer before returning rows",
 );
 assert.match(regression, /Stage 7 Existing Collective Participant/);
+const ownerMembershipFixtureStart = regression.indexOf("-- The owner must establish their own owner membership");
+const ownerMembershipFixtureEnd = regression.indexOf("INSERT INTO public.question_banks", ownerMembershipFixtureStart);
+assert.ok(ownerMembershipFixtureStart >= 0 && ownerMembershipFixtureEnd > ownerMembershipFixtureStart,
+  "organizer owner membership fixture must remain bounded");
+const ownerMembershipFixture = regression.slice(ownerMembershipFixtureStart, ownerMembershipFixtureEnd);
+assert.match(ownerMembershipFixture, /request\\.jwt\\.claims/);
+assert.match(ownerMembershipFixture, /"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"/);
+assert.match(ownerMembershipFixture, /https:\\/\\/auth-prod\\.sykabelajar\\.my\\.id\\/api\\/auth/);
+assert.ok(ownerMembershipFixture.indexOf("request.jwt.claims") <
+  ownerMembershipFixture.indexOf("INSERT INTO public.organizer_members"),
+  "owner Better Auth claims must be installed before the governance trigger fires");
+assert.match(ownerMembershipFixture, /set_config\('request\\.jwt\\.claim\\.sub', '', TRUE\)/);
 assert.match(regression, /STAGE7-T09-NEW-001/);
 assert.match(regression, /STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION/);
 
