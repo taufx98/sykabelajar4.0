@@ -90,8 +90,14 @@ for (const name of [
   const escaped = name.replaceAll(".", "\\.");
   const definition = draft.match(new RegExp("CREATE OR REPLACE FUNCTION " + escaped + "[\\s\\S]*?\\$function\\$;", "i"))?.[0] ?? "";
   assert.ok(definition, "missing complete function body: " + name);
-  assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
-    "organizer operations must use the issuer-gated membership helper: " + name);
+  if (name === "public.save_organizer_competition_config") {
+    assert.match(definition,
+      /SELECT c\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(c\.organizer_id\)/i,
+      "organizer config lookup must scope the initial row read to the issuer-gated membership helper");
+  } else {
+    assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
+      "organizer operations must use the issuer-gated membership helper: " + name);
+  }
   assert.match(definition, /private\.current_user_is_admin\(\)/,
     "organizer operation Admin bypass must use issuer-gated helper: " + name);
 }
