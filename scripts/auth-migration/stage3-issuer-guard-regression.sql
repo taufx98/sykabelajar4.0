@@ -1549,13 +1549,17 @@ BEGIN
   END IF;
 
 
+  -- This UUID is an existing synthetic fixture from the trusted-issuer RLS
+  -- regression. The Better Auth Admin must pass the owner/Admin lookup and
+  -- stop at the deliberately unconfigured collective certificate price;
+  -- no payment order or downstream row is created.
   v_exam_denied := false;
   BEGIN
     PERFORM public.create_collective_certificate_order(
       '99999999-9999-4999-8999-999999999931'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM = 'FORBIDDEN' THEN v_exam_denied := true; ELSE RAISE; END IF;
+    IF SQLERRM = 'CERTIFICATE_PRICE_NOT_CONFIGURED' THEN v_exam_denied := true; ELSE RAISE; END IF;
   END;
   IF NOT v_exam_denied THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:create_collective_certificate_order';
