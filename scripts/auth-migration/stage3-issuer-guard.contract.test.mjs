@@ -74,6 +74,27 @@ assert.ok(ownerMembershipSetup.lastIndexOf("set_config('request.jwt.claims', '{}
   ownerMembershipSetup.indexOf("INSERT INTO public.question_options"),
   "fixture claims must be cleared only after all protected organizer/question rows are created");
 
+const questionEntitlementFixtureStart = acceptance.indexOf(
+  "-- Schema-only restores contain the plan tables but not their production",
+);
+const questionEntitlementFixtureEnd = acceptance.indexOf(
+  "INSERT INTO public.questions",
+  questionEntitlementFixtureStart,
+);
+assert.ok(questionEntitlementFixtureStart >= 0 && questionEntitlementFixtureEnd > questionEntitlementFixtureStart,
+  "organizer question fixture must seed and verify a disposable plan entitlement");
+const questionEntitlementFixture = acceptance.slice(
+  questionEntitlementFixtureStart,
+  questionEntitlementFixtureEnd,
+);
+assert.ok(questionEntitlementFixture.includes("'FREE'"));
+assert.ok(questionEntitlementFixture.includes("'question_limit'"));
+assert.ok(questionEntitlementFixture.includes("STAGE7_QUESTION_QUOTA_FIXTURE_MISSING"));
+assert.ok(questionEntitlementFixture.includes("STAGE7_ORGANIZER_PLAN_FIXTURE_MISSING"));
+assert.ok(questionEntitlementFixture.includes("77777777-7777-4777-8777-777777777791"));
+assert.ok(questionEntitlementFixture.includes("now() + interval '1 day'"),
+  "organizer plan fixture must be active during the disposable question insert");
+
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED/);
