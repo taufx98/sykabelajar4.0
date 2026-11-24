@@ -700,4 +700,26 @@ for (const name of trancheElevenFunctions) {
     "function definition must be terminated before the next CREATE: " + name);
 }
 
-console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
+const trancheElevenOrganizerPositive = regression.match(
+  /DO \\$stage7_tranche11_organizer_positive\\$[\\s\\S]*?\\$stage7_tranche11_organizer_positive\\$;/i,
+)?.[0] ?? "";
+assert.ok(trancheElevenOrganizerPositive,
+  "missing positive organizer-owner runtime coverage for tranche 11");
+for (const name of trancheElevenFunctions) {
+  assert.ok(trancheElevenOrganizerPositive.includes("public." + name + "("),
+    "missing organizer-positive runtime call: " + name);
+}
+assert.match(trancheElevenOrganizerPositive,
+  /PREVIEW_ATTEMPT_NOT_GRADABLE/,
+  "manual grading must reach the preview guard for an authorized organizer");
+assert.match(trancheElevenOrganizerPositive,
+  /publish_competition_results[\\s\\S]*?already_published/,
+  "organizer result publication test must stop at its no-op already-published boundary");
+assert.match(trancheElevenOrganizerPositive,
+  /release_organizer_competition[\\s\\S]*?COMPETITION_NOT_DRAFT/,
+  "organizer release test must reach the existing non-draft validation boundary");
+assert.match(trancheElevenOrganizerPositive,
+  /77777777-7777-4777-8777-777777777791/,
+  "organizer-positive runtime fixture must use the existing synthetic owner membership");
+
+console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: issuer-first Admin and organizer RPCs have positive and negative disposable-runtime coverage.");
