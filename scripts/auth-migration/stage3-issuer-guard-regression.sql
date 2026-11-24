@@ -211,7 +211,7 @@ INSERT INTO public.competitions (
 )
 VALUES
   (
-    '44444444-4444-4444-8444-444444444441',
+    '11111111-1111-4111-8111-111111111111',
     'stage3-public-collective-probe',
     'Stage 3 Public Collective Probe',
     'Stage 3 Test',
@@ -231,7 +231,7 @@ VALUES
     '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
   ),
   (
-    '44444444-4444-4444-8444-444444444441',
+    '33333333-3333-4333-8333-333333333333',
     'stage3-public-result-probe',
     'Stage 3 Public Result Probe',
     'Stage 3 Test',
@@ -320,19 +320,19 @@ INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
 )
 VALUES
-  ('55555555-5555-4555-8555-555555555551', '44444444-4444-4444-8444-444444444441',
+  ('55555555-5555-4555-8555-555555555551', '33333333-3333-4333-8333-333333333333',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Untrusted Issuer Private Participant'),
-  ('55555555-5555-4555-8555-555555555552', '44444444-4444-4444-8444-444444444441',
+  ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant');
 
 INSERT INTO public.attempts (
   id, competition_id, participant_id, canonical_participant_id, status, score, finalized_at
 )
 VALUES
-  ('77777777-7777-4777-8777-777777777781', '44444444-4444-4444-8444-444444444441',
+  ('77777777-7777-4777-8777-777777777771', '33333333-3333-4333-8333-333333333333',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '55555555-5555-4555-8555-555555555551',
    'FINALIZED'::public.attempt_status, 91, now()),
-  ('77777777-7777-4777-8777-777777777782', '44444444-4444-4444-8444-444444444441',
+  ('77777777-7777-4777-8777-777777777772', '33333333-3333-4333-8333-333333333333',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555552',
    'FINALIZED'::public.attempt_status, 92, now());
 
@@ -343,9 +343,9 @@ VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
 INSERT INTO public.user_badges (user_id, badge_id, award_source, reason, source_reference)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Legacy private badge probe', '44444444-4444-4444-8444-444444444441'),
+   'MANUAL', 'Legacy private badge probe', '33333333-3333-4333-8333-333333333333'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Better Auth private badge probe', '44444444-4444-4444-8444-444444444441');
+   'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333');
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -548,8 +548,8 @@ VALUES (
 
 -- Tranche 11 owner-scope fixture: bind the organizer when the competition is
 -- created. The application intentionally makes organizer_id immutable after
--- insert; do not update an unrelated pre-existing competition to fake scope.
--- Admin JWT is still active here, and the whole setup is rolled back below.
+-- insert; do not retarget an unrelated pre-existing competition.
+-- The synthetic Admin JWT is active, and the outer transaction rolls back.
 INSERT INTO public.competitions (
   id, slug, title, category, status, visibility,
   participant_mode, config, organizer_id
@@ -665,7 +665,7 @@ BEGIN
 
   -- Anonymous pages may sync only public competitions whose schedule has
   -- crossed a registration boundary; private IDs do not reveal status.
-  v_status := public.sync_competition_registration_status('44444444-4444-4444-8444-444444444441'::uuid);
+  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
   IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
     RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_COMPETITION_STATUS_SYNC_FAILED:%', v_status;
   END IF;
@@ -2988,7 +2988,7 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED'; END IF;
 
-  v_status := public.sync_competition_registration_status('44444444-4444-4444-8444-444444444441'::uuid);
+  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
   IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_STATUS_SYNC_FAILED:%', v_status;
   END IF;
@@ -3001,7 +3001,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_RESULT_BADGES_ALLOWED';
   END IF;
 
-  v_options := public.get_collective_registration_options('44444444-4444-4444-8444-444444444441'::uuid);
+  v_options := public.get_collective_registration_options('11111111-1111-4111-8111-111111111111'::uuid);
   IF v_options #>> '{competition,title}' IS DISTINCT FROM 'Stage 3 Public Collective Probe' THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED:%', v_options;
   END IF;
