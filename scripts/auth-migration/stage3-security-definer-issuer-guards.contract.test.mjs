@@ -836,37 +836,37 @@ assert.ok(crossBankAdminSetup.includes('"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb
 
 
 const canonicalResult = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.get_canonical_competition_result\\(p_participant_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.get_canonical_competition_result\(p_participant_id uuid\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(canonicalResult, "missing canonical direct result RPC replacement");
 assert.match(canonicalResult, /SET search_path TO ''/);
-assert.match(canonicalResult, /private\\.current_user_is_better_auth\\(\\)/);
+assert.match(canonicalResult, /private\.current_user_is_better_auth\(\)/);
 assert.match(canonicalResult, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.ok(
   canonicalResult.indexOf("private.current_user_is_better_auth()") <
     canonicalResult.indexOf("FROM public.participants"),
   "the canonical direct result RPC must validate the Better Auth issuer before its first participant read",
 );
-assert.match(canonicalResult, /private\\.current_user_is_admin\\(\\)/);
-assert.match(canonicalResult, /p\\.user_id <> auth\\.uid\\(\\)/);
-assert.match(canonicalResult, /public\\.collective_participants cp/);
-assert.match(canonicalResult, /cp\\.managed_by_user_id = auth\\.uid\\(\\) OR cp\\.user_id = auth\\.uid\\(\\)/);
+assert.match(canonicalResult, /private\.current_user_is_admin\(\)/);
+assert.match(canonicalResult, /p\.user_id <> auth\.uid\(\)/);
+assert.match(canonicalResult, /public\.collective_participants cp/);
+assert.match(canonicalResult, /cp\.managed_by_user_id = auth\.uid\(\) OR cp\.user_id = auth\.uid\(\)/);
 assert.match(canonicalResult, /RESULT_PUBLISHED.*ARCHIVED/);
-assert.match(canonicalResult, /status = 'FINALIZED'[\\s\\S]*?is_preview = FALSE/i);
-assert.match(canonicalResult, /private\\.canonical_competition_rank\\(p\\.competition_id, p\\.id\\)/);
+assert.match(canonicalResult, /status = 'FINALIZED'[\s\S]*?is_preview = FALSE/i);
+assert.match(canonicalResult, /private\.canonical_competition_rank\(p\.competition_id, p\.id\)/);
 
 const canonicalResultPreflight = draft.match(
-  /DO \\$stage7_canonical_result_fingerprint_preflight\\$[\\s\\S]*?\\$stage7_canonical_result_fingerprint_preflight\\$;/i,
+  /DO \$stage7_canonical_result_fingerprint_preflight\$[\s\S]*?\$stage7_canonical_result_fingerprint_preflight\$;/i,
 )?.[0] ?? "";
 assert.ok(canonicalResultPreflight, "missing exact canonical-result Production fingerprint preflight");
 assert.match(canonicalResultPreflight, /e8523cc64cfa98e828ea8fc12902eaba/);
 assert.match(canonicalResultPreflight, /e59a13014024e2878dcc5573bec0d5ef/);
-assert.match(canonicalResultPreflight, /has_function_privilege\\('anon'/);
-assert.match(canonicalResultPreflight, /has_function_privilege\\('authenticated'/);
-assert.match(canonicalResultPreflight, /has_function_privilege\\('service_role'/);
+assert.match(canonicalResultPreflight, /has_function_privilege\('anon'/);
+assert.match(canonicalResultPreflight, /has_function_privilege\('authenticated'/);
+assert.match(canonicalResultPreflight, /has_function_privilege\('service_role'/);
 
 const myCanonicalResult = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.get_my_canonical_competition_result\\(p_competition_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.get_my_canonical_competition_result\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(myCanonicalResult, "missing frontend my-result wrapper");
 assert.ok(
@@ -874,7 +874,7 @@ assert.ok(
     myCanonicalResult.indexOf("FROM public.participants"),
   "the frontend result wrapper must validate issuer before its participant lookup",
 );
-assert.match(myCanonicalResult, /return public\\.get_canonical_competition_result\\(v_pid\\)/i);
+assert.match(myCanonicalResult, /return public\.get_canonical_competition_result\(v_pid\)/i);
 
 for (const marker of [
   "STAGE7_TRANCHE12_LEGACY_DIRECT_RESULT_ALLOWED",
