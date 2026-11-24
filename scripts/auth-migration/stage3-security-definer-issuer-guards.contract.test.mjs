@@ -94,6 +94,10 @@ for (const name of [
     assert.match(definition,
       /SELECT c\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(c\.organizer_id\)/i,
       "organizer config lookup must scope the initial row read to the issuer-gated membership helper");
+  } else if (name === "public.save_question_with_options") {
+    assert.match(definition,
+      /SELECT qb\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(qb\.organizer_id\)/i,
+      "question bank lookup must scope the initial row read to the issuer-gated membership helper");
   } else {
     assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
       "organizer operations must use the issuer-gated membership helper: " + name);
@@ -575,11 +579,62 @@ assert.ok(
   "teacher achievement report must validate issuer before returning rows",
 );
 assert.match(regression, /Stage 7 Existing Collective Participant/);
-assert.match(regression, /STAGE7-TEACHER-001/);
+assert.match(regression, /STAGE7-T09-NEW-001/);
+assert.match(regression, /STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION/);
 
 
 assert.match(adminRpcBetterAuthBlock,
   /create_collective_certificate_order[\s\S]*?CERTIFICATE_PRICE_NOT_CONFIGURED/,
   "Better Auth collective certificate order must pass scoped issuer/owner check and stop before writes when price is unconfigured");
 
+
+const trancheTenFunctionNames = [
+  "create_product_order",
+  "save_question_with_options",
+];
+for (const name of trancheTenFunctionNames) {
+  assert.ok(
+    adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name,
+  );
+  const definition = draft.match(
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
+  )?.[0] ?? "";
+  assert.ok(definition, "missing Stage 3 function definition: " + name);
+  assert.match(definition, /private\.current_user_is_better_auth\(\)/i,
+    "function must require Better Auth issuer: " + name);
+  assert.doesNotMatch(definition, /FROM\s+(?:public\.)?user_roles\b/i,
+    "function must not authorize from direct legacy user_roles: " + name);
+}
+const productOrderDefinition = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.create_product_order[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(productOrderDefinition,
+  /private\.current_user_is_better_auth\(\)[\s\S]*?SELECT p\.\*[\s\S]*?FROM public\.commerce_products p/i,
+  "product order must verify issuer before reading product");
+assert.match(productOrderDefinition,
+  /private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_has_role\('student'::public\.app_role\)[\s\S]*?private\.current_user_has_role\('teacher'::public\.app_role\)[\s\S]*?private\.current_user_has_role\('organizer_member'::public\.app_role\)/i,
+  "product audience must be matched to the caller's issuer-gated business role");
+const questionSaveDefinition = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.save_question_with_options[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(questionSaveDefinition,
+  /private\.current_user_is_better_auth\(\)[\s\S]*?FROM public\.question_banks qb/i,
+  "question save must verify issuer before reading the question bank");
+assert.match(questionSaveDefinition,
+  /private\.current_user_is_active_organizer_member\(qb\.organizer_id\)/i,
+  "question bank lookup must be restricted to an active organizer member or Admin");
+assert.match(questionSaveDefinition,
+  /WHERE id = p_question_id\s+AND question_bank_id = p_question_bank_id/i,
+  "question updates must remain within the authorized question bank");
+
+assert.match(regression,
+  /STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_product_order[\s\S]*?STAGE3_LEGACY_ADMIN_RPC_ALLOWED:save_question_with_options/);
+assert.match(regression,
+  /STAGE3_BETTER_AUTH_STUDENT_PRODUCT_ORDER_FAILED[\s\S]*?STAGE3_BETTER_AUTH_QUESTION_BANK_OWNERSHIP_FAILED/);
+assert.match(regression,
+  /STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED[\s\S]*?STAGE3_BETTER_AUTH_FOREIGN_QUESTION_OPTIONS_CHANGED/);
+assert.match(regression, /STAGE7-ISSUER-PRODUCT/);
+assert.match(regression, /Stage 7 Owned Question Bank/);
+assert.match(regression, /STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION/);
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");

@@ -1039,12 +1039,169 @@ end;
 $function$;
 
 -- save_question_with_options
-CREATE OR REPLACE FUNCTION public.save_question_with_options(p_question_id uuid, p_question_bank_id uuid, p_type text, p_prompt text, p_points numeric DEFAULT 1, p_required boolean DEFAULT true, p_display_order integer DEFAULT 0, p_status text DEFAULT 'DRAFT'::text, p_config jsonb DEFAULT '{}'::jsonb, p_options jsonb DEFAULT '[]'::jsonb)
+CREATE OR REPLACE FUNCTION public.save_question_with_options(
+  p_question_id uuid,
+  p_question_bank_id uuid,
+  p_type text,
+  p_prompt text,
+  p_points numeric DEFAULT 1,
+  p_required boolean DEFAULT true,
+  p_display_order integer DEFAULT 0,
+  p_status text DEFAULT 'DRAFT'::text,
+  p_config jsonb DEFAULT '{}'::jsonb,
+  p_options jsonb DEFAULT '[]'::jsonb
+)
  RETURNS questions
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public', 'private'
-AS $function$ declare v_uid uuid:=auth.uid();v_question public.questions%rowtype;v_org uuid;v_plan text;v_option jsonb;v_count int;v_correct int;begin if v_uid is null then raise exception 'AUTH_REQUIRED';end if;select organizer_id into v_org from public.question_banks where id=p_question_bank_id;if v_org is null then raise exception 'BANK_NOT_FOUND';end if;if not(private.current_user_is_active_organizer_member(v_org) or private.current_user_is_admin()) then raise exception 'FORBIDDEN';end if;select op.plan_code into v_plan from public.organizer_plans op where op.organizer_id=v_org and op.is_active=true and op.starts_at<=now() and(op.ends_at is null or op.ends_at>now()) order by op.starts_at desc,op.created_at desc limit 1;if lower(p_type) in('essay','long-answer') and(coalesce(p_config,'{}'::jsonb) ? 'answer_key' or coalesce(p_config,'{}'::jsonb)->'ai_assessment'->>'enabled'='true') then if not exists(select 1 from public.plan_entitlements pe where pe.plan_code=v_plan and pe.capability='essay_ai_assessment' and coalesce(pe.limit_value,0)>0) then raise exception 'PREMIUM_REQUIRED';end if;end if;if lower(p_type) in('multiple-choice','mcq') then v_count:=jsonb_array_length(coalesce(p_options,'[]'::jsonb));if v_count<3 or v_count>6 then raise exception 'MCQ_OPTIONS_3_6';end if;select count(*) into v_correct from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) x where coalesce((x->>'is_correct')::boolean,false);if v_correct<>1 then raise exception 'MCQ_EXACTLY_ONE_CORRECT';end if;elsif lower(p_type) in('true-false','true_false') then if jsonb_array_length(coalesce(p_options,'[]'::jsonb))<>2 then raise exception 'TRUE_FALSE_REQUIRES_TWO_OPTIONS';end if;select count(*) into v_correct from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) x where coalesce((x->>'is_correct')::boolean,false);if v_correct<>1 then raise exception 'TRUE_FALSE_EXACTLY_ONE_CORRECT';end if;p_options:=jsonb_build_array(jsonb_build_object('label','Benar','value','Benar','is_correct',coalesce((p_options->0->>'is_correct')::boolean,false),'display_order',0),jsonb_build_object('label','Salah','value','Salah','is_correct',coalesce((p_options->1->>'is_correct')::boolean,false),'display_order',1));end if;if p_question_id is null then insert into public.questions(question_bank_id,type,prompt,points,required,display_order,status,config) values(p_question_bank_id,p_type,p_prompt,p_points,p_required,p_display_order,p_status,p_config) returning * into v_question;else update public.questions set question_bank_id=p_question_bank_id,type=p_type,prompt=p_prompt,points=p_points,required=p_required,display_order=p_display_order,status=p_status,config=p_config,updated_at=now() where id=p_question_id returning * into v_question;if not found then raise exception 'QUESTION_NOT_FOUND';end if;end if;delete from public.question_options where question_id=v_question.id;for v_option in select * from jsonb_array_elements(coalesce(p_options,'[]'::jsonb)) loop insert into public.question_options(question_id,label,value,is_correct,display_order) values(v_question.id,coalesce(v_option->>'label',''),coalesce(v_option->>'value',v_option->>'label',''),coalesce((v_option->>'is_correct')::boolean,false),coalesce((v_option->>'display_order')::int,0));end loop;return v_question;end;$function$;
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_question public.questions%rowtype;
+  v_org uuid;
+  v_plan text;
+  v_option jsonb;
+  v_count int;
+  v_correct int;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if v_uid is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  -- Do not reveal whether a question bank exists outside this user's active
+  -- organizer membership/Admin scope.
+  select qb.organizer_id
+    into v_org
+  from public.question_banks qb
+  where qb.id = p_question_bank_id
+    and (
+      private.current_user_is_admin()
+      or private.current_user_is_active_organizer_member(qb.organizer_id)
+    );
+
+  if not found then
+    raise exception 'FORBIDDEN';
+  end if;
+
+  select op.plan_code
+    into v_plan
+  from public.organizer_plans op
+  where op.organizer_id = v_org
+    and op.is_active = true
+    and op.starts_at <= now()
+    and (op.ends_at is null or op.ends_at > now())
+  order by op.starts_at desc, op.created_at desc
+  limit 1;
+
+  if lower(p_type) in ('essay', 'long-answer')
+     and (
+       coalesce(p_config, '{}'::jsonb) ? 'answer_key'
+       or coalesce(p_config, '{}'::jsonb)->'ai_assessment'->>'enabled' = 'true'
+     )
+     and not exists (
+       select 1
+       from public.plan_entitlements pe
+       where pe.plan_code = v_plan
+         and pe.capability = 'essay_ai_assessment'
+         and coalesce(pe.limit_value, 0) > 0
+     ) then
+    raise exception 'PREMIUM_REQUIRED';
+  end if;
+
+  if lower(p_type) in ('multiple-choice', 'mcq') then
+    v_count := jsonb_array_length(coalesce(p_options, '[]'::jsonb));
+    if v_count < 3 or v_count > 6 then
+      raise exception 'MCQ_OPTIONS_3_6';
+    end if;
+    select count(*)
+      into v_correct
+    from jsonb_array_elements(coalesce(p_options, '[]'::jsonb)) x
+    where coalesce((x->>'is_correct')::boolean, false);
+    if v_correct <> 1 then
+      raise exception 'MCQ_EXACTLY_ONE_CORRECT';
+    end if;
+  elsif lower(p_type) in ('true-false', 'true_false') then
+    if jsonb_array_length(coalesce(p_options, '[]'::jsonb)) <> 2 then
+      raise exception 'TRUE_FALSE_REQUIRES_TWO_OPTIONS';
+    end if;
+    select count(*)
+      into v_correct
+    from jsonb_array_elements(coalesce(p_options, '[]'::jsonb)) x
+    where coalesce((x->>'is_correct')::boolean, false);
+    if v_correct <> 1 then
+      raise exception 'TRUE_FALSE_EXACTLY_ONE_CORRECT';
+    end if;
+    p_options := jsonb_build_array(
+      jsonb_build_object(
+        'label', 'Benar', 'value', 'Benar',
+        'is_correct', coalesce((p_options->0->>'is_correct')::boolean, false),
+        'display_order', 0
+      ),
+      jsonb_build_object(
+        'label', 'Salah', 'value', 'Salah',
+        'is_correct', coalesce((p_options->1->>'is_correct')::boolean, false),
+        'display_order', 1
+      )
+    );
+  end if;
+
+  if p_question_id is null then
+    insert into public.questions(
+      question_bank_id, type, prompt, points, required,
+      display_order, status, config
+    )
+    values (
+      p_question_bank_id, p_type, p_prompt, p_points, p_required,
+      p_display_order, p_status, p_config
+    )
+    returning * into v_question;
+  else
+    -- Prevent a question ID from another organizer's bank being moved into
+    -- this authorized bank by an update request.
+    update public.questions
+    set question_bank_id = p_question_bank_id,
+        type = p_type,
+        prompt = p_prompt,
+        points = p_points,
+        required = p_required,
+        display_order = p_display_order,
+        status = p_status,
+        config = p_config,
+        updated_at = now()
+    where id = p_question_id
+      and question_bank_id = p_question_bank_id
+    returning * into v_question;
+
+    if not found then
+      raise exception 'QUESTION_NOT_FOUND';
+    end if;
+  end if;
+
+  delete from public.question_options
+  where question_id = v_question.id;
+
+  for v_option in
+    select * from jsonb_array_elements(coalesce(p_options, '[]'::jsonb))
+  loop
+    insert into public.question_options(
+      question_id, label, value, is_correct, display_order
+    )
+    values (
+      v_question.id,
+      coalesce(v_option->>'label', ''),
+      coalesce(v_option->>'value', v_option->>'label', ''),
+      coalesce((v_option->>'is_correct')::boolean, false),
+      coalesce((v_option->>'display_order')::int, 0)
+    );
+  end loop;
+
+  return v_question;
+end;
+$function$
 
 -- The collective Realtime bind RPC is also SECURITY DEFINER and can write its own
 -- session row. Keep it unavailable to legacy Supabase Auth sessions after issuer
@@ -4097,6 +4254,95 @@ begin
       updated_at = now()
   where id = v_cert.id;
 
+  return v_order;
+end;
+$function$;
+
+
+CREATE OR REPLACE FUNCTION public.create_product_order(
+  p_product_id uuid,
+  p_quantity integer DEFAULT 1
+)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_product public.commerce_products;
+  v_order public.orders;
+  v_qty integer := p_quantity;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if auth.uid() is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+  if v_qty is null or v_qty < 1 or v_qty > 100 then
+    raise exception 'INVALID_QUANTITY';
+  end if;
+
+  -- Apply audience + Better Auth business-role scope in the same initial
+  -- lookup, so legacy issuers and unrelated roles cannot probe product state.
+  select p.*
+    into v_product
+  from public.commerce_products p
+  where p.id = p_product_id
+    and p.is_active = true
+    and (
+      private.current_user_is_admin()
+      or (
+        'student' = any(coalesce(p.audiences, array[]::text[]))
+        and private.current_user_has_role('student'::public.app_role)
+      )
+      or (
+        'teacher' = any(coalesce(p.audiences, array[]::text[]))
+        and private.current_user_has_role('teacher'::public.app_role)
+      )
+      or (
+        'organizer' = any(coalesce(p.audiences, array[]::text[]))
+        and private.current_user_has_role('organizer_member'::public.app_role)
+      )
+    )
+  for share;
+
+  if not found then
+    raise exception 'PRODUCT_NOT_AVAILABLE';
+  end if;
+  if v_product.product_type not in ('DIGITAL_ITEM', 'DONATION') then
+    raise exception 'PRODUCT_TYPE_NOT_SUPPORTED';
+  end if;
+  if v_product.price <= 0 then
+    raise exception 'ACTIVE_PRODUCT_PRICE_REQUIRED';
+  end if;
+  if cardinality(coalesce(v_product.audiences, array[]::text[])) = 0 then
+    raise exception 'PRODUCT_NOT_AVAILABLE';
+  end if;
+
+  insert into public.orders(
+    user_id, status, subtotal, discount, shipping_cost, total, currency
+  )
+  values (
+    auth.uid(), 'DRAFT',
+    v_product.price * v_qty, 0, 0, v_product.price * v_qty, v_product.currency
+  )
+  returning * into v_order;
+
+  insert into public.order_items(
+    order_id, product_type, product_ref, name, quantity,
+    unit_price, line_total, metadata
+  )
+  values (
+    v_order.id, v_product.product_type, v_product.id::text, v_product.name,
+    v_qty, v_product.price, v_product.price * v_qty,
+    jsonb_build_object('product_code', v_product.code, 'metadata', v_product.metadata)
+  );
+
+  perform private.write_audit(
+    'commerce.order_created', 'order', v_order.id::text,
+    'Draft catalog order created by user', null, to_jsonb(v_order), null
+  );
   return v_order;
 end;
 $function$;
