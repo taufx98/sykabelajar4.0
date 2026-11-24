@@ -190,6 +190,59 @@ VALUES
 
 -- A public results page may expose the published result, but private badge
 -- collections remain private unless read by their real Better Auth owner/Admin.
+-- Stage 7 teacher/collective fixtures: same real synthetic Better Auth Admin
+-- owns the roster and participant, so the legacy-issuer path can be tested
+-- against actual protected rows rather than only absent UUIDs.
+INSERT INTO public.teacher_rosters (id, teacher_user_id, name, is_active)
+VALUES (
+  '88888888-8888-4888-8888-888888888891',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'Stage 7 issuer boundary roster',
+  true
+);
+
+INSERT INTO public.roster_students (id, roster_id, full_name, is_active)
+VALUES
+  (
+    '99999999-9999-4999-8999-999999999981',
+    '88888888-8888-4888-8888-888888888891',
+    'Stage 7 Existing Collective Participant',
+    true
+  ),
+  (
+    '99999999-9999-4999-8999-999999999982',
+    '88888888-8888-4888-8888-888888888891',
+    'Stage 7 New Collective Participant',
+    true
+  );
+
+INSERT INTO public.collective_participants (
+  id, competition_id, roster_student_id, managed_by_user_id,
+  participant_code, full_name, status
+)
+VALUES (
+  '66666666-6666-4666-8666-666666666681',
+  '22222222-2222-4222-8222-222222222222',
+  '99999999-9999-4999-8999-999999999981',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'STAGE7-TEACHER-001',
+  'Stage 7 Existing Collective Participant',
+  'ACTIVE'
+);
+
+INSERT INTO public.participants (
+  id, competition_id, collective_participant_id, participant_type,
+  participant_code, full_name
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777781',
+  '22222222-2222-4222-8222-222222222222',
+  '66666666-6666-4666-8666-666666666681',
+  'COLLECTIVE',
+  'STAGE7-TEACHER-001',
+  'Stage 7 Existing Collective Participant'
+);
+
 INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
 )
@@ -1302,6 +1355,50 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_certificate_asset'; END IF;
 
+
+  -- Tranche 09: collective/teacher/organizer functions must reject the
+  -- legacy issuer even though this same subject has an active Admin row
+  -- and owns the synthetic teacher roster/collective participant.
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.create_collective_participants(
+      '22222222-2222-4222-8222-222222222222'::uuid,
+      ARRAY['99999999-9999-4999-8999-999999999982'::uuid]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_collective_participants'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.save_organizer_competition_config(
+      '22222222-2222-4222-8222-222222222222'::uuid,
+      '{}'::jsonb,
+      '{"minimum_participants":0}'::jsonb,
+      '[]'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:save_organizer_competition_config'; END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_teacher_collective_certificates('22222222-2222-4222-8222-222222222222'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:list_teacher_collective_certificates';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.list_teacher_achievement_report(
+      '22222222-2222-4222-8222-222222222222'::uuid, NULL::text
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:list_teacher_achievement_report'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1415,6 +1512,43 @@ BEGIN
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
   END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_teacher_collective_certificates('22222222-2222-4222-8222-222222222222'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:list_teacher_collective_certificates:%', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_teacher_achievement_report('22222222-2222-4222-8222-222222222222'::uuid, NULL::text);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:list_teacher_achievement_report:%', v_count;
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.save_organizer_competition_config(
+      '22222222-2222-4222-8222-222222222222'::uuid,
+      '{}'::jsonb,
+      '{"minimum_participants":0}'::jsonb,
+      '[]'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'MINIMUM_PARTICIPANTS_INVALID' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:save_organizer_competition_config';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.create_collective_participants(
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    ARRAY['99999999-9999-4999-8999-999999999982'::uuid]
+  );
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:create_collective_participants:%', v_count;
+  END IF;
+
 
   v_exam_denied := false;
   BEGIN
