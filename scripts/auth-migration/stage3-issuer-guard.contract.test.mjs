@@ -50,7 +50,7 @@ assert.ok(tranche09FixtureStart >= 0 && tranche09FixtureEnd > tranche09FixtureSt
 const tranche09Fixture = acceptance.slice(tranche09FixtureStart, tranche09FixtureEnd);
 assert.match(tranche09Fixture, /STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREATED/,
   "active collective fixture must assert trigger-created canonical identity");
-assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\\.participants/i,
+assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\.participants/i,
   "the fixture must not manually duplicate the canonical row created by the trigger");
 
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
