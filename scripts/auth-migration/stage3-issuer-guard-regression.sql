@@ -483,6 +483,19 @@ VALUES (
 )
 ON CONFLICT (plan_code, capability) DO NOTHING;
 
+-- The organizer-owned finalize probe must pass the real manual_grading
+-- entitlement check before it reaches the safe non-finalizable status guard.
+INSERT INTO public.plan_entitlements (
+  plan_code, capability, limit_value, config
+)
+VALUES (
+  'FREE',
+  'manual_grading',
+  1,
+  '{}'::jsonb
+)
+ON CONFLICT (plan_code, capability) DO NOTHING;
+
 INSERT INTO public.organizer_plans (
   organizer_id, plan_code, starts_at, ends_at, is_active
 )
@@ -504,6 +517,15 @@ BEGIN
       AND pe.limit_value > 0
   ) THEN
     RAISE EXCEPTION 'STAGE7_QUESTION_QUOTA_FIXTURE_MISSING';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.plan_entitlements pe
+    WHERE pe.plan_code = 'FREE'
+      AND pe.capability = 'manual_grading'
+      AND pe.limit_value > 0
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_MANUAL_GRADING_ENTITLEMENT_FIXTURE_MISSING';
   END IF;
   IF NOT EXISTS (
     SELECT 1
@@ -575,7 +597,7 @@ VALUES
     '44444444-4444-4444-8444-444444444441',
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'INDIVIDUAL',
-    'Stage 7 Organizer Preview Attempt'
+    'Stage 7 Organizer Finalized Attempt'
   ),
   (
     '55555555-5555-4555-8555-555555555562',
@@ -598,7 +620,7 @@ VALUES
     'FINALIZED'::public.attempt_status,
     91,
     now(),
-    TRUE
+    FALSE
   ),
   (
     '77777777-7777-4777-8777-777777777782',
@@ -3082,7 +3104,7 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
   END;
-  IF v_error IS DISTINCT FROM 'PREVIEW_ATTEMPT_NOT_GRADABLE' THEN
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FINALIZABLE' THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:finalize_attempt_manual:%',
       coalesce(v_error, 'NO_ERROR');
   END IF;
