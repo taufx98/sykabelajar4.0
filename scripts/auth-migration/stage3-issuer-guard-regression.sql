@@ -1246,6 +1246,26 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_shop_promo_banner'; END IF;
 
+
+  -- Tranche 07: final two explicit Admin RPCs must reject the old issuer.
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_save_organizer_payment_config(
+      '{"mode":"MANUAL_TRANSFER","manual":{"bank_name":"LEGACY-PROBE"}}'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ACCESS_DENIED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_save_organizer_payment_config'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.admin_set_collective_certificate_price(NULL::numeric);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_collective_certificate_price'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1359,8 +1379,39 @@ BEGIN
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
   END IF;
-  IF public.admin_set_collective_certificate_price(0) <> 0 THEN
-    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_DIRECT_ADMIN_RPC_DENIED';
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.admin_set_collective_certificate_price(NULL::numeric);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'INVALID_AMOUNT' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_set_collective_certificate_price';
+  END IF;
+
+  -- This RPC writes a global setting and an audit row. Force an exception
+  -- after verifying its normalized return value so the PL/pgSQL exception
+  -- subtransaction rolls both writes back immediately.
+  v_exam_denied := false;
+  BEGIN
+    v_result := public.admin_save_organizer_payment_config(
+      '{"mode":"MANUAL_TRANSFER","manual":{"bank_name":"STAGE7-DISPOSABLE","account_number":"000000","account_name":"ROLLBACK ONLY","instructions":"Synthetic rollback-only probe"}}'::jsonb
+    );
+    IF v_result #>> '{mode}' IS DISTINCT FROM 'MANUAL_TRANSFER'
+       OR v_result #>> '{manual,bank_name}' IS DISTINCT FROM 'STAGE7-DISPOSABLE'
+       OR v_result #>> '{manual,account_number}' IS DISTINCT FROM '000000' THEN
+      RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_RESULT_INVALID:admin_save_organizer_payment_config:%', v_result;
+    END IF;
+    RAISE EXCEPTION 'STAGE3_ADMIN_PAYMENT_CONFIG_ROLLBACK_SENTINEL';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'STAGE3_ADMIN_PAYMENT_CONFIG_ROLLBACK_SENTINEL' THEN
+      v_exam_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_save_organizer_payment_config';
   END IF;
 
   -- The valid Better Auth Admin can execute the scoped Admin/social RPCs.
