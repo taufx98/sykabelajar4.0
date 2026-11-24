@@ -4348,4 +4348,471 @@ end;
 $function$;
 
 
+
+-- Stage 7 Tranche 11: issuer-first, caller-scoped attempt and competition reads.
+CREATE OR REPLACE FUNCTION public.finalize_attempt_manual(p_attempt_id uuid, p_score numeric, p_reason text DEFAULT NULL::text)
+ RETURNS attempts
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_attempt public.attempts%rowtype;
+  v_comp public.competitions%rowtype;
+  v_pending_manual_count integer;
+  v_invalid_score_count integer;
+  v_base_score numeric;
+  v_manual_score numeric;
+  v_ai_adjustment numeric;
+  v_final_score numeric;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  -- Scope the first attempt lookup to Admin or an organizer with edit access.
+  -- A legacy issuer or unrelated organizer cannot probe attempt existence.
+  SELECT a.* INTO v_attempt
+  FROM public.attempts a
+  JOIN public.competitions c ON c.id = a.competition_id
+  WHERE a.id = p_attempt_id
+    AND (
+      private.current_user_is_admin()
+      OR (
+        c.organizer_id IS NOT NULL
+        AND private.current_user_can_edit_competition(c.organizer_id)
+      )
+    )
+  FOR UPDATE OF a;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+  IF v_attempt.is_preview THEN
+    RAISE EXCEPTION 'PREVIEW_ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  PERFORM private.require_organizer_entitlement(
+    v_comp.organizer_id, 'manual_grading'
+  );
+
+  IF v_attempt.status::text NOT IN ('GRADING', 'SUBMITTED') THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FINALIZABLE';
+  END IF;
+  IF p_reason IS NULL OR trim(p_reason) = '' THEN
+    RAISE EXCEPTION 'FINALIZE_REASON_REQUIRED';
+  END IF;
+
+  SELECT
+    count(*) FILTER (
+      WHERE gi.grader_id IS NULL
+        AND gi.automatic_score IS NULL
+    )::integer,
+    coalesce(sum(gi.score) FILTER (
+      WHERE gi.automatic_score IS NULL
+        AND gi.grader_id IS NOT NULL
+    ), 0),
+    coalesce(sum(gi.score - gi.automatic_score) FILTER (
+      WHERE gi.automatic_score IS NOT NULL
+        AND gi.grader_id IS NOT NULL
+    ), 0)
+  INTO
+    v_pending_manual_count,
+    v_manual_score,
+    v_ai_adjustment
+  FROM public.grading_items gi
+  WHERE gi.attempt_id = v_attempt.id;
+
+  IF v_pending_manual_count > 0 THEN
+    RAISE EXCEPTION 'MANUAL_GRADING_INCOMPLETE:%', v_pending_manual_count;
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_invalid_score_count
+  FROM public.grading_items gi
+  LEFT JOIN LATERAL (
+    SELECT eq.points_snapshot AS points
+    FROM public.exam_attempt_questions eq
+    WHERE eq.attempt_id = gi.attempt_id
+      AND eq.question_id = gi.question_id
+    LIMIT 1
+  ) snapshot ON true
+  LEFT JOIN public.questions q ON q.id = gi.question_id
+  WHERE gi.attempt_id = v_attempt.id
+    AND (
+      gi.score < 0
+      OR gi.score > coalesce(snapshot.points, q.points, 0)
+    );
+
+  IF v_invalid_score_count > 0 THEN
+    RAISE EXCEPTION 'MANUAL_GRADING_SCORE_OUT_OF_RANGE:%',
+      v_invalid_score_count;
+  END IF;
+
+  v_base_score := coalesce(v_attempt.score, 0);
+  v_final_score := greatest(
+    0,
+    v_base_score
+      + coalesce(v_manual_score, 0)
+      + coalesce(v_ai_adjustment, 0)
+  );
+
+  UPDATE public.attempts
+  SET score = v_final_score,
+      status = 'FINALIZED',
+      finalized_at = clock_timestamp(),
+      updated_at = clock_timestamp()
+  WHERE id = v_attempt.id
+  RETURNING * INTO v_attempt;
+
+  PERFORM private.write_audit(
+    'attempt.finalize',
+    'attempt',
+    v_attempt.id::text,
+    p_reason,
+    NULL,
+    jsonb_build_object(
+      'score', v_attempt.score,
+      'status', v_attempt.status,
+      'automatic_base_score', v_base_score,
+      'manual_score', coalesce(v_manual_score, 0),
+      'automatic_ai_override_delta', coalesce(v_ai_adjustment, 0)
+    ),
+    NULL
+  );
+
+  RETURN v_attempt;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits(p_attempt_id uuid)
+ RETURNS TABLE(question_id uuid, max_score numeric, question_snapshot jsonb)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_attempt public.attempts%rowtype;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  SELECT a.* INTO v_attempt
+  FROM public.attempts a
+  JOIN public.competitions c ON c.id = a.competition_id
+  WHERE a.id = p_attempt_id
+    AND a.is_preview = false
+    AND (
+      private.current_user_is_admin()
+      OR (
+        c.organizer_id IS NOT NULL
+        AND private.current_user_is_organizer_for(c.organizer_id)
+      )
+    );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    gi.question_id,
+    coalesce(snapshot.points, q.points, 0)::numeric,
+    CASE
+      WHEN snapshot.question_snapshot IS NULL AND q.id IS NULL THEN NULL::jsonb
+      ELSE coalesce(
+        snapshot.question_snapshot,
+        jsonb_build_object(
+          'id', q.id::text,
+          'prompt', q.prompt,
+          'type', q.type::text,
+          'points', q.points,
+          'display_order', q.display_order
+        )
+      ) || jsonb_build_object(
+        'config',
+        jsonb_build_object(
+          'ai_assessment',
+          jsonb_build_object(
+            'enabled',
+            coalesce(
+              snapshot.ai_assessment_enabled,
+              (q.config->'ai_assessment'->>'enabled')::boolean,
+              false
+            )
+          )
+        )
+      )
+    END
+  FROM public.grading_items gi
+  LEFT JOIN public.questions q ON q.id = gi.question_id
+  LEFT JOIN LATERAL (
+    SELECT
+      eq.points_snapshot AS points,
+      eq.question_snapshot,
+      (eq.answer_key_snapshot->>'ai_assessment_enabled')::boolean
+        AS ai_assessment_enabled
+    FROM public.exam_attempt_questions eq
+    WHERE eq.attempt_id = gi.attempt_id
+      AND eq.question_id = gi.question_id
+    LIMIT 1
+  ) snapshot ON true
+  WHERE gi.attempt_id = v_attempt.id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.publish_competition_results(p_competition_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_comp public.competitions%rowtype;
+  v_attempt_id uuid;
+  v_runtime_phase text;
+  v_previous_phase text;
+  v_runtime_position integer;
+  v_previous_position integer;
+  v_pending_count integer;
+  v_missing_canonical_count integer;
+  v_manual_pending_count integer;
+  v_result_count integer;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  -- The initial locked read itself is restricted to an Admin or organizer
+  -- editor. Missing and out-of-scope competitions share one response.
+  SELECT c.* INTO v_comp
+  FROM public.competitions c
+  WHERE c.id = p_competition_id
+    AND (
+      private.current_user_is_admin()
+      OR (
+        c.organizer_id IS NOT NULL
+        AND private.current_user_can_edit_competition(c.organizer_id)
+      )
+    )
+  FOR UPDATE OF c;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF v_comp.status::text IN ('RESULT_PUBLISHED', 'ARCHIVED') THEN
+    RETURN jsonb_build_object(
+      'competition_id', v_comp.id,
+      'status', v_comp.status,
+      'published', true,
+      'already_published', true
+    );
+  END IF;
+
+  IF v_comp.status::text <> 'GRADING' THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_IN_GRADING';
+  END IF;
+
+  -- Reconcile sessions whose server-issued global deadline has passed. The
+  -- timeout resolver records each skipped question and invokes the existing
+  -- authoritative completion/scoring routine. Sessions without a linear
+  -- runtime are intentionally not auto-finalized.
+  FOR v_attempt_id IN
+    SELECT a.id
+    FROM public.attempts a
+    JOIN public.exam_attempt_runtime runtime
+      ON runtime.attempt_id = a.id
+    WHERE a.competition_id = v_comp.id
+      AND a.is_preview = false
+      AND a.status::text = 'IN_PROGRESS'
+      AND runtime.phase <> 'COMPLETED'
+      AND runtime.global_deadline <= clock_timestamp()
+    ORDER BY a.created_at, a.id
+  LOOP
+    -- The resolver itself processes at most 200 question transitions per call.
+    -- Keep reconciling this same attempt until its runtime is completed.
+    LOOP
+      SELECT runtime.phase::text, runtime.current_position
+      INTO v_previous_phase, v_previous_position
+      FROM public.exam_attempt_runtime runtime
+      WHERE runtime.attempt_id = v_attempt_id;
+
+      IF NOT FOUND OR v_previous_phase = 'COMPLETED' THEN
+        EXIT;
+      END IF;
+
+      PERFORM private.resolve_linear_exam_timeouts(
+        v_attempt_id,
+        clock_timestamp()
+      );
+
+      SELECT runtime.phase::text, runtime.current_position
+      INTO v_runtime_phase, v_runtime_position
+      FROM public.exam_attempt_runtime runtime
+      WHERE runtime.attempt_id = v_attempt_id;
+
+      IF NOT FOUND OR v_runtime_phase = 'COMPLETED' THEN
+        EXIT;
+      END IF;
+
+      IF v_runtime_phase = v_previous_phase
+         AND v_runtime_position = v_previous_position THEN
+        RAISE EXCEPTION 'LINEAR_TIMEOUT_RECONCILIATION_STALLED:%', v_attempt_id;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  SELECT count(*)::integer
+  INTO v_pending_count
+  FROM public.attempts a
+  WHERE a.competition_id = v_comp.id
+    AND a.is_preview = false
+    AND a.status::text IN ('NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'GRADING');
+
+  IF v_pending_count > 0 THEN
+    RAISE EXCEPTION 'RESULTS_NOT_READY:PENDING_ATTEMPTS:%', v_pending_count;
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_manual_pending_count
+  FROM public.grading_items gi
+  JOIN public.attempts a ON a.id = gi.attempt_id
+  WHERE a.competition_id = v_comp.id
+    AND a.is_preview = false
+    AND a.status::text IN ('SUBMITTED', 'GRADING')
+    AND gi.grader_id IS NULL
+    AND gi.automatic_score IS NULL;
+
+  IF v_manual_pending_count > 0 THEN
+    RAISE EXCEPTION 'RESULTS_NOT_READY:MANUAL_GRADING:%',
+      v_manual_pending_count;
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_missing_canonical_count
+  FROM public.attempts a
+  WHERE a.competition_id = v_comp.id
+    AND a.is_preview = false
+    AND a.status::text = 'FINALIZED'
+    AND a.canonical_participant_id IS NULL;
+
+  IF v_missing_canonical_count > 0 THEN
+    RAISE EXCEPTION 'RESULTS_NOT_READY:MISSING_CANONICAL_IDENTITY:%',
+      v_missing_canonical_count;
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_result_count
+  FROM private.canonical_competition_results(v_comp.id);
+
+  IF v_result_count = 0 THEN
+    RAISE EXCEPTION 'RESULTS_NOT_READY:NO_FINALIZED_OFFICIAL_ATTEMPTS';
+  END IF;
+
+  PERFORM public.transition_competition(
+    v_comp.id,
+    'RESULT_PUBLISHED'::public.competition_status,
+    'Official competition results published after readiness validation'
+  );
+
+  RETURN jsonb_build_object(
+    'competition_id', v_comp.id,
+    'status', 'RESULT_PUBLISHED',
+    'published', true,
+    'already_published', false,
+    'result_count', v_result_count,
+    'published_at', clock_timestamp()
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.release_organizer_competition(p_competition_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_comp public.competitions%rowtype;
+  v_question_count integer;
+  v_duration integer;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if v_uid is null then raise exception 'AUTHORIZATION_REQUIRED'; end if;
+
+  -- Lock and read only a competition in the caller's Admin/organizer scope.
+  select c.* into v_comp
+  from public.competitions c
+  where c.id = p_competition_id
+    and (
+      private.current_user_is_admin()
+      or (c.organizer_id is not null and private.current_user_is_organizer_for(c.organizer_id))
+    )
+  for update of c;
+
+  if not found then raise exception 'COMPETITION_NOT_FOUND'; end if;
+  if v_comp.status <> 'DRAFT' then raise exception 'COMPETITION_NOT_DRAFT'; end if;
+  if nullif(trim(v_comp.title),'') is null or nullif(trim(v_comp.slug),'') is null then
+    raise exception 'COMPETITION_IDENTITY_INCOMPLETE';
+  end if;
+  if v_comp.registration_starts_at is null or v_comp.registration_ends_at is null
+     or v_comp.starts_at is null or v_comp.ends_at is null or v_comp.announcement_at is null then
+    raise exception 'COMPETITION_TIMELINE_INCOMPLETE';
+  end if;
+  if v_comp.registration_starts_at > v_comp.registration_ends_at
+     or v_comp.starts_at > v_comp.ends_at then
+    raise exception 'COMPETITION_TIMELINE_INVALID';
+  end if;
+
+  select count(*) into v_question_count
+  from public.questions
+  where status='PUBLISHED' and (competition_id=p_competition_id or (question_bank_id=v_comp.question_bank_id and competition_id is null));
+  if v_question_count < 1 then raise exception 'EXAM_HAS_NO_PUBLISHED_QUESTIONS'; end if;
+
+  v_duration := case
+    when coalesce(v_comp.config->>'duration_minutes','') ~ '^[0-9]+$'
+      then (v_comp.config->>'duration_minutes')::integer
+    else 60
+  end;
+  if v_duration < 1 or v_duration > 1440 or v_duration * 60 < v_question_count then
+    raise exception 'EXAM_DURATION_INVALID';
+  end if;
+
+  perform public.transition_competition(
+    p_competition_id,
+    'PUBLISHED'::public.competition_status,
+    'Organizer release after readiness validation'
+  );
+
+  return jsonb_build_object(
+    'competition_id',p_competition_id,
+    'status','PUBLISHED',
+    'published_at',clock_timestamp(),
+    'published_question_count',v_question_count
+  );
+end;
+$function$;
 COMMIT;

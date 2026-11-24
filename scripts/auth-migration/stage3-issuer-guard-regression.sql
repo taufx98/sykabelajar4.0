@@ -1710,6 +1710,50 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:list_teacher_achievement_report'; END IF;
 
+-- Tranche 11: reject legacy Supabase Auth before attempt/competition reads.
+  v_denied := false;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '99999999-9999-4999-8999-999999999991'::uuid,
+      1::numeric,
+      'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:finalize_attempt_manual'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '99999999-9999-4999-8999-999999999992'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:get_attempt_grading_limits'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '99999999-9999-4999-8999-999999999993'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:publish_competition_results'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '99999999-9999-4999-8999-999999999994'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:release_organizer_competition'; END IF;
+
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1911,7 +1955,17 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED';
   END IF;
 
-  SELECT count(*) INTO v_count
+    -- The unrelated/foreign bank must remain invisible to the organizer caller.
+  -- Switch to the synthetic Better Auth Admin only for integrity inspection;
+  -- this prevents RLS visibility from making an unchanged row look deleted.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+
+SELECT count(*) INTO v_count
   FROM public.questions
   WHERE id = '77777777-7777-4777-8777-777777777797'::uuid
     AND question_bank_id = '77777777-7777-4777-8777-777777777796'::uuid;
@@ -1925,14 +1979,6 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_FOREIGN_QUESTION_OPTIONS_CHANGED';
   END IF;
-
-  -- Restore the common Better Auth Admin subject for the remaining fixtures.
-  PERFORM set_config(
-    'request.jwt.claims',
-    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
-    TRUE
-  );
-  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
 
   SELECT count(*) INTO v_count
   FROM public.list_teacher_collective_certificates('22222222-2222-4222-8222-222222222222'::uuid);
@@ -2430,6 +2476,51 @@ BEGIN
 
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
+
+-- Exact Better Auth Admin reaches the scoped first lookup; all synthetic
+  -- UUIDs are absent, so none of these calls performs a business mutation.
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '99999999-9999-4999-8999-999999999991'::uuid,
+      1::numeric,
+      'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:finalize_attempt_manual'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '99999999-9999-4999-8999-999999999992'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:get_attempt_grading_limits'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '99999999-9999-4999-8999-999999999993'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:publish_competition_results'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '99999999-9999-4999-8999-999999999994'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:release_organizer_competition'; END IF;
+
 END;
 $better_auth_issuer$;
 
@@ -2878,6 +2969,155 @@ BEGIN
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED'; END IF;
 END;
 $untrusted_issuer$;
+
+-- Stage 7 tranche 11 organizer-owner positive tests: all four guarded RPCs
+-- must accept a real Better Auth organizer membership, then stop at safe
+-- business boundaries without publishing, releasing, or grading any row.
+RESET ROLE;
+UPDATE public.competitions
+SET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+WHERE id IN (
+  '11111111-1111-4111-8111-111111111111'::uuid,
+  '33333333-3333-4333-8333-333333333333'::uuid
+);
+UPDATE public.attempts
+SET is_preview = TRUE
+WHERE id = '77777777-7777-4777-8777-777777777771'::uuid;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  TRUE
+);
+DO $stage7_tranche11_organizer_positive$
+DECLARE
+  v_error text;
+  v_result jsonb;
+  v_row_count integer;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '77777777-7777-4777-8777-777777777771'::uuid,
+      1::numeric,
+      'Stage 7 organizer authorization probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:finalize_attempt_manual:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_row_count
+  FROM public.get_attempt_grading_limits(
+    '77777777-7777-4777-8777-777777777772'::uuid
+  );
+  -- An empty grading projection is valid for this fixture; reaching the
+  -- function result proves the organizer-scoped attempt lookup succeeded.
+
+  v_result := public.publish_competition_results(
+    '33333333-3333-4333-8333-333333333333'::uuid
+  );
+  IF v_result ->> 'already_published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:publish_competition_results:%',
+      v_result;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '11111111-1111-4111-8111-111111111111'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_DRAFT' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:release_organizer_competition:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche11_organizer_positive$;
+
+-- A different Better Auth student has no membership in this organizer. The
+-- same existing protected UUIDs must be indistinguishable from absent rows.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+DO $stage7_tranche11_unrelated_user$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '77777777-7777-4777-8777-777777777771'::uuid,
+      1::numeric,
+      'Stage 7 unrelated Better Auth user probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:finalize_attempt_manual:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '77777777-7777-4777-8777-777777777772'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:get_attempt_grading_limits:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '33333333-3333-4333-8333-333333333333'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:publish_competition_results:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '11111111-1111-4111-8111-111111111111'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:release_organizer_competition:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche11_unrelated_user$;
 
 RESET ROLE;
 ROLLBACK;
