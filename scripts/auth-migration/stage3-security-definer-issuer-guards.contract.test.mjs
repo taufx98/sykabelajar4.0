@@ -90,8 +90,14 @@ for (const name of [
   const escaped = name.replaceAll(".", "\\.");
   const definition = draft.match(new RegExp("CREATE OR REPLACE FUNCTION " + escaped + "[\\s\\S]*?\\$function\\$;", "i"))?.[0] ?? "";
   assert.ok(definition, "missing complete function body: " + name);
-  assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
-    "organizer operations must use the issuer-gated membership helper: " + name);
+  if (name === "public.save_organizer_competition_config") {
+    assert.match(definition,
+      /SELECT c\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(c\.organizer_id\)/i,
+      "organizer config lookup must scope the initial row read to the issuer-gated membership helper");
+  } else {
+    assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
+      "organizer operations must use the issuer-gated membership helper: " + name);
+  }
   assert.match(definition, /private\.current_user_is_admin\(\)/,
     "organizer operation Admin bypass must use issuer-gated helper: " + name);
 }
@@ -520,5 +526,60 @@ assert.match(collectiveOrderDefinition,
 assert.doesNotMatch(collectiveOrderDefinition,
   /SELECT\s+cc\s*,\s*cp\s+INTO\s+v_cert\s*,\s*v_cp/i,
   "PL/pgSQL cannot assign composite row variables in a multi-item INTO target list");
+
+
+const trancheNineCases = [
+  "create_collective_participants",
+  "save_organizer_competition_config",
+  "list_teacher_collective_certificates",
+  "list_teacher_achievement_report",
+];
+const trancheNineExpectedReads = {
+  create_collective_participants: /SELECT\s+c\.id,\s*c\.participant_mode,\s*c\.config/i,
+  save_organizer_competition_config: /SELECT\s+c\.organizer_id/i,
+};
+for (const name of trancheNineCases) {
+  assert.ok(adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy issuer boundary: " + name);
+  assert.ok(adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth acceptance/boundary: " + name);
+  const definition = draft.match(
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
+  )?.[0] ?? "";
+  assert.ok(definition, "missing Stage 3 draft function: " + name);
+  assert.match(definition, /private\.current_user_is_better_auth\(\)/i,
+    "function must require the Better Auth issuer: " + name);
+  assert.doesNotMatch(definition, /FROM\s+(?:public\.)?user_roles\b/i,
+    "function must not check legacy user_roles directly: " + name);
+}
+for (const name of ["create_collective_participants", "save_organizer_competition_config"]) {
+  const definition = draft.match(
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
+  )?.[0] ?? "";
+  const issuerCheck = definition.search(/private\.current_user_is_better_auth\(\)/i);
+  const firstProtectedRead = definition.search(trancheNineExpectedReads[name]);
+  assert.ok(firstProtectedRead >= 0 && issuerCheck >= 0 && issuerCheck < firstProtectedRead,
+    "issuer check must precede protected SELECT: " + name);
+}
+const teacherCertificateList = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.list_teacher_collective_certificates[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(teacherCertificateList,
+  /private\.current_user_is_better_auth\(\)[\s\S]*?private\.current_user_has_role\('teacher'::public\.app_role\)[\s\S]*?cp\.managed_by_user_id/i);
+const teacherReport = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.list_teacher_achievement_report[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(
+  teacherReport.search(/private\.current_user_is_better_auth\(\)/i) <
+  teacherReport.search(/RETURN QUERY/i),
+  "teacher achievement report must validate issuer before returning rows",
+);
+assert.match(regression, /Stage 7 Existing Collective Participant/);
+assert.match(regression, /STAGE7-TEACHER-001/);
+
+
+assert.match(adminRpcBetterAuthBlock,
+  /create_collective_certificate_order[\s\S]*?CERTIFICATE_PRICE_NOT_CONFIGURED/,
+  "Better Auth collective certificate order must pass scoped issuer/owner check and stop before writes when price is unconfigured");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
