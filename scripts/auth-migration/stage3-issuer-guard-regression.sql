@@ -282,18 +282,23 @@ VALUES (
   'ACTIVE'
 );
 
-INSERT INTO public.participants (
-  id, competition_id, collective_participant_id, participant_type,
-  participant_code, full_name
-)
-VALUES (
-  '77777777-7777-4777-8777-777777777781',
-  '22222222-2222-4222-8222-222222222222',
-  '66666666-6666-4666-8666-666666666681',
-  'COLLECTIVE',
-  'STAGE7-T09-NEW-001',
-  'Stage 7 Existing Collective Participant'
-);
+-- Active collective_participants are canonicalized by
+-- trg_collective_participant_canonical. Assert that the trigger created the
+-- canonical row instead of inserting a duplicate manually.
+DO $stage7_tranche09_canonical_fixture$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.participants p
+    WHERE p.competition_id = '22222222-2222-4222-8222-222222222222'::uuid
+      AND p.collective_participant_id = '66666666-6666-4666-8666-666666666681'::uuid
+      AND p.participant_type = 'COLLECTIVE'
+      AND p.participant_code = 'STAGE7-T09-NEW-001'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREATED';
+  END IF;
+END;
+$stage7_tranche09_canonical_fixture$;
 
 INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
