@@ -637,4 +637,19 @@ assert.match(regression,
 assert.match(regression, /STAGE7-ISSUER-PRODUCT/);
 assert.match(regression, /Stage 7 Owned Question Bank/);
 assert.match(regression, /STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION/);
+
+const saveQuestionDefinitionStart = draft.indexOf(
+  "CREATE OR REPLACE FUNCTION public.save_question_with_options(",
+);
+const saveQuestionOpenDelimiter = draft.indexOf("$function$", saveQuestionDefinitionStart);
+const saveQuestionCloseDelimiter = draft.indexOf("$function$", saveQuestionOpenDelimiter + "$function$".length);
+assert.ok(saveQuestionDefinitionStart >= 0 && saveQuestionOpenDelimiter > saveQuestionDefinitionStart
+  && saveQuestionCloseDelimiter > saveQuestionOpenDelimiter,
+  "complete question save function definition must exist");
+assert.equal(
+  draft[saveQuestionCloseDelimiter + "$function$".length],
+  ";",
+  "save_question_with_options must terminate with a semicolon immediately after its closing dollar quote",
+);
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");

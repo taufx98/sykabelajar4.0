@@ -1201,7 +1201,7 @@ begin
 
   return v_question;
 end;
-$function$
+$function$;
 
 -- The collective Realtime bind RPC is also SECURITY DEFINER and can write its own
 -- session row. Keep it unavailable to legacy Supabase Auth sessions after issuer
