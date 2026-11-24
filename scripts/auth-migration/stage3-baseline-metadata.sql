@@ -94,6 +94,7 @@ user_scoped_issuer_function_meta AS (
       'claim_rpc_recovery',
       'complete_daily_task',
       'create_ad_banner_payment_order',
+      'get_canonical_competition_result',
       'provision_collective_registration',
       'regenerate_collective_participant_password'
     )
