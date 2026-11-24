@@ -631,4 +631,5 @@ assert.match(regression,
   /STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED[\s\S]*?STAGE3_BETTER_AUTH_FOREIGN_QUESTION_OPTIONS_CHANGED/);
 assert.match(regression, /STAGE7-ISSUER-PRODUCT/);
 assert.match(regression, /Stage 7 Owned Question Bank/);
+assert.match(regression, /STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION/);
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
