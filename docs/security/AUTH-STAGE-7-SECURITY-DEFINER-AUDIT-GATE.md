@@ -15,6 +15,22 @@ Keep the 21 November triage JSON as the immutable source snapshot; its `reviewSt
 [Tranche 02](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-02-2026-11-23.md) adds three more source-reviewed `anon`-executable Admin SECURITY DEFINER signatures: `admin_diagnose_organizer_voucher_delete(uuid)`, `admin_update_system_error_status(uuid,text,text)`, and `reopen_system_error_incident(uuid,text)`. Their exact live `md5(pg_proc.prosrc)` values match the 21 November inventory. The existing Stage 3 disposable regression verifies legacy-issuer denial, valid Better Auth Admin progression, and targeted removal of `anon` EXECUTE. **Cumulative manual review is 10/202; 192 signatures remain.**
 
 This does not change the final activation manifest: it remains `status: blocked` and `reviewedAuthenticatedFunctionCount: 0` until all 202 exact post-Stage-3/pre-issuer-guard fingerprints and class-specific evidence are complete. The global Stage 7 Production gate remains NO-GO.
+## Further manual review — 23 November 2026
+
+Three additional dated records extend the source-reviewed and disposable-runtime-tested scope:
+
+- [Tranche 03](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-03-2026-11-23.md) adds ten Admin mutation functions from PR #253: competition delete/force-delete, order completion/review, user role/status, shop voucher issue/definition, comment moderation, and referral settings.
+- [Tranche 04](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-04-2026-11-23.md) adds six certificate/order signatures from PR #255. It also records an issuer-first fix for `auto_grade_essay_item`, `generate_awards_for_competition`, and `issue_certificate_for_award`: the exact Better Auth issuer is checked before the first protected row read.
+- [Tranche 05](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-05-2026-11-23.md) adds ten Admin delete, diagnostic, dashboard and shop-listing signatures from PR #256.
+
+The read-only Production `md5(pg_proc.prosrc)` fingerprints for these 26 signatures were captured on 23 November and match the corresponding exact entries in the immutable 21 November triage inventory. Protected Auth Production Schema Baseline [#45213452403](https://github.com/taufx98/sykabelajar4.0/actions/runs/45213452403) passed **68/68 steps** on commit `298e2a15302a4d7d1e673c1191f9f780752dfe58`. It ran all tranche03–05 paired legacy-issuer-denial/Better Auth-positive fixtures on an isolated schema-only PostgreSQL 17.6 restore and rolled back the synthetic transaction. Supabase Local Auth Claims CI [#45213452285](https://github.com/taufx98/sykabelajar4.0/actions/runs/45213452285) also passed.
+
+**Cumulative manual review: 36/202 exact signatures; 166 remain.** This count combines Tranches 01–05 (7 + 3 + 10 + 6 + 10). It is a partial source-review/runtime-evidence count only; it does not alter the final activation manifest.
+
+PR #257 (Tranche 06: ten additional voucher, plan, referral, competition, post, product, and shop-banner Admin mutations) has merged after commit `298e2a1`. Its PR static, Local Supabase, frontend build, and Pages checks passed; the next protected schema-only baseline on the merge commit is still required before those ten signatures can be added to the manual-review count.
+
+The final activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`: it requires all 202 exact post-Stage-3/pre-issuer-guard fingerprints and class-specific evidence. The global Stage 7 Production gate remains NO-GO. No Production DDL/DML or account-data migration was performed.
+
 ## Read-only live snapshot — 21 November 2026
 
 A fresh Supabase Security Advisor query at 2026-11-21T01:17:16Z reported the following external-facing findings:
