@@ -2862,5 +2862,82 @@ BEGIN
 END;
 $untrusted_issuer$;
 
+-- Stage 7 tranche 11 organizer-owner positive tests: all four guarded RPCs
+-- must accept a real Better Auth organizer membership, then stop at safe
+-- business boundaries without publishing, releasing, or grading any row.
+RESET ROLE;
+UPDATE public.competitions
+SET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+WHERE id IN (
+  '11111111-1111-4111-8111-111111111111'::uuid,
+  '33333333-3333-4333-8333-333333333333'::uuid
+);
+UPDATE public.attempts
+SET is_preview = TRUE
+WHERE id = '77777777-7777-4777-8777-777777777771'::uuid;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  TRUE
+);
+DO $stage7_tranche11_organizer_positive$
+DECLARE
+  v_error text;
+  v_result jsonb;
+  v_row_count integer;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '77777777-7777-4777-8777-777777777771'::uuid,
+      1::numeric,
+      'Stage 7 organizer authorization probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:finalize_attempt_manual:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_row_count
+  FROM public.get_attempt_grading_limits(
+    '77777777-7777-4777-8777-777777777772'::uuid
+  );
+  -- An empty grading projection is valid for this fixture; reaching the
+  -- function result proves the organizer-scoped attempt lookup succeeded.
+
+  v_result := public.publish_competition_results(
+    '33333333-3333-4333-8333-333333333333'::uuid
+  );
+  IF v_result ->> 'already_published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:publish_competition_results:%',
+      v_result;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '11111111-1111-4111-8111-111111111111'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_DRAFT' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:release_organizer_competition:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche11_organizer_positive$;
+
 RESET ROLE;
 ROLLBACK;
