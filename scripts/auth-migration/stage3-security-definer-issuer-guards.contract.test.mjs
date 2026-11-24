@@ -834,4 +834,61 @@ const crossBankAdminSetup = regression.slice(crossBankAdminSwitchAt, crossBankUn
 assert.ok(crossBankAdminSetup.includes('"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"'),
   "foreign question integrity check must use the existing synthetic Better Auth Admin");
 
+
+const canonicalResult = draft.match(
+  /CREATE OR REPLACE FUNCTION public\\.get_canonical_competition_result\\(p_participant_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+)?.[0] ?? "";
+assert.ok(canonicalResult, "missing canonical direct result RPC replacement");
+assert.match(canonicalResult, /SET search_path TO ''/);
+assert.match(canonicalResult, /private\\.current_user_is_better_auth\\(\\)/);
+assert.match(canonicalResult, /BETTER_AUTH_ISSUER_REQUIRED/);
+assert.ok(
+  canonicalResult.indexOf("private.current_user_is_better_auth()") <
+    canonicalResult.indexOf("FROM public.participants"),
+  "the canonical direct result RPC must validate the Better Auth issuer before its first participant read",
+);
+assert.match(canonicalResult, /private\\.current_user_is_admin\\(\\)/);
+assert.match(canonicalResult, /p\\.user_id <> auth\\.uid\\(\\)/);
+assert.match(canonicalResult, /public\\.collective_participants cp/);
+assert.match(canonicalResult, /cp\\.managed_by_user_id = auth\\.uid\\(\\) OR cp\\.user_id = auth\\.uid\\(\\)/);
+assert.match(canonicalResult, /RESULT_PUBLISHED.*ARCHIVED/);
+assert.match(canonicalResult, /status = 'FINALIZED'[\\s\\S]*?is_preview = FALSE/i);
+assert.match(canonicalResult, /private\\.canonical_competition_rank\\(p\\.competition_id, p\\.id\\)/);
+
+const canonicalResultPreflight = draft.match(
+  /DO \\$stage7_canonical_result_fingerprint_preflight\\$[\\s\\S]*?\\$stage7_canonical_result_fingerprint_preflight\\$;/i,
+)?.[0] ?? "";
+assert.ok(canonicalResultPreflight, "missing exact canonical-result Production fingerprint preflight");
+assert.match(canonicalResultPreflight, /e8523cc64cfa98e828ea8fc12902eaba/);
+assert.match(canonicalResultPreflight, /e59a13014024e2878dcc5573bec0d5ef/);
+assert.match(canonicalResultPreflight, /has_function_privilege\\('anon'/);
+assert.match(canonicalResultPreflight, /has_function_privilege\\('authenticated'/);
+assert.match(canonicalResultPreflight, /has_function_privilege\\('service_role'/);
+
+const myCanonicalResult = draft.match(
+  /CREATE OR REPLACE FUNCTION public\\.get_my_canonical_competition_result\\(p_competition_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+)?.[0] ?? "";
+assert.ok(myCanonicalResult, "missing frontend my-result wrapper");
+assert.ok(
+  myCanonicalResult.indexOf("private.current_user_is_better_auth()") <
+    myCanonicalResult.indexOf("FROM public.participants"),
+  "the frontend result wrapper must validate issuer before its participant lookup",
+);
+assert.match(myCanonicalResult, /return public\\.get_canonical_competition_result\\(v_pid\\)/i);
+
+for (const marker of [
+  "STAGE7_TRANCHE12_LEGACY_DIRECT_RESULT_ALLOWED",
+  "STAGE7_TRANCHE12_LEGACY_MY_RESULT_ALLOWED",
+  "STAGE7_TRANCHE12_MY_PUBLISHED_RESULT_FAILED",
+  "STAGE7_TRANCHE12_DIRECT_OWNER_RESULT_FAILED",
+  "STAGE7_TRANCHE12_UNPUBLISHED_SCORE_LEAK",
+  "STAGE7_TRANCHE12_CROSS_PARTICIPANT_RESULT_ALLOWED",
+  "STAGE7_TRANCHE12_ADMIN_RESULT_FAILED",
+]) {
+  assert.ok(regression.includes(marker), "missing tranche 12 runtime assertion: " + marker);
+}
+assert.ok(regression.includes("'55555555-5555-4555-8555-555555555553'"));
+assert.ok(regression.includes("'77777777-7777-4777-8777-777777777773'"));
+assert.ok(regression.includes("'stage3-unpublished-result-probe'"));
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
