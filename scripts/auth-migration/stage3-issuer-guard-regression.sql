@@ -1955,7 +1955,17 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED';
   END IF;
 
-  SELECT count(*) INTO v_count
+    -- The unrelated/foreign bank must remain invisible to the organizer caller.
+  -- Switch to the synthetic Better Auth Admin only for integrity inspection;
+  -- this prevents RLS visibility from making an unchanged row look deleted.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+
+SELECT count(*) INTO v_count
   FROM public.questions
   WHERE id = '77777777-7777-4777-8777-777777777797'::uuid
     AND question_bank_id = '77777777-7777-4777-8777-777777777796'::uuid;
@@ -1969,14 +1979,6 @@ BEGIN
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_FOREIGN_QUESTION_OPTIONS_CHANGED';
   END IF;
-
-  -- Restore the common Better Auth Admin subject for the remaining fixtures.
-  PERFORM set_config(
-    'request.jwt.claims',
-    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
-    TRUE
-  );
-  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
 
   SELECT count(*) INTO v_count
   FROM public.list_teacher_collective_certificates('22222222-2222-4222-8222-222222222222'::uuid);
