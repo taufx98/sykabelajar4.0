@@ -55,19 +55,24 @@ assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\.participants/i,
 
 const ownerMembershipSetupStart = acceptance.indexOf("-- The owner must establish their own owner membership");
 const ownerMembershipSetupEnd = acceptance.indexOf(
-  "INSERT INTO public.question_banks",
+  "INSERT INTO public.auth_issuer_guard_probe",
   ownerMembershipSetupStart,
 );
 assert.ok(ownerMembershipSetupStart >= 0 && ownerMembershipSetupEnd > ownerMembershipSetupStart,
-  "owner membership fixture must remain bounded");
+  "organizer and question-bank fixture auth must remain bounded");
 const ownerMembershipSetup = acceptance.slice(ownerMembershipSetupStart, ownerMembershipSetupEnd);
-assert.ok(ownerMembershipSetup.includes("request.jwt.claims"));
 assert.ok(ownerMembershipSetup.includes('"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"'));
+assert.ok(ownerMembershipSetup.includes('"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"'));
 assert.ok(ownerMembershipSetup.includes("https://auth-prod.sykabelajar.my.id/api/auth"));
-assert.ok(ownerMembershipSetup.indexOf("request.jwt.claims") <
+assert.ok(ownerMembershipSetup.indexOf('"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"') <
   ownerMembershipSetup.indexOf("INSERT INTO public.organizer_members"),
-  "owner Better Auth claims must be set before the governance trigger fires");
-assert.ok(ownerMembershipSetup.includes("set_config('request.jwt.claim.sub', '', TRUE)"));
+  "owner claims must be set before the owner governance trigger fires");
+assert.ok(ownerMembershipSetup.indexOf('"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"') <
+  ownerMembershipSetup.indexOf("INSERT INTO public.question_banks"),
+  "Admin claims must be set before creating banks from multiple organizer scopes");
+assert.ok(ownerMembershipSetup.lastIndexOf("set_config('request.jwt.claims', '{}', TRUE)") >
+  ownerMembershipSetup.indexOf("INSERT INTO public.question_options"),
+  "fixture claims must be cleared only after all protected organizer/question rows are created");
 
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
