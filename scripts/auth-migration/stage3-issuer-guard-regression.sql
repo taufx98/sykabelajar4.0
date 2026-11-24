@@ -40,8 +40,31 @@ BEGIN
        OR slug = 'stage7-organizer-scope-probe'
   ) OR EXISTS (
     SELECT 1 FROM public.competitions
-    WHERE id = '33333333-3333-4333-8333-333333333334'::uuid
-       OR slug = 'stage3-unpublished-result-probe'
+    WHERE id IN (
+      '33333333-3333-4333-8333-333333333334'::uuid,
+      '33333333-3333-4333-8333-333333333335'::uuid
+    ) OR slug IN (
+      'stage3-unpublished-result-probe',
+      'stage7-tranche12-collective-result-probe'
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.teacher_rosters
+    WHERE id = '88888888-8888-4888-8888-888888888892'::uuid
+       OR (teacher_user_id = 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+           AND name = 'Stage 7 Tranche 12 Collective Result Roster')
+  ) OR EXISTS (
+    SELECT 1 FROM public.roster_students
+    WHERE id = '99999999-9999-4999-8999-999999999983'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.collective_participants
+    WHERE id = '66666666-6666-4666-8666-666666666682'::uuid
+       OR participant_code = 'STAGE7-T12-COL-001'
+  ) OR EXISTS (
+    SELECT 1 FROM public.participants
+    WHERE collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id = '77777777-7777-4777-8777-777777777774'::uuid
   ) OR EXISTS (
     SELECT 1 FROM public.participants
     WHERE id IN (
@@ -255,6 +278,16 @@ VALUES
     'PUBLIC',
     'INDIVIDUAL',
     '{}'::jsonb
+  ),
+  (
+    '33333333-3333-4333-8333-333333333335',
+    'stage7-tranche12-collective-result-probe',
+    'Stage 7 Tranche 12 Collective Result Probe',
+    'Stage 7 Test',
+    'RESULT_PUBLISHED'::public.competition_status,
+    'PRIVATE',
+    'COLLECTIVE_TEACHER',
+    '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
   );
 
 -- A public results page may expose the published result, but private badge
@@ -278,12 +311,19 @@ END;
 $stage7_tranche09_fixture_preflight$;
 
 INSERT INTO public.teacher_rosters (id, teacher_user_id, name, is_active)
-VALUES (
-  '88888888-8888-4888-8888-888888888891',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  'Stage 7 issuer boundary roster',
-  true
-);
+VALUES
+  (
+    '88888888-8888-4888-8888-888888888891',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'Stage 7 issuer boundary roster',
+    true
+  ),
+  (
+    '88888888-8888-4888-8888-888888888892',
+    'ffffffff-ffff-4fff-8fff-fffffffffff6',
+    'Stage 7 Tranche 12 Collective Result Roster',
+    true
+  );
 
 INSERT INTO public.roster_students (id, roster_id, full_name, is_active)
 VALUES
@@ -297,6 +337,12 @@ VALUES
     '99999999-9999-4999-8999-999999999982',
     '88888888-8888-4888-8888-888888888891',
     'Stage 7 New Collective Participant',
+    true
+  ),
+  (
+    '99999999-9999-4999-8999-999999999983',
+    '88888888-8888-4888-8888-888888888892',
+    'Stage 7 Tranche 12 Collective Result Participant',
     true
   );
 
@@ -314,6 +360,20 @@ VALUES (
   'ACTIVE'
 );
 
+INSERT INTO public.collective_participants (
+  id, competition_id, roster_student_id, managed_by_user_id,
+  participant_code, full_name, status
+)
+VALUES (
+  '66666666-6666-4666-8666-666666666682',
+  '33333333-3333-4333-8333-333333333335',
+  '99999999-9999-4999-8999-999999999983',
+  'ffffffff-ffff-4fff-8fff-fffffffffff6',
+  'STAGE7-T12-COL-001',
+  'Stage 7 Tranche 12 Collective Result Participant',
+  'ACTIVE'
+);
+
 -- Active collective_participants are canonicalized by
 -- trg_collective_participant_canonical. Assert that the trigger created the
 -- canonical row instead of inserting a duplicate manually.
@@ -326,8 +386,16 @@ BEGIN
       AND p.collective_participant_id = '66666666-6666-4666-8666-666666666681'::uuid
       AND p.participant_type = 'COLLECTIVE'
       AND p.participant_code = 'STAGE7-T09-NEW-001'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.participants p
+    WHERE p.competition_id = '33333333-3333-4333-8333-333333333335'::uuid
+      AND p.collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid
+      AND p.participant_type = 'COLLECTIVE'
+      AND p.participant_code = 'STAGE7-T12-COL-001'
+      AND p.user_id IS NULL
   ) THEN
-    RAISE EXCEPTION 'STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREATED';
+    RAISE EXCEPTION 'STAGE7_TRANCHE09_OR_T12_CANONICAL_PARTICIPANT_NOT_CREATED';
   END IF;
 END;
 $stage7_tranche09_canonical_fixture$;
@@ -356,6 +424,24 @@ VALUES
   ('77777777-7777-4777-8777-777777777773', '33333333-3333-4333-8333-333333333334',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555553',
    'FINALIZED'::public.attempt_status, 88, now());
+
+-- A collective attempt must link both the canonical participant and the
+-- collective participant while leaving the individual Auth participant NULL.
+INSERT INTO public.attempts (
+  id, competition_id, collective_participant_id, canonical_participant_id,
+  status, score, finalized_at
+)
+SELECT
+  '77777777-7777-4777-8777-777777777774',
+  cp.competition_id,
+  cp.id,
+  p.id,
+  'FINALIZED'::public.attempt_status,
+  87,
+  now()
+FROM public.collective_participants cp
+JOIN public.participants p ON p.collective_participant_id = cp.id
+WHERE cp.id = '66666666-6666-4666-8666-666666666682'::uuid;
 
 INSERT INTO public.badges (id, code, name, slug, status, award_type)
 VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
@@ -3344,6 +3430,20 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_TRANCHE12_CROSS_PARTICIPANT_RESULT_ALLOWED:%',
       coalesce(v_error, 'NO_ERROR');
   END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_canonical_competition_result(
+      (SELECT id FROM public.participants
+       WHERE collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'NOT_AUTHORIZED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_COLLECTIVE_IDOR_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
 END;
 $stage7_tranche12_unrelated_user$;
 
@@ -3371,6 +3471,40 @@ BEGIN
   END IF;
 END;
 $stage7_tranche12_admin_positive$;
+
+-- A non-Admin Better Auth teacher who manages a collective roster may read
+-- the official result for that collective participant, but not another user's.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'ffffffff-ffff-4fff-8fff-fffffffffff6',
+  TRUE
+);
+DO $stage7_tranche12_collective_manager_positive$
+DECLARE
+  v_canonical_participant_id uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO v_canonical_participant_id
+  FROM public.participants
+  WHERE collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid;
+
+  IF v_canonical_participant_id IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_COLLECTIVE_CANONICAL_PARTICIPANT_MISSING';
+  END IF;
+
+  v_result := public.get_canonical_competition_result(v_canonical_participant_id);
+  IF v_result ->> 'participant_type' IS DISTINCT FROM 'COLLECTIVE'
+     OR v_result #>> '{attempt,score}' IS DISTINCT FROM '87'
+     OR v_result ->> 'published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_COLLECTIVE_OWNER_RESULT_FAILED:%', v_result;
+  END IF;
+END;
+$stage7_tranche12_collective_manager_positive$;
 
 RESET ROLE;
 ROLLBACK;

@@ -48,10 +48,14 @@ const tranche09FixtureEnd = acceptance.indexOf(
 assert.ok(tranche09FixtureStart >= 0 && tranche09FixtureEnd > tranche09FixtureStart,
   "Stage 7 collective fixture block must remain bounded");
 const tranche09Fixture = acceptance.slice(tranche09FixtureStart, tranche09FixtureEnd);
-assert.match(tranche09Fixture, /STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREATED/,
+assert.match(tranche09Fixture, /STAGE7_TRANCHE09_OR_T12_CANONICAL_PARTICIPANT_NOT_CREATED/,
   "active collective fixture must assert trigger-created canonical identity");
 assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\.participants/i,
   "the fixture must not manually duplicate the canonical row created by the trigger");
+assert.match(acceptance, /stage7-tranche12-collective-result-probe/);
+assert.match(tranche09Fixture, /STAGE7-T12-COL-001/);
+assert.match(acceptance, /STAGE7_TRANCHE12_COLLECTIVE_OWNER_RESULT_FAILED/);
+assert.match(acceptance, /STAGE7_TRANCHE12_COLLECTIVE_IDOR_ALLOWED/);
 
 const ownerMembershipSetupStart = acceptance.indexOf("-- The owner must establish their own owner membership");
 const ownerMembershipSetupEnd = acceptance.indexOf(
