@@ -1604,6 +1604,50 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:list_teacher_achievement_report'; END IF;
 
+
+  -- Tranche 11: reject legacy Supabase Auth before attempt/competition reads.
+  v_denied := false;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '99999999-9999-4999-8999-999999999991'::uuid,
+      1::numeric,
+      'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:finalize_attempt_manual'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '99999999-9999-4999-8999-999999999992'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:get_attempt_grading_limits'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '99999999-9999-4999-8999-999999999993'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:publish_competition_results'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '99999999-9999-4999-8999-999999999994'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:release_organizer_competition'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -2324,6 +2368,51 @@ BEGIN
 
   INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
   VALUES ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better-auth-insert');
+
+  -- Exact Better Auth Admin reaches the scoped first lookup; all synthetic
+  -- UUIDs are absent, so none of these calls performs a business mutation.
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '99999999-9999-4999-8999-999999999991'::uuid,
+      1::numeric,
+      'Stage 7 issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:finalize_attempt_manual'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '99999999-9999-4999-8999-999999999992'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:get_attempt_grading_limits'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '99999999-9999-4999-8999-999999999993'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:publish_competition_results'; END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '99999999-9999-4999-8999-999999999994'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:release_organizer_competition'; END IF;
+
 END;
 $better_auth_issuer$;
 
