@@ -732,8 +732,10 @@ for (const name of trancheElevenFunctions) {
   assert.ok(trancheElevenOrganizerPositive.includes("public." + name + "("),
     "missing organizer-positive runtime call: " + name);
 }
-assert.ok(trancheElevenOrganizerPositive.includes("PREVIEW_ATTEMPT_NOT_GRADABLE"),
-  "manual grading must reach the preview guard for an authorized organizer");
+assert.ok(trancheElevenOrganizerPositive.includes("ATTEMPT_NOT_FINALIZABLE"),
+  "manual grading must reach the safe non-finalizable status guard for an authorized organizer");
+assert.ok(trancheElevenOrganizerPositive.includes("STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:finalize_attempt_manual"),
+  "manual grading organizer-positive probe must assert the scoped safe business boundary");
 assert.ok(trancheElevenOrganizerPositive.includes("already_published"),
   "organizer result publication test must stop at its no-op already-published boundary");
 assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
@@ -754,6 +756,15 @@ assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555561'"
 assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555562'"));
 assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777781'"));
 assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777782'"));
+assert.ok(trancheElevenFixture.includes("'manual_grading'"));
+assert.ok(trancheElevenFixture.includes("STAGE7_MANUAL_GRADING_ENTITLEMENT_FIXTURE_MISSING"),
+  "organizer finalize probe must have a disposable manual-grading entitlement");
+assert.ok(trancheElevenFixture.includes("'Stage 7 Organizer Finalized Attempt'"));
+assert.match(
+  trancheElevenFixture,
+  /'77777777-7777-4777-8777-777777777781'[\\s\\S]*?'FINALIZED'::public\\.attempt_status,[\\s\\S]*?FALSE/,
+  "organizer finalize probe must use a valid official attempt identity, not a preview with official participant IDs",
+);
 assert.doesNotMatch(
   regression.slice(
     regression.indexOf("-- Stage 7 tranche 11 organizer-owner positive tests:"),
