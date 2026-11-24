@@ -402,8 +402,19 @@ VALUES (
   'owner',
   'ACTIVE'
 );
-SELECT set_config('request.jwt.claims', '{}', TRUE);
-SELECT set_config('request.jwt.claim.sub', '', TRUE);
+-- The two question banks belong to different synthetic organizers.
+-- Use the existing Better Auth Admin identity for this shared fixture insert;
+-- the question-bank entitlement trigger correctly rejects an unrelated owner.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
 
 INSERT INTO public.question_banks (id, organizer_id, name, status)
 VALUES
@@ -446,6 +457,9 @@ VALUES (
   TRUE,
   1
 );
+
+SELECT set_config('request.jwt.claims', '{}', TRUE);
+SELECT set_config('request.jwt.claim.sub', '', TRUE);
 
 INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
 VALUES
