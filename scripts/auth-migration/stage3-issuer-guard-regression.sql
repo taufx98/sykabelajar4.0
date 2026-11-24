@@ -34,6 +34,22 @@ BEGIN
     SELECT 1 FROM public.user_roles
     WHERE user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
       AND role = 'student'::public.app_role
+  ) OR EXISTS (
+    SELECT 1 FROM public.competitions
+    WHERE id = '44444444-4444-4444-8444-444444444441'::uuid
+       OR slug = 'stage7-organizer-scope-probe'
+  ) OR EXISTS (
+    SELECT 1 FROM public.participants
+    WHERE id IN (
+      '55555555-5555-4555-8555-555555555561'::uuid,
+      '55555555-5555-4555-8555-555555555562'::uuid
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id IN (
+      '77777777-7777-4777-8777-777777777781'::uuid,
+      '77777777-7777-4777-8777-777777777782'::uuid
+    )
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
   END IF;
@@ -195,7 +211,7 @@ INSERT INTO public.competitions (
 )
 VALUES
   (
-    '11111111-1111-4111-8111-111111111111',
+    '44444444-4444-4444-8444-444444444441',
     'stage3-public-collective-probe',
     'Stage 3 Public Collective Probe',
     'Stage 3 Test',
@@ -215,7 +231,7 @@ VALUES
     '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
   ),
   (
-    '33333333-3333-4333-8333-333333333333',
+    '44444444-4444-4444-8444-444444444441',
     'stage3-public-result-probe',
     'Stage 3 Public Result Probe',
     'Stage 3 Test',
@@ -304,19 +320,19 @@ INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
 )
 VALUES
-  ('55555555-5555-4555-8555-555555555551', '33333333-3333-4333-8333-333333333333',
+  ('55555555-5555-4555-8555-555555555551', '44444444-4444-4444-8444-444444444441',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Untrusted Issuer Private Participant'),
-  ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
+  ('55555555-5555-4555-8555-555555555552', '44444444-4444-4444-8444-444444444441',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant');
 
 INSERT INTO public.attempts (
   id, competition_id, participant_id, canonical_participant_id, status, score, finalized_at
 )
 VALUES
-  ('77777777-7777-4777-8777-777777777771', '33333333-3333-4333-8333-333333333333',
+  ('77777777-7777-4777-8777-777777777781', '44444444-4444-4444-8444-444444444441',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '55555555-5555-4555-8555-555555555551',
    'FINALIZED'::public.attempt_status, 91, now()),
-  ('77777777-7777-4777-8777-777777777772', '33333333-3333-4333-8333-333333333333',
+  ('77777777-7777-4777-8777-777777777782', '44444444-4444-4444-8444-444444444441',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555552',
    'FINALIZED'::public.attempt_status, 92, now());
 
@@ -327,9 +343,9 @@ VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
 INSERT INTO public.user_badges (user_id, badge_id, award_source, reason, source_reference)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Legacy private badge probe', '33333333-3333-4333-8333-333333333333'),
+   'MANUAL', 'Legacy private badge probe', '44444444-4444-4444-8444-444444444441'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333');
+   'MANUAL', 'Better Auth private badge probe', '44444444-4444-4444-8444-444444444441');
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -530,6 +546,71 @@ VALUES (
   1
 );
 
+-- Tranche 11 owner-scope fixture: bind the organizer when the competition is
+-- created. The application intentionally makes organizer_id immutable after
+-- insert; do not update an unrelated pre-existing competition to fake scope.
+-- Admin JWT is still active here, and the whole setup is rolled back below.
+INSERT INTO public.competitions (
+  id, slug, title, category, status, visibility,
+  participant_mode, config, organizer_id
+)
+VALUES (
+  '44444444-4444-4444-8444-444444444441',
+  'stage7-organizer-scope-probe',
+  'Stage 7 Organizer Scope Probe',
+  'Stage 7 Test',
+  'RESULT_PUBLISHED'::public.competition_status,
+  'PRIVATE',
+  'INDIVIDUAL',
+  '{}'::jsonb,
+  '77777777-7777-4777-8777-777777777791'::uuid
+);
+
+INSERT INTO public.participants (
+  id, competition_id, user_id, participant_type, full_name
+)
+VALUES
+  (
+    '55555555-5555-4555-8555-555555555561',
+    '44444444-4444-4444-8444-444444444441',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'INDIVIDUAL',
+    'Stage 7 Organizer Preview Attempt'
+  ),
+  (
+    '55555555-5555-4555-8555-555555555562',
+    '44444444-4444-4444-8444-444444444441',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'INDIVIDUAL',
+    'Stage 7 Organizer Grading Limits Attempt'
+  );
+
+INSERT INTO public.attempts (
+  id, competition_id, participant_id, canonical_participant_id,
+  status, score, finalized_at, is_preview
+)
+VALUES
+  (
+    '77777777-7777-4777-8777-777777777781',
+    '44444444-4444-4444-8444-444444444441',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '55555555-5555-4555-8555-555555555561',
+    'FINALIZED'::public.attempt_status,
+    91,
+    now(),
+    TRUE
+  ),
+  (
+    '77777777-7777-4777-8777-777777777782',
+    '44444444-4444-4444-8444-444444444441',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    '55555555-5555-4555-8555-555555555562',
+    'FINALIZED'::public.attempt_status,
+    92,
+    now(),
+    FALSE
+  );
+
 SELECT set_config('request.jwt.claims', '{}', TRUE);
 SELECT set_config('request.jwt.claim.sub', '', TRUE);
 
@@ -584,7 +665,7 @@ BEGIN
 
   -- Anonymous pages may sync only public competitions whose schedule has
   -- crossed a registration boundary; private IDs do not reveal status.
-  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
+  v_status := public.sync_competition_registration_status('44444444-4444-4444-8444-444444444441'::uuid);
   IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
     RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_COMPETITION_STATUS_SYNC_FAILED:%', v_status;
   END IF;
@@ -2907,7 +2988,7 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_COMPETITION_STATUS_SYNC_ALLOWED'; END IF;
 
-  v_status := public.sync_competition_registration_status('11111111-1111-4111-8111-111111111111'::uuid);
+  v_status := public.sync_competition_registration_status('44444444-4444-4444-8444-444444444441'::uuid);
   IF v_status IS DISTINCT FROM 'REGISTRATION_OPEN' THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_STATUS_SYNC_FAILED:%', v_status;
   END IF;
@@ -2920,7 +3001,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_RESULT_BADGES_ALLOWED';
   END IF;
 
-  v_options := public.get_collective_registration_options('11111111-1111-4111-8111-111111111111'::uuid);
+  v_options := public.get_collective_registration_options('44444444-4444-4444-8444-444444444441'::uuid);
   IF v_options #>> '{competition,title}' IS DISTINCT FROM 'Stage 3 Public Collective Probe' THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_COLLECTIVE_OPTIONS_FAILED:%', v_options;
   END IF;
@@ -2974,16 +3055,6 @@ $untrusted_issuer$;
 -- must accept a real Better Auth organizer membership, then stop at safe
 -- business boundaries without publishing, releasing, or grading any row.
 RESET ROLE;
-UPDATE public.competitions
-SET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
-WHERE id IN (
-  '11111111-1111-4111-8111-111111111111'::uuid,
-  '33333333-3333-4333-8333-333333333333'::uuid
-);
-UPDATE public.attempts
-SET is_preview = TRUE
-WHERE id = '77777777-7777-4777-8777-777777777771'::uuid;
-
 SET LOCAL ROLE authenticated;
 SELECT set_config(
   'request.jwt.claims',
@@ -3004,7 +3075,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.finalize_attempt_manual(
-      '77777777-7777-4777-8777-777777777771'::uuid,
+      '77777777-7777-4777-8777-777777777781'::uuid,
       1::numeric,
       'Stage 7 organizer authorization probe'
     );
@@ -3019,13 +3090,13 @@ BEGIN
   SELECT count(*)::integer
   INTO v_row_count
   FROM public.get_attempt_grading_limits(
-    '77777777-7777-4777-8777-777777777772'::uuid
+    '77777777-7777-4777-8777-777777777782'::uuid
   );
   -- An empty grading projection is valid for this fixture; reaching the
   -- function result proves the organizer-scoped attempt lookup succeeded.
 
   v_result := public.publish_competition_results(
-    '33333333-3333-4333-8333-333333333333'::uuid
+    '44444444-4444-4444-8444-444444444441'::uuid
   );
   IF v_result ->> 'already_published' IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ORGANIZER_RPC_SCOPE_FAILED:publish_competition_results:%',
@@ -3035,7 +3106,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.release_organizer_competition(
-      '11111111-1111-4111-8111-111111111111'::uuid
+      '44444444-4444-4444-8444-444444444441'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
@@ -3066,7 +3137,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.finalize_attempt_manual(
-      '77777777-7777-4777-8777-777777777771'::uuid,
+      '77777777-7777-4777-8777-777777777781'::uuid,
       1::numeric,
       'Stage 7 unrelated Better Auth user probe'
     );
@@ -3081,7 +3152,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM * FROM public.get_attempt_grading_limits(
-      '77777777-7777-4777-8777-777777777772'::uuid
+      '77777777-7777-4777-8777-777777777782'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
@@ -3094,7 +3165,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.publish_competition_results(
-      '33333333-3333-4333-8333-333333333333'::uuid
+      '44444444-4444-4444-8444-444444444441'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
@@ -3107,7 +3178,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.release_organizer_competition(
-      '11111111-1111-4111-8111-111111111111'::uuid
+      '44444444-4444-4444-8444-444444444441'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
