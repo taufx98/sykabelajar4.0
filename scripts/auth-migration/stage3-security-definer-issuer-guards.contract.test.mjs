@@ -575,7 +575,8 @@ assert.ok(
   "teacher achievement report must validate issuer before returning rows",
 );
 assert.match(regression, /Stage 7 Existing Collective Participant/);
-assert.match(regression, /STAGE7-TEACHER-001/);
+assert.match(regression, /STAGE7-T09-NEW-001/);
+assert.match(regression, /STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION/);
 
 
 assert.match(adminRpcBetterAuthBlock,
