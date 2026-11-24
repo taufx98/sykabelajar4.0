@@ -230,6 +230,21 @@ VALUES
 -- Stage 7 teacher/collective fixtures: same synthetic Better Auth Admin
 -- owns the roster and participant, so the legacy-issuer path is tested
 -- against actual protected rows rather than only absent UUIDs.
+DO $stage7_tranche09_fixture_preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.participants
+    WHERE competition_id = '22222222-2222-4222-8222-222222222222'::uuid
+      AND participant_code = 'STAGE7-T09-NEW-001'
+  ) OR EXISTS (
+    SELECT 1 FROM public.collective_participants
+    WHERE participant_code = 'STAGE7-T09-NEW-001'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION';
+  END IF;
+END;
+$stage7_tranche09_fixture_preflight$;
+
 INSERT INTO public.teacher_rosters (id, teacher_user_id, name, is_active)
 VALUES (
   '88888888-8888-4888-8888-888888888891',
@@ -262,7 +277,7 @@ VALUES (
   '22222222-2222-4222-8222-222222222222',
   '99999999-9999-4999-8999-999999999981',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  'STAGE7-TEACHER-001',
+  'STAGE7-T09-NEW-001',
   'Stage 7 Existing Collective Participant',
   'ACTIVE'
 );
@@ -276,7 +291,7 @@ VALUES (
   '22222222-2222-4222-8222-222222222222',
   '66666666-6666-4666-8666-666666666681',
   'COLLECTIVE',
-  'STAGE7-TEACHER-001',
+  'STAGE7-T09-NEW-001',
   'Stage 7 Existing Collective Participant'
 );
 
