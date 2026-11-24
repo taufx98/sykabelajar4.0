@@ -2954,5 +2954,77 @@ BEGIN
 END;
 $stage7_tranche11_organizer_positive$;
 
+-- A different Better Auth student has no membership in this organizer. The
+-- same existing protected UUIDs must be indistinguishable from absent rows.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+DO $stage7_tranche11_unrelated_user$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.finalize_attempt_manual(
+      '77777777-7777-4777-8777-777777777771'::uuid,
+      1::numeric,
+      'Stage 7 unrelated Better Auth user probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:finalize_attempt_manual:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.get_attempt_grading_limits(
+      '77777777-7777-4777-8777-777777777772'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:get_attempt_grading_limits:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.publish_competition_results(
+      '33333333-3333-4333-8333-333333333333'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:publish_competition_results:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.release_organizer_competition(
+      '11111111-1111-4111-8111-111111111111'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:release_organizer_competition:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche11_unrelated_user$;
+
 RESET ROLE;
 ROLLBACK;
