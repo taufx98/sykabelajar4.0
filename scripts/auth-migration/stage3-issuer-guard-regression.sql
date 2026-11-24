@@ -431,6 +431,78 @@ VALUES
     'DRAFT'
   );
 
+-- Schema-only restores contain the plan tables but not their production
+-- catalog rows. Seed a minimal FREE package/entitlement only for this
+-- rollback-only test so the real organizer question-quota trigger can pass.
+-- This synthetic configuration is removed by the outer transaction rollback.
+INSERT INTO public.plan_catalog (
+  plan_code, name, badge, description, monthly_price, yearly_price,
+  monthly_discount_percent, yearly_discount_percent, currency,
+  sort_order, is_active, config
+)
+VALUES (
+  'FREE',
+  'Stage 7 Disposable Fixture Plan',
+  NULL,
+  'Rollback-only Stage 7 entitlement fixture',
+  0,
+  0,
+  0,
+  0,
+  'IDR',
+  0,
+  TRUE,
+  '{}'::jsonb
+)
+ON CONFLICT (plan_code) DO NOTHING;
+
+INSERT INTO public.plan_entitlements (
+  plan_code, capability, limit_value, config
+)
+VALUES (
+  'FREE',
+  'question_limit',
+  10,
+  '{}'::jsonb
+)
+ON CONFLICT (plan_code, capability) DO NOTHING;
+
+INSERT INTO public.organizer_plans (
+  organizer_id, plan_code, starts_at, ends_at, is_active
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777791',
+  'FREE',
+  now() - interval '1 minute',
+  now() + interval '1 day',
+  TRUE
+);
+
+DO $stage7_question_entitlement_preflight$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.plan_entitlements pe
+    WHERE pe.plan_code = 'FREE'
+      AND pe.capability = 'question_limit'
+      AND pe.limit_value > 0
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_QUESTION_QUOTA_FIXTURE_MISSING';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.organizer_plans op
+    WHERE op.organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+      AND op.plan_code = 'FREE'
+      AND op.is_active = TRUE
+      AND op.starts_at <= now()
+      AND (op.ends_at IS NULL OR op.ends_at > now())
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_ORGANIZER_PLAN_FIXTURE_MISSING';
+  END IF;
+END;
+$stage7_question_entitlement_preflight$;
+
 INSERT INTO public.questions (
   id, question_bank_id, type, prompt, points, required,
   display_order, status, config
