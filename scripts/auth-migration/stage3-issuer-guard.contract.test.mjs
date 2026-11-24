@@ -53,6 +53,22 @@ assert.match(tranche09Fixture, /STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREAT
 assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\.participants/i,
   "the fixture must not manually duplicate the canonical row created by the trigger");
 
+const ownerMembershipSetupStart = acceptance.indexOf("-- The owner must establish their own owner membership");
+const ownerMembershipSetupEnd = acceptance.indexOf(
+  "INSERT INTO public.question_banks",
+  ownerMembershipSetupStart,
+);
+assert.ok(ownerMembershipSetupStart >= 0 && ownerMembershipSetupEnd > ownerMembershipSetupStart,
+  "owner membership fixture must remain bounded");
+const ownerMembershipSetup = acceptance.slice(ownerMembershipSetupStart, ownerMembershipSetupEnd);
+assert.ok(ownerMembershipSetup.includes("request.jwt.claims"));
+assert.ok(ownerMembershipSetup.includes('"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"'));
+assert.ok(ownerMembershipSetup.includes("https://auth-prod.sykabelajar.my.id/api/auth"));
+assert.ok(ownerMembershipSetup.indexOf("request.jwt.claims") <
+  ownerMembershipSetup.indexOf("INSERT INTO public.organizer_members"),
+  "owner Better Auth claims must be set before the governance trigger fires");
+assert.ok(ownerMembershipSetup.includes("set_config('request.jwt.claim.sub', '', TRUE)"));
+
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED/);
