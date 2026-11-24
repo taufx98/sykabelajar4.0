@@ -497,17 +497,17 @@ const assignOrganizerSerial = draft.match(
   /CREATE OR REPLACE FUNCTION public\.assign_organizer_serial[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.match(assignOrganizerSerial,
-  /FROM public\.organizer_serials s[\s\S]*?private\.current_user_can_manage_organizer\(s\.organizer_id\)/,
+  /FROM public\.organizer_serials s[\s\S]*?private\.current_user_can_manage_organizer\(s\.organizer_id\)/i,
   "serial lookup must be scoped to its owner organizer or Admin");
 assert.match(assignOrganizerSerial,
-  /JOIN public\.competitions comp[\s\S]*?comp\.organizer_id = v_serial\.organizer_id[\s\S]*?private\.current_user_can_manage_organizer\(comp\.organizer_id\)/,
+  /JOIN public\.competitions comp[\s\S]*?comp\.organizer_id = v_serial\.organizer_id[\s\S]*?private\.current_user_can_manage_organizer\(comp\.organizer_id\)/i,
   "certificate lookup must be scoped to the serial's organizer or Admin");
 
 const createCertificateAsset = draft.match(
   /CREATE OR REPLACE FUNCTION public\.create_certificate_asset[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.match(createCertificateAsset,
-  /c\.user_id = v_uid[\s\S]*?private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_is_organizer_for\(comp\.organizer_id\)/,
+  /c\.user_id = v_uid[\s\S]*?private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_is_organizer_for\(comp\.organizer_id\)/i,
   "certificate asset lookup must be scoped to owner, Admin, or authorized organizer");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
