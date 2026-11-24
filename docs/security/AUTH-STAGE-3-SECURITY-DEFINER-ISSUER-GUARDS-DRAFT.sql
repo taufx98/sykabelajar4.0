@@ -3946,8 +3946,8 @@ begin
 
   -- Resolve the certificate only through the caller-owned participant or
   -- verified Admin scope, so another user's certificate cannot be probed.
-  select cc, cp
-    into v_cert, v_cp
+  select cc.*
+    into v_cert
   from public.collective_certificates cc
   join public.collective_participants cp
     on cp.id = cc.collective_participant_id
@@ -3961,6 +3961,15 @@ begin
 
   if not found then
     raise exception 'FORBIDDEN';
+  end if;
+
+  select cp.*
+    into v_cp
+  from public.collective_participants cp
+  where cp.id = v_cert.collective_participant_id;
+
+  if not found then
+    raise exception 'PARTICIPANT_NOT_FOUND';
   end if;
   if v_cert.status not in ('ELIGIBLE', 'DRAFT') then
     raise exception 'CERTIFICATE_NOT_ORDERABLE';
