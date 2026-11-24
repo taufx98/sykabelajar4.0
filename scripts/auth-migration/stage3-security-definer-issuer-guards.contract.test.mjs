@@ -759,7 +759,15 @@ for (const name of trancheElevenFunctions) {
 }
 assert.ok(trancheElevenOutsider.includes("'ATTEMPT_NOT_FOUND'"));
 assert.ok(trancheElevenOutsider.includes("'COMPETITION_NOT_FOUND'"));
-assert.ok(trancheElevenOutsider.includes("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
-  "IDOR test must use the distinct synthetic Better Auth student identity");
+const trancheElevenOutsiderClaimsStart = regression.lastIndexOf(
+  "SELECT set_config(",
+  trancheElevenOutsiderStart,
+);
+const trancheElevenOutsiderClaims = regression.slice(
+  trancheElevenOutsiderClaimsStart,
+  trancheElevenOutsiderStart,
+);
+assert.ok(trancheElevenOutsiderClaims.includes('"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"'),
+  "IDOR test must set the distinct synthetic Better Auth student identity immediately before the outsider RPC block");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
