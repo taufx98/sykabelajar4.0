@@ -400,6 +400,19 @@ BEGIN
 END;
 $stage7_tranche09_canonical_fixture$;
 
+-- Keep the trigger-generated canonical ID for the later cross-user IDOR test.
+-- The ID is captured while the schema-only fixture runner still has its
+-- privileged database role, then reused unchanged after switching JWT claims.
+SELECT set_config(
+  'stage7.tranche12.canonical_participant_id',
+  (
+    SELECT id::text
+    FROM public.participants
+    WHERE collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid
+  ),
+  TRUE
+);
+
 INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
 )
@@ -3434,8 +3447,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.get_canonical_competition_result(
-      (SELECT id FROM public.participants
-       WHERE collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid)
+      current_setting('stage7.tranche12.canonical_participant_id')::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
