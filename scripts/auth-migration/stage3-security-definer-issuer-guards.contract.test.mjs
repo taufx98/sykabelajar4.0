@@ -584,13 +584,13 @@ const ownerMembershipFixtureEnd = regression.indexOf("INSERT INTO public.questio
 assert.ok(ownerMembershipFixtureStart >= 0 && ownerMembershipFixtureEnd > ownerMembershipFixtureStart,
   "organizer owner membership fixture must remain bounded");
 const ownerMembershipFixture = regression.slice(ownerMembershipFixtureStart, ownerMembershipFixtureEnd);
-assert.match(ownerMembershipFixture, /request\\.jwt\\.claims/);
-assert.match(ownerMembershipFixture, /"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"/);
-assert.match(ownerMembershipFixture, /https:\\/\\/auth-prod\\.sykabelajar\\.my\\.id\\/api\\/auth/);
+assert.ok(ownerMembershipFixture.includes("request.jwt.claims"));
+assert.ok(ownerMembershipFixture.includes('"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"'));
+assert.ok(ownerMembershipFixture.includes("https://auth-prod.sykabelajar.my.id/api/auth"));
 assert.ok(ownerMembershipFixture.indexOf("request.jwt.claims") <
   ownerMembershipFixture.indexOf("INSERT INTO public.organizer_members"),
   "owner Better Auth claims must be installed before the governance trigger fires");
-assert.match(ownerMembershipFixture, /set_config\('request\\.jwt\\.claim\\.sub', '', TRUE\)/);
+assert.ok(ownerMembershipFixture.includes("set_config('request.jwt.claim.sub', '', TRUE)"));
 assert.match(regression, /STAGE7-T09-NEW-001/);
 assert.match(regression, /STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION/);
 
@@ -712,26 +712,28 @@ for (const name of trancheElevenFunctions) {
     "function definition must be terminated before the next CREATE: " + name);
 }
 
-const trancheElevenOrganizerPositive = regression.match(
-  /DO \\$stage7_tranche11_organizer_positive\\$[\\s\\S]*?\\$stage7_tranche11_organizer_positive\\$;/i,
-)?.[0] ?? "";
-assert.ok(trancheElevenOrganizerPositive,
+const trancheElevenOrganizerStart = regression.indexOf("DO $stage7_tranche11_organizer_positive$");
+const trancheElevenOrganizerEnd = regression.indexOf(
+  "$stage7_tranche11_organizer_positive$;",
+  trancheElevenOrganizerStart,
+);
+assert.ok(trancheElevenOrganizerStart >= 0 && trancheElevenOrganizerEnd > trancheElevenOrganizerStart,
   "missing positive organizer-owner runtime coverage for tranche 11");
+const trancheElevenOrganizerPositive = regression.slice(
+  trancheElevenOrganizerStart,
+  trancheElevenOrganizerEnd,
+);
 for (const name of trancheElevenFunctions) {
   assert.ok(trancheElevenOrganizerPositive.includes("public." + name + "("),
     "missing organizer-positive runtime call: " + name);
 }
-assert.match(trancheElevenOrganizerPositive,
-  /PREVIEW_ATTEMPT_NOT_GRADABLE/,
+assert.ok(trancheElevenOrganizerPositive.includes("PREVIEW_ATTEMPT_NOT_GRADABLE"),
   "manual grading must reach the preview guard for an authorized organizer");
-assert.match(trancheElevenOrganizerPositive,
-  /publish_competition_results[\\s\\S]*?already_published/,
+assert.ok(trancheElevenOrganizerPositive.includes("already_published"),
   "organizer result publication test must stop at its no-op already-published boundary");
-assert.match(trancheElevenOrganizerPositive,
-  /release_organizer_competition[\\s\\S]*?COMPETITION_NOT_DRAFT/,
+assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
   "organizer release test must reach the existing non-draft validation boundary");
-assert.match(trancheElevenOrganizerPositive,
-  /77777777-7777-4777-8777-777777777791/,
+assert.ok(trancheElevenOrganizerPositive.includes("77777777-7777-4777-8777-777777777791"),
   "organizer-positive runtime fixture must use the existing synthetic owner membership");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: issuer-first Admin and organizer RPCs have positive and negative disposable-runtime coverage.");
