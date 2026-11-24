@@ -770,4 +770,24 @@ const trancheElevenOutsiderClaims = regression.slice(
 assert.ok(trancheElevenOutsiderClaims.includes('"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"'),
   "IDOR test must set the distinct synthetic Better Auth student identity immediately before the outsider RPC block");
 
+const crossBankUpdateStart = regression.indexOf("Attempt to move a question from another organizer");
+const crossBankDeniedAt = regression.indexOf(
+  "STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED",
+  crossBankUpdateStart,
+);
+const crossBankAdminSwitchAt = regression.indexOf(
+  "-- The unrelated/foreign bank must remain invisible to the organizer caller.",
+  crossBankDeniedAt,
+);
+const crossBankUnchangedAt = regression.indexOf(
+  "STAGE3_BETTER_AUTH_FOREIGN_QUESTION_BANK_CHANGED",
+  crossBankDeniedAt,
+);
+assert.ok(crossBankUpdateStart >= 0 && crossBankDeniedAt > crossBankUpdateStart &&
+  crossBankAdminSwitchAt > crossBankDeniedAt && crossBankUnchangedAt > crossBankAdminSwitchAt,
+  "foreign question update must be attempted as organizer, then checked as Admin after denial");
+const crossBankAdminSetup = regression.slice(crossBankAdminSwitchAt, crossBankUnchangedAt);
+assert.ok(crossBankAdminSetup.includes('"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"'),
+  "foreign question integrity check must use the existing synthetic Better Auth Admin");
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
