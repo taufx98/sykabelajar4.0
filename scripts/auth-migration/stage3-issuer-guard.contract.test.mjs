@@ -39,6 +39,20 @@ assert.match(acceptance, /STAGE3_ISSUER_GUARD_COVERAGE_FAILED/);
 assert.match(acceptance, /STAGE3_LEGACY_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_LEGACY_ISSUER_INSERT_ALLOWED/);
 assert.doesNotMatch(acceptance, /legacy_reference/i, "zero-start issuer acceptance must not seed legacy identity tombstones");
+
+const tranche09FixtureStart = acceptance.indexOf("-- Stage 7 teacher/collective fixtures:");
+const tranche09FixtureEnd = acceptance.indexOf(
+  "INSERT INTO public.participants (\n  id, competition_id, user_id",
+  tranche09FixtureStart,
+);
+assert.ok(tranche09FixtureStart >= 0 && tranche09FixtureEnd > tranche09FixtureStart,
+  "Stage 7 collective fixture block must remain bounded");
+const tranche09Fixture = acceptance.slice(tranche09FixtureStart, tranche09FixtureEnd);
+assert.match(tranche09Fixture, /STAGE7_TRANCHE09_CANONICAL_PARTICIPANT_NOT_CREATED/,
+  "active collective fixture must assert trigger-created canonical identity");
+assert.doesNotMatch(tranche09Fixture, /INSERT INTO public\\.participants/i,
+  "the fixture must not manually duplicate the canonical row created by the trigger");
+
 assert.match(acceptance, /STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_READ_ALLOWED/);
 assert.match(acceptance, /STAGE3_UNTRUSTED_ISSUER_INSERT_ALLOWED/);
