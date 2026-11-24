@@ -565,7 +565,16 @@ declare
   v_password text;
   r_student record;
 begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not (
+    private.current_user_has_role('teacher'::public.app_role)
+    or private.current_user_is_admin()
+  ) then
+    raise exception 'FORBIDDEN';
+  end if;
 
   select c.id, c.participant_mode, c.config
   into v_competition
@@ -577,10 +586,6 @@ begin
   if not private.competition_allows_collective(v_competition.participant_mode, v_competition.config) then
     raise exception 'COMPETITION_NOT_COLLECTIVE';
   end if;
-  if not (private.current_user_has_role('teacher'::public.app_role) or private.current_user_is_admin()) then
-    raise exception 'FORBIDDEN';
-  end if;
-
   if private.current_user_is_admin() then
     select rr.max_participants into v_maximum
     from public.registration_rules rr
@@ -750,13 +755,16 @@ CREATE OR REPLACE FUNCTION public.list_teacher_achievement_report(p_competition_
 AS $function$
 DECLARE
   v_user_id uuid := auth.uid();
-  v_is_admin boolean := private.current_user_is_admin();
+  v_is_admin boolean;
 BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'AUTH_REQUIRED';
   END IF;
-  IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF;
 
+  v_is_admin := private.current_user_is_admin();
   IF NOT v_is_admin AND NOT private.current_user_has_role('teacher'::public.app_role) THEN
     RAISE EXCEPTION 'TEACHER_ROLE_REQUIRED';
   END IF;
@@ -873,7 +881,9 @@ AS $function$
   left join public.collective_certificates cc on cc.collective_participant_id=cp.id
   left join public.collective_certificate_orders cco on cco.collective_certificate_id=cc.id
   left join public.orders o on o.id=cco.order_id
-  where private.current_user_is_better_auth() and (cp.managed_by_user_id=auth.uid() or private.current_user_is_admin())
+  where private.current_user_is_better_auth()
+    and (private.current_user_has_role('teacher'::public.app_role) or private.current_user_is_admin())
+    and (cp.managed_by_user_id=(select auth.uid()) or private.current_user_is_admin())
     and (p_competition_id is null or cp.competition_id=p_competition_id)
   order by cp.created_at desc;
 $function$;
@@ -895,19 +905,24 @@ declare
   v_minimum integer := nullif(v_rule->>'minimum_participants', '')::integer;
   v_maximum integer := nullif(v_rule->>'max_participants', '')::integer;
 begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
   if v_uid is null then
     raise exception 'AUTH_REQUIRED';
   end if;
 
-  select organizer_id into v_org
-  from public.competitions
-  where id = p_competition_id;
+  select c.organizer_id
+    into v_org
+  from public.competitions c
+  where c.id = p_competition_id
+    and (
+      private.current_user_is_admin()
+      or private.current_user_is_active_organizer_member(c.organizer_id)
+    );
 
-  if v_org is null then
-    raise exception 'COMPETITION_NOT_FOUND';
-  end if;
-
-  if not private.current_user_is_active_organizer_member(v_org) and not private.current_user_is_admin() then
+  -- Missing and out-of-scope competitions deliberately share one response.
+  if not found then
     raise exception 'FORBIDDEN';
   end if;
 
