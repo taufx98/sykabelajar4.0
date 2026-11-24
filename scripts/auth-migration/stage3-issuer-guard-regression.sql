@@ -3,6 +3,43 @@
 \set ON_ERROR_STOP on
 BEGIN;
 
+DO $stage7_tranche10_fixture_preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.commerce_products
+    WHERE id = '77777777-7777-4777-8777-777777777793'::uuid
+       OR code = 'STAGE7-ISSUER-PRODUCT'
+       OR slug = 'stage7-issuer-product'
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizers
+    WHERE id IN (
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '77777777-7777-4777-8777-777777777795'::uuid
+    ) OR slug IN ('stage7-question-organizer','stage7-foreign-question-organizer')
+  ) OR EXISTS (
+    SELECT 1 FROM public.question_banks
+    WHERE id IN (
+      '77777777-7777-4777-8777-777777777792'::uuid,
+      '77777777-7777-4777-8777-777777777796'::uuid
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.questions
+    WHERE id = '77777777-7777-4777-8777-777777777797'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizer_members
+    WHERE organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+       OR (organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+           AND user_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid)
+  ) OR EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
+      AND role = 'student'::public.app_role
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
+  END IF;
+END;
+$stage7_tranche10_fixture_preflight$;
+
 CREATE FUNCTION pg_temp.stage3_user_rpc_call_error(p_signature text)
 RETURNS text
 LANGUAGE plpgsql
