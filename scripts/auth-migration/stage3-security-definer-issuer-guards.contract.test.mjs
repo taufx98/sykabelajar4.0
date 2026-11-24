@@ -577,4 +577,9 @@ assert.ok(
 assert.match(regression, /Stage 7 Existing Collective Participant/);
 assert.match(regression, /STAGE7-TEACHER-001/);
 
+
+assert.match(adminRpcBetterAuthBlock,
+  /create_collective_certificate_order[\s\S]*?CERTIFICATE_PRICE_NOT_CONFIGURED/,
+  "Better Auth collective certificate order must pass scoped issuer/owner check and stop before writes when price is unconfigured");
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
