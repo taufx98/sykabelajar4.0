@@ -433,4 +433,27 @@ for (const name of trancheSixAdminCases) {
     "missing Better Auth validation assertion: " + name);
 }
 
+
+const trancheSevenAdminCases = [
+  "admin_save_organizer_payment_config",
+  "admin_set_collective_certificate_price",
+];
+for (const name of trancheSevenAdminCases) {
+  assert.ok(adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name);
+  assert.ok(adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth positive/boundary assertion: " + name);
+}
+assert.match(adminRpcBetterAuthBlock,
+  /admin_save_organizer_payment_config[\\s\\S]*?STAGE3_ADMIN_PAYMENT_CONFIG_ROLLBACK_SENTINEL/);
+assert.match(adminRpcBetterAuthBlock,
+  /admin_set_collective_certificate_price\\(NULL::numeric\\)[\\s\\S]*?INVALID_AMOUNT/);
+assert.match(draft,
+  /CREATE OR REPLACE FUNCTION public\\.admin_set_collective_certificate_price[\\s\\S]*?private\\.current_user_is_admin\\(\\)/);
+assert.doesNotMatch(
+  draft.match(/CREATE OR REPLACE FUNCTION public\\.admin_set_collective_certificate_price[\\s\\S]*?\\$function\\$;/)?.[0] ?? "",
+  /FROM\\s+(?:public\\.)?user_roles\\b/i,
+  "collective certificate price must not authorize from a legacy role row",
+);
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
