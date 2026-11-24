@@ -445,14 +445,14 @@ for (const name of trancheSevenAdminCases) {
     "missing Better Auth positive/boundary assertion: " + name);
 }
 assert.match(adminRpcBetterAuthBlock,
-  /admin_save_organizer_payment_config[\\s\\S]*?STAGE3_ADMIN_PAYMENT_CONFIG_ROLLBACK_SENTINEL/);
+  /admin_save_organizer_payment_config[\s\S]*?STAGE3_ADMIN_PAYMENT_CONFIG_ROLLBACK_SENTINEL/);
 assert.match(adminRpcBetterAuthBlock,
-  /admin_set_collective_certificate_price\\(NULL::numeric\\)[\\s\\S]*?INVALID_AMOUNT/);
+  /admin_set_collective_certificate_price\(NULL::numeric\)[\s\S]*?INVALID_AMOUNT/);
 assert.match(draft,
-  /CREATE OR REPLACE FUNCTION public\\.admin_set_collective_certificate_price[\\s\\S]*?private\\.current_user_is_admin\\(\\)/);
+  /CREATE OR REPLACE FUNCTION public\.admin_set_collective_certificate_price[\s\S]*?private\.current_user_is_admin\(\)/);
 assert.doesNotMatch(
-  draft.match(/CREATE OR REPLACE FUNCTION public\\.admin_set_collective_certificate_price[\\s\\S]*?\\$function\\$;/)?.[0] ?? "",
-  /FROM\\s+(?:public\\.)?user_roles\\b/i,
+  draft.match(/CREATE OR REPLACE FUNCTION public\.admin_set_collective_certificate_price[\s\S]*?\$function\$;/)?.[0] ?? "",
+  /FROM\s+(?:public\.)?user_roles\b/i,
   "collective certificate price must not authorize from a legacy role row",
 );
 
