@@ -760,7 +760,7 @@ for (const name of trancheElevenFunctions) {
 assert.ok(trancheElevenOutsider.includes("'ATTEMPT_NOT_FOUND'"));
 assert.ok(trancheElevenOutsider.includes("'COMPETITION_NOT_FOUND'"));
 const trancheElevenOutsiderClaimsStart = regression.lastIndexOf(
-  "SELECT set_config(",
+  "SELECT set_config(\n  'request.jwt.claims'",
   trancheElevenOutsiderStart,
 );
 const trancheElevenOutsiderClaims = regression.slice(
