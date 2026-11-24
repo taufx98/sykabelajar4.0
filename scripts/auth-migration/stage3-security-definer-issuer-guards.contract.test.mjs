@@ -897,5 +897,7 @@ assert.ok(regression.includes("'stage7-tranche12-collective-result-probe'"));
 assert.ok(regression.includes("'STAGE7-T12-COL-001'"));
 assert.ok(regression.includes("'66666666-6666-4666-8666-666666666682'"));
 assert.ok(regression.includes("'77777777-7777-4777-8777-777777777774'"));
+assert.ok(regression.includes("stage7.tranche12.canonical_participant_id"));
+assert.ok(regression.includes("current_setting('stage7.tranche12.canonical_participant_id')::uuid"));
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
