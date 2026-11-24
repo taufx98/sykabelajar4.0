@@ -94,6 +94,10 @@ for (const name of [
     assert.match(definition,
       /SELECT c\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(c\.organizer_id\)/i,
       "organizer config lookup must scope the initial row read to the issuer-gated membership helper");
+  } else if (name === "public.save_question_with_options") {
+    assert.match(definition,
+      /SELECT qb\.organizer_id[\s\S]*?private\.current_user_is_active_organizer_member\(qb\.organizer_id\)/i,
+      "question bank lookup must scope the initial row read to the issuer-gated membership helper");
   } else {
     assert.match(definition, /private\.current_user_is_active_organizer_member\(v_org\)/,
       "organizer operations must use the issuer-gated membership helper: " + name);
