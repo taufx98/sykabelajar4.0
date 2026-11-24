@@ -378,6 +378,19 @@ VALUES
     'DEPRECATED'
   );
 
+-- The owner must establish their own owner membership under the exact
+-- Better Auth identity; the governance trigger rejects an unauthenticated
+-- fixture even when the inserted user_id matches organizers.owner_user_id.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  TRUE
+);
 INSERT INTO public.organizer_members (
   organizer_id, user_id, member_role, is_active, role, status
 )
@@ -389,6 +402,8 @@ VALUES (
   'owner',
   'ACTIVE'
 );
+SELECT set_config('request.jwt.claims', '{}', TRUE);
+SELECT set_config('request.jwt.claim.sub', '', TRUE);
 
 INSERT INTO public.question_banks (id, organizer_id, name, status)
 VALUES
