@@ -2886,6 +2886,161 @@ AS $function$ declare v_uid uuid:=auth.uid();v_target public.profiles;v_follow p
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;if p_target_user_id is null or p_target_user_id=v_uid then raise exception 'INVALID_TARGET';end if;select * into v_target from public.profiles where id=p_target_user_id;if not found then raise exception 'USER_NOT_FOUND';end if;select * into v_follow from public.follows where follower_id=v_uid and following_id=p_target_user_id limit 1;if found then return v_follow;end if;v_status:=case when coalesce(v_target.is_public,true) then 'approved' else 'pending' end;insert into public.follows(follower_id,following_id,status) values(v_uid,p_target_user_id,v_status) returning * into v_follow;if v_status='pending' then select coalesce(full_name,'User'),username into v_actor_name,v_actor_username from public.profiles where id=v_uid;insert into public.notifications(user_id,type,title,body,data) values(p_target_user_id,'follow-request','Permintaan Mengikuti',v_actor_name||' (@'||coalesce(v_actor_username,'user')||') ingin mengikuti Anda.',jsonb_build_object('follower_id',v_uid,'following_id',p_target_user_id,'link','/profile/'||coalesce(v_actor_username,'')));end if;return v_follow;exception when unique_violation then select * into v_follow from public.follows where follower_id=v_uid and following_id=p_target_user_id limit 1;return v_follow;end;$function$;
 
+-- Pin both canonical result RPCs to the reviewed Production definitions before
+-- replacing either body on the schema-only disposable restore. CREATE OR REPLACE
+-- must preserve their existing owners, signatures, search_path and EXECUTE ACLs.
+DO $stage7_canonical_result_fingerprint_preflight$
+DECLARE
+  v_function regprocedure := pg_catalog.to_regprocedure(
+    'public.get_canonical_competition_result(uuid)'
+  );
+  v_my_function regprocedure := pg_catalog.to_regprocedure(
+    'public.get_my_canonical_competition_result(uuid)'
+  );
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_config text[];
+BEGIN
+  IF v_function IS NULL OR v_my_function IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_CANONICAL_RESULT_FUNCTION_MISSING';
+  END IF;
+
+  SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner),
+         p.prosecdef, p.proconfig
+    INTO v_hash, v_owner, v_security_definer, v_config
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid = v_function;
+
+  IF v_hash IS DISTINCT FROM 'e8523cc64cfa98e828ea8fc12902eaba'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_config IS DISTINCT FROM ARRAY['search_path=""']::text[]
+     OR pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE7_CANONICAL_RESULT_FUNCTION_FINGERPRINT_OR_ACL_DRIFT';
+  END IF;
+
+  SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner),
+         p.prosecdef, p.proconfig
+    INTO v_hash, v_owner, v_security_definer, v_config
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid = v_my_function;
+
+  IF v_hash IS DISTINCT FROM 'e59a13014024e2878dcc5573bec0d5ef'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_config IS DISTINCT FROM ARRAY['search_path=public, private, pg_catalog']::text[]
+     OR pg_catalog.has_function_privilege('anon', v_my_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_my_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_my_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE7_MY_CANONICAL_RESULT_FUNCTION_FINGERPRINT_OR_ACL_DRIFT';
+  END IF;
+END;
+$stage7_canonical_result_fingerprint_preflight$;
+
+-- Direct participant-ID result lookup is not public. Verify the Better Auth
+-- issuer before its first participant read; then retain the existing owner,
+-- collective-manager, Admin and result-publication semantics.
+CREATE OR REPLACE FUNCTION public.get_canonical_competition_result(p_participant_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  p public.participants%rowtype;
+  a public.attempts%rowtype;
+  c public.competitions%rowtype;
+  v_rank bigint;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT *
+    INTO p
+  FROM public.participants
+  WHERE id = p_participant_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PARTICIPANT_NOT_FOUND';
+  END IF;
+
+  IF NOT private.current_user_is_admin()
+     AND (p.user_id IS NULL OR p.user_id <> auth.uid())
+     AND NOT EXISTS (
+       SELECT 1
+       FROM public.collective_participants cp
+       WHERE cp.id = p.collective_participant_id
+         AND (cp.managed_by_user_id = auth.uid() OR cp.user_id = auth.uid())
+     ) THEN
+    RAISE EXCEPTION 'NOT_AUTHORIZED';
+  END IF;
+
+  SELECT *
+    INTO c
+  FROM public.competitions
+  WHERE id = p.competition_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  IF NOT private.current_user_is_admin()
+     AND c.status::text NOT IN ('RESULT_PUBLISHED', 'ARCHIVED') THEN
+    RETURN jsonb_build_object(
+      'participant_id', p.id,
+      'competition_id', p.competition_id,
+      'participant_type', p.participant_type,
+      'name', p.full_name,
+      'attempt', NULL,
+      'rank', NULL,
+      'published', FALSE
+    );
+  END IF;
+
+  SELECT *
+    INTO a
+  FROM public.attempts
+  WHERE canonical_participant_id = p.id
+    AND status = 'FINALIZED'
+    AND is_preview = FALSE
+  ORDER BY finalized_at DESC NULLS LAST, created_at DESC, id DESC
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'participant_id', p.id,
+      'competition_id', p.competition_id,
+      'participant_type', p.participant_type,
+      'name', p.full_name,
+      'attempt', NULL,
+      'rank', NULL,
+      'published', TRUE
+    );
+  END IF;
+
+  v_rank := private.canonical_competition_rank(p.competition_id, p.id);
+
+  RETURN jsonb_build_object(
+    'participant_id', p.id,
+    'competition_id', p.competition_id,
+    'participant_type', p.participant_type,
+    'name', p.full_name,
+    'attempt', jsonb_build_object(
+      'id', a.id,
+      'status', a.status,
+      'score', a.score,
+      'finalized_at', a.finalized_at
+    ),
+    'rank', v_rank,
+    'published', TRUE
+  );
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.get_my_canonical_competition_result(p_competition_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql

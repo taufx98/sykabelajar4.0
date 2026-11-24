@@ -39,16 +39,22 @@ BEGIN
     WHERE id = '44444444-4444-4444-8444-444444444441'::uuid
        OR slug = 'stage7-organizer-scope-probe'
   ) OR EXISTS (
+    SELECT 1 FROM public.competitions
+    WHERE id = '33333333-3333-4333-8333-333333333334'::uuid
+       OR slug = 'stage3-unpublished-result-probe'
+  ) OR EXISTS (
     SELECT 1 FROM public.participants
     WHERE id IN (
       '55555555-5555-4555-8555-555555555561'::uuid,
-      '55555555-5555-4555-8555-555555555562'::uuid
+      '55555555-5555-4555-8555-555555555562'::uuid,
+      '55555555-5555-4555-8555-555555555553'::uuid
     )
   ) OR EXISTS (
     SELECT 1 FROM public.attempts
     WHERE id IN (
       '77777777-7777-4777-8777-777777777781'::uuid,
-      '77777777-7777-4777-8777-777777777782'::uuid
+      '77777777-7777-4777-8777-777777777782'::uuid,
+      '77777777-7777-4777-8777-777777777773'::uuid
     )
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
@@ -239,6 +245,16 @@ VALUES
     'PUBLIC',
     'INDIVIDUAL',
     '{}'::jsonb
+  ),
+  (
+    '33333333-3333-4333-8333-333333333334',
+    'stage3-unpublished-result-probe',
+    'Stage 3 Unpublished Result Probe',
+    'Stage 3 Test',
+    'REGISTRATION_OPEN'::public.competition_status,
+    'PUBLIC',
+    'INDIVIDUAL',
+    '{}'::jsonb
   );
 
 -- A public results page may expose the published result, but private badge
@@ -323,7 +339,9 @@ VALUES
   ('55555555-5555-4555-8555-555555555551', '33333333-3333-4333-8333-333333333333',
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'INDIVIDUAL', 'Untrusted Issuer Private Participant'),
   ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
-   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant');
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant'),
+  ('55555555-5555-4555-8555-555555555553', '33333333-3333-4333-8333-333333333334',
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Unpublished Result Participant');
 
 INSERT INTO public.attempts (
   id, competition_id, participant_id, canonical_participant_id, status, score, finalized_at
@@ -334,7 +352,10 @@ VALUES
    'FINALIZED'::public.attempt_status, 91, now()),
   ('77777777-7777-4777-8777-777777777772', '33333333-3333-4333-8333-333333333333',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555552',
-   'FINALIZED'::public.attempt_status, 92, now());
+   'FINALIZED'::public.attempt_status, 92, now()),
+  ('77777777-7777-4777-8777-777777777773', '33333333-3333-4333-8333-333333333334',
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555553',
+   'FINALIZED'::public.attempt_status, 88, now());
 
 INSERT INTO public.badges (id, code, name, slug, status, award_type)
 VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
@@ -3211,6 +3232,145 @@ BEGIN
   END IF;
 END;
 $stage7_tranche11_unrelated_user$;
+
+
+-- Stage 7 tranche 12: canonical competition result RPCs must reject legacy
+-- issuers before participant reads, retain owner/Admin access, deny IDOR, and
+-- withhold attempt score/rank until official result publication.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'ffffffff-ffff-4fff-8fff-fffffffffff6',
+  TRUE
+);
+DO $stage7_tranche12_legacy_issuer$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := pg_temp.stage3_user_rpc_call_error(
+    'public.get_canonical_competition_result(uuid)'
+  );
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_LEGACY_DIRECT_RESULT_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := pg_temp.stage3_user_rpc_call_error(
+    'public.get_my_canonical_competition_result(uuid)'
+  );
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_LEGACY_MY_RESULT_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche12_legacy_issuer$;
+
+-- The real Better Auth participant can read their own published result through
+-- the frontend wrapper and direct RPC; the same score remains hidden before
+-- publication even for the same valid owner identity.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'ffffffff-ffff-4fff-8fff-fffffffffff6',
+  TRUE
+);
+DO $stage7_tranche12_participant_positive$
+DECLARE
+  v_result jsonb;
+BEGIN
+  v_result := public.get_my_canonical_competition_result(
+    '33333333-3333-4333-8333-333333333333'::uuid
+  );
+  IF v_result ->> 'participant_id' IS DISTINCT FROM
+     '55555555-5555-4555-8555-555555555552'
+     OR v_result #>> '{attempt,score}' IS DISTINCT FROM '92'
+     OR v_result ->> 'published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_MY_PUBLISHED_RESULT_FAILED:%', v_result;
+  END IF;
+
+  v_result := public.get_canonical_competition_result(
+    '55555555-5555-4555-8555-555555555552'::uuid
+  );
+  IF v_result #>> '{attempt,score}' IS DISTINCT FROM '92'
+     OR v_result ->> 'published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_DIRECT_OWNER_RESULT_FAILED:%', v_result;
+  END IF;
+
+  v_result := public.get_canonical_competition_result(
+    '55555555-5555-4555-8555-555555555553'::uuid
+  );
+  IF v_result ->> 'published' IS DISTINCT FROM 'false'
+     OR v_result -> 'attempt' IS DISTINCT FROM 'null'::jsonb
+     OR v_result ->> 'rank' IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_UNPUBLISHED_SCORE_LEAK:%', v_result;
+  END IF;
+END;
+$stage7_tranche12_participant_positive$;
+
+-- A valid Better Auth student cannot read another participant's private result.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+DO $stage7_tranche12_unrelated_user$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_canonical_competition_result(
+      '55555555-5555-4555-8555-555555555552'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'NOT_AUTHORIZED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_CROSS_PARTICIPANT_RESULT_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche12_unrelated_user$;
+
+-- Admin access remains available through the issuer-gated Admin helper.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+DO $stage7_tranche12_admin_positive$
+DECLARE
+  v_result jsonb;
+BEGIN
+  v_result := public.get_canonical_competition_result(
+    '55555555-5555-4555-8555-555555555552'::uuid
+  );
+  IF v_result #>> '{attempt,score}' IS DISTINCT FROM '92'
+     OR v_result ->> 'published' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE12_ADMIN_RESULT_FAILED:%', v_result;
+  END IF;
+END;
+$stage7_tranche12_admin_positive$;
 
 RESET ROLE;
 ROLLBACK;
