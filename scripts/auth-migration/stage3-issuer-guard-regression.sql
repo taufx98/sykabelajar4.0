@@ -276,7 +276,104 @@ VALUES
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin'::public.app_role, TRUE);
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin'::public.app_role, TRUE),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student'::public.app_role, TRUE);
+
+-- Stage 7 Tranche 10 fixtures: a student catalog product, an active
+-- organizer membership/question bank, and a foreign-bank question.
+INSERT INTO public.commerce_products (
+  id, code, slug, name, product_type, audiences, price, currency,
+  is_active, is_featured, sort_order, metadata
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777793',
+  'STAGE7-ISSUER-PRODUCT',
+  'stage7-issuer-product',
+  'Stage 7 Issuer Boundary Product',
+  'DIGITAL_ITEM',
+  ARRAY['student']::text[],
+  1250,
+  'IDR',
+  TRUE,
+  FALSE,
+  0,
+  '{}'::jsonb
+);
+
+INSERT INTO public.organizers (
+  id, name, slug, owner_user_id, status, access_code
+)
+VALUES
+  (
+    '77777777-7777-4777-8777-777777777791',
+    'Stage 7 Question Organizer',
+    'stage7-question-organizer',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'ACTIVE',
+    'DEPRECATED'
+  ),
+  (
+    '77777777-7777-4777-8777-777777777795',
+    'Stage 7 Foreign Question Organizer',
+    'stage7-foreign-question-organizer',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'ACTIVE',
+    'DEPRECATED'
+  );
+
+INSERT INTO public.organizer_members (
+  organizer_id, user_id, member_role, is_active, role, status
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777791',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'owner',
+  TRUE,
+  'owner',
+  'ACTIVE'
+);
+
+INSERT INTO public.question_banks (id, organizer_id, name, status)
+VALUES
+  (
+    '77777777-7777-4777-8777-777777777792',
+    '77777777-7777-4777-8777-777777777791',
+    'Stage 7 Owned Question Bank',
+    'DRAFT'
+  ),
+  (
+    '77777777-7777-4777-8777-777777777796',
+    '77777777-7777-4777-8777-777777777795',
+    'Stage 7 Foreign Question Bank',
+    'DRAFT'
+  );
+
+INSERT INTO public.questions (
+  id, question_bank_id, type, prompt, points, required,
+  display_order, status, config
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777797',
+  '77777777-7777-4777-8777-777777777796',
+  'multiple-choice',
+  'Stage 7 foreign-bank question that must not be moved',
+  1,
+  TRUE,
+  1,
+  'DRAFT',
+  '{}'::jsonb
+);
+
+INSERT INTO public.question_options (
+  question_id, label, value, is_correct, display_order
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777797',
+  'Foreign existing option',
+  'foreign-existing-option',
+  TRUE,
+  1
+);
 
 INSERT INTO public.auth_issuer_guard_probe(id, owner_id, marker)
 VALUES
@@ -671,6 +768,63 @@ DECLARE
   v_denied boolean;
   v_count integer;
 BEGIN
+  -- A legacy Supabase Auth issuer cannot use a real active student role
+  -- to probe or purchase this active student-audience catalog product.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
+  v_denied := false;
+  BEGIN
+    PERFORM public.create_product_order(
+      '77777777-7777-4777-8777-777777777793'::uuid, 1
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_product_order';
+  END IF;
+
+  -- A legacy issuer also cannot use an existing active organizer-membership
+  -- row to read or mutate a question bank.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
+  v_denied := false;
+  BEGIN
+    PERFORM public.save_question_with_options(
+      NULL::uuid,
+      '77777777-7777-4777-8777-777777777792'::uuid,
+      'multiple-choice',
+      'Legacy issuer must not add this question',
+      1,
+      TRUE,
+      1,
+      'DRAFT',
+      '{}'::jsonb,
+      '[]'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:save_question_with_options';
+  END IF;
+
+  -- Restore the existing legacy Admin fixture for the earlier Admin probes.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+
   v_denied := false;
   BEGIN
     PERFORM public.archive_my_order_history('99999999-9999-4999-8999-999999999991'::uuid);
@@ -1502,6 +1656,9 @@ DECLARE
   v_status text;
   v_exam_denied boolean := false;
   v_options jsonb;
+  v_order public.orders;
+  v_question public.questions;
+  v_option_count integer;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
@@ -1511,6 +1668,113 @@ BEGIN
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
   END IF;
+
+  -- A non-Admin Better Auth student with the matching active role may buy
+  -- the student-audience product. The enclosing transaction rolls back order,
+  -- order_items, and audit rows after this end-to-end check.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
+  v_order := public.create_product_order(
+    '77777777-7777-4777-8777-777777777793'::uuid,
+    2
+  );
+  IF v_order.user_id <> 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
+     OR v_order.status <> 'DRAFT'
+     OR v_order.total <> 2500 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_STUDENT_PRODUCT_ORDER_FAILED:%',v_order;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.order_items
+  WHERE order_id = v_order.id;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_STUDENT_PRODUCT_ORDER_ITEMS_FAILED:%',v_count;
+  END IF;
+
+  -- An active organizer member without an Admin role may create a question
+  -- in their own bank. A foreign-bank question ID must not be movable into it.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
+  v_question := public.save_question_with_options(
+    NULL::uuid,
+    '77777777-7777-4777-8777-777777777792'::uuid,
+    'multiple-choice',
+    'Stage 7 owner-scoped question creation',
+    1,
+    TRUE,
+    1,
+    'DRAFT',
+    '{}'::jsonb,
+    '[
+      {"label":"A","value":"stage7-own-A","is_correct":true,"display_order":1},
+      {"label":"B","value":"stage7-own-B","is_correct":false,"display_order":2},
+      {"label":"C","value":"stage7-own-C","is_correct":false,"display_order":3}
+    ]'::jsonb
+  );
+  IF v_question.question_bank_id <> '77777777-7777-4777-8777-777777777792'::uuid THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_QUESTION_BANK_OWNERSHIP_FAILED:%',v_question;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.question_options
+  WHERE question_id = v_question.id;
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_QUESTION_OPTIONS_FAILED:%',v_count;
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.save_question_with_options(
+      '77777777-7777-4777-8777-777777777797'::uuid,
+      '77777777-7777-4777-8777-777777777792'::uuid,
+      'multiple-choice',
+      'Attempt to move a question from another organizer',
+      1,
+      TRUE,
+      2,
+      'DRAFT',
+      '{}'::jsonb,
+      '[
+        {"label":"A","value":"stage7-foreign-A","is_correct":true,"display_order":1},
+        {"label":"B","value":"stage7-foreign-B","is_correct":false,"display_order":2},
+        {"label":"C","value":"stage7-foreign-C","is_correct":false,"display_order":3}
+      ]'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'QUESTION_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_QUESTION_CROSS_BANK_UPDATE_ALLOWED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.questions
+  WHERE id = '77777777-7777-4777-8777-777777777797'::uuid
+    AND question_bank_id = '77777777-7777-4777-8777-777777777796'::uuid;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_FOREIGN_QUESTION_BANK_CHANGED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.question_options
+  WHERE question_id = '77777777-7777-4777-8777-777777777797'::uuid
+    AND value = 'foreign-existing-option';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_FOREIGN_QUESTION_OPTIONS_CHANGED';
+  END IF;
+
+  -- Restore the common Better Auth Admin subject for the remaining fixtures.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
 
   SELECT count(*) INTO v_count
   FROM public.list_teacher_collective_certificates('22222222-2222-4222-8222-222222222222'::uuid);
