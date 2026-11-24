@@ -25,6 +25,7 @@ const FUNCTIONS = new Map([
   ["private.provision_collective_registration", "private.provision_collective_registration(uuid)"],
   ["public.provision_collective_registration", "public.provision_collective_registration(uuid)"],
   ["public.regenerate_collective_participant_password", "public.regenerate_collective_participant_password(uuid)"],
+  ["public.get_canonical_competition_result", "public.get_canonical_competition_result(uuid)"],
   ["public.create_follow_request", "public.create_follow_request(uuid)"],
   ["public.get_my_canonical_competition_result", "public.get_my_canonical_competition_result(uuid)"],
   ["public.get_my_canonical_participant", "public.get_my_canonical_participant(uuid)"],
@@ -73,7 +74,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 37 reviewed Stage 3 functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 38 reviewed auth identity and participant-result functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -146,7 +147,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 37 Stage 3 functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 38 auth identity and participant-result functions. No database connection was opened.\n"
   );
 }
 

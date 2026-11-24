@@ -25,6 +25,7 @@ const names = [
   ["public","provision_collective_registration","p_registration_id uuid"],
   ["public","regenerate_collective_participant_password","p_participant_id uuid"],
   ["private","provision_collective_registration","p_registration_id uuid"],
+  ["public","get_canonical_competition_result","p_participant_id uuid"],
   ["public","create_follow_request","p_target_user_id uuid"],
   ["public","get_my_canonical_competition_result","p_competition_id uuid"],
   ["public","get_my_canonical_participant","p_competition_id uuid"],
@@ -54,8 +55,8 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,23),
-  personal_rpc_issuer_functions: functionRows.slice(23),
+  user_scoped_issuer_functions: functionRows.slice(10,24),
+  personal_rpc_issuer_functions: functionRows.slice(24),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -91,8 +92,8 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collectiv
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "service_role";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 37/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 37/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 38/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 38/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,

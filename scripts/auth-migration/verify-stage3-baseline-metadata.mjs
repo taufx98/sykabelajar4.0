@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const EXPECTED_COUNTS = {
   auth_dependent_functions: 10,
-  user_scoped_issuer_functions: 13,
+  user_scoped_issuer_functions: 14,
   personal_rpc_issuer_functions: 14,
   auth_and_profile_triggers: 7,
   uid_policies: 109,
@@ -76,7 +76,7 @@ async function main() {
   process.stdout.write(
     "Restored Stage 3 metadata matches production exactly: " +
     result.functions + " Auth-dependent functions, " +
-    result.userScopedIssuerFunctions + " user-scoped issuer RPCs, " +
+    result.userScopedIssuerFunctions + " user-scoped issuer/result RPCs, " +
     result.personalRpcIssuerFunctions + " personal issuer RPCs, " +
     result.triggers + " Auth/profile triggers, " +
     result.policies + " auth.uid() policies across " +
