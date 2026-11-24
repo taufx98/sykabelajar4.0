@@ -652,4 +652,112 @@ assert.equal(
   "save_question_with_options must terminate with a semicolon immediately after its closing dollar quote",
 );
 
-console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
+
+
+
+const trancheElevenFunctions = [
+  "finalize_attempt_manual",
+  "get_attempt_grading_limits",
+  "publish_competition_results",
+  "release_organizer_competition",
+];
+const trancheElevenFirstRead = {
+  finalize_attempt_manual: /SELECT a\.\* INTO v_attempt[\s\S]*?FROM public\.attempts a[\s\S]*?JOIN public\.competitions c/i,
+  get_attempt_grading_limits: /SELECT a\.\* INTO v_attempt[\s\S]*?FROM public\.attempts a[\s\S]*?JOIN public\.competitions c/i,
+  publish_competition_results: /SELECT c\.\* INTO v_comp[\s\S]*?FROM public\.competitions c/i,
+  release_organizer_competition: /select c\.\* into v_comp[\s\S]*?from public\.competitions c/i,
+};
+for (const name of trancheElevenFunctions) {
+  assert.ok(
+    adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy issuer denial: " + name,
+  );
+  assert.ok(
+    adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth positive boundary: " + name,
+  );
+  const definition = draft.match(
+    new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
+  )?.[0] ?? "";
+  assert.ok(definition, "missing Stage 3 function: " + name);
+  const issuerCheck = definition.search(/private\.current_user_is_better_auth\(\)/i);
+  const firstRead = definition.search(trancheElevenFirstRead[name]);
+  assert.ok(issuerCheck >= 0 && firstRead >= 0 && issuerCheck < firstRead,
+    "Better Auth issuer must be checked before the first protected read: " + name);
+  assert.doesNotMatch(definition, /FROM\s+(?:public\.)?user_roles\b/i,
+    "function must not authorize from direct legacy user_roles: " + name);
+}
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.finalize_attempt_manual[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /private\.current_user_can_edit_competition\(c\.organizer_id\)/i,
+  "manual finalization must scope the attempt's initial row read to an Admin or competition editor",
+);
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.get_attempt_grading_limits[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /private\.current_user_is_organizer_for\(c\.organizer_id\)/i,
+  "grading limits must scope the attempt's initial row read to Admin or its organizer",
+);
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.publish_competition_results[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /private\.current_user_can_edit_competition\(c\.organizer_id\)[\s\S]*?FOR UPDATE OF c/i,
+  "publishing must hold the row lock only after its scoped owner/Admin predicate");
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.release_organizer_competition[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /private\.current_user_is_organizer_for\(c\.organizer_id\)[\s\S]*?for update of c/i,
+  "release must hold the row lock only after its scoped organizer/Admin predicate");
+
+
+for (const name of trancheElevenFunctions) {
+  const start = draft.indexOf("CREATE OR REPLACE FUNCTION public." + name + "(");
+  const open = draft.indexOf("$function$", start);
+  const close = draft.indexOf("$function$", open + "$function$".length);
+  assert.ok(start >= 0 && open > start && close > open,
+    "missing complete dollar-quoted function: " + name);
+  assert.equal(draft[close + "$function$".length], ";",
+    "function definition must be terminated before the next CREATE: " + name);
+}
+
+const trancheElevenOrganizerStart = regression.indexOf("DO $stage7_tranche11_organizer_positive$");
+const trancheElevenOrganizerEnd = regression.indexOf(
+  "$stage7_tranche11_organizer_positive$;",
+  trancheElevenOrganizerStart,
+);
+assert.ok(trancheElevenOrganizerStart >= 0 && trancheElevenOrganizerEnd > trancheElevenOrganizerStart,
+  "missing positive organizer-owner runtime coverage for tranche 11");
+const trancheElevenOrganizerPositive = regression.slice(
+  trancheElevenOrganizerStart,
+  trancheElevenOrganizerEnd,
+);
+for (const name of trancheElevenFunctions) {
+  assert.ok(trancheElevenOrganizerPositive.includes("public." + name + "("),
+    "missing organizer-positive runtime call: " + name);
+}
+assert.ok(trancheElevenOrganizerPositive.includes("PREVIEW_ATTEMPT_NOT_GRADABLE"),
+  "manual grading must reach the preview guard for an authorized organizer");
+assert.ok(trancheElevenOrganizerPositive.includes("already_published"),
+  "organizer result publication test must stop at its no-op already-published boundary");
+assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
+  "organizer release test must reach the existing non-draft validation boundary");
+assert.ok(trancheElevenOrganizerPositive.includes("77777777-7777-4777-8777-777777777791"),
+  "organizer-positive runtime fixture must use the existing synthetic owner membership");
+
+const trancheElevenOutsiderStart = regression.indexOf("DO $stage7_tranche11_unrelated_user$");
+const trancheElevenOutsiderEnd = regression.indexOf(
+  "$stage7_tranche11_unrelated_user$;",
+  trancheElevenOutsiderStart,
+);
+assert.ok(trancheElevenOutsiderStart >= 0 && trancheElevenOutsiderEnd > trancheElevenOutsiderStart,
+  "missing unrelated Better Auth user IDOR-denial block");
+const trancheElevenOutsider = regression.slice(trancheElevenOutsiderStart, trancheElevenOutsiderEnd);
+for (const name of trancheElevenFunctions) {
+  assert.ok(trancheElevenOutsider.includes("public." + name + "("),
+    "missing unrelated-user scope test: " + name);
+  assert.ok(trancheElevenOutsider.includes("STAGE3_BETTER_AUTH_OUTSIDER_RPC_SCOPE_FAILED:" + name),
+    "missing unrelated-user denial assertion: " + name);
+}
+assert.ok(trancheElevenOutsider.includes("'ATTEMPT_NOT_FOUND'"));
+assert.ok(trancheElevenOutsider.includes("'COMPETITION_NOT_FOUND'"));
+assert.ok(trancheElevenOutsider.includes("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+  "IDOR test must use the distinct synthetic Better Auth student identity");
+
+console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
