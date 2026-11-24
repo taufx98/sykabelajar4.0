@@ -93,7 +93,7 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collectiv
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
 assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 38/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 37/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 38/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
