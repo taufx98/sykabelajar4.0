@@ -4493,7 +4493,7 @@ BEGIN
 
   RETURN v_attempt;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_attempt_grading_limits(p_attempt_id uuid)
  RETURNS TABLE(question_id uuid, max_score numeric, question_snapshot jsonb)
@@ -4573,7 +4573,7 @@ BEGIN
   ) snapshot ON true
   WHERE gi.attempt_id = v_attempt.id;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.publish_competition_results(p_competition_id uuid)
  RETURNS jsonb
@@ -4743,7 +4743,7 @@ BEGIN
     'published_at', clock_timestamp()
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.release_organizer_competition(p_competition_id uuid)
  RETURNS jsonb
@@ -4813,7 +4813,7 @@ begin
     'published_question_count',v_question_count
   );
 end;
-$function$
+$function$;
 
 
 COMMIT;
