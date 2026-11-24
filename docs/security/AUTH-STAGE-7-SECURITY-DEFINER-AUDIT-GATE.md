@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking, updated 23 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking, updated 24 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -30,6 +30,18 @@ The read-only Production `md5(pg_proc.prosrc)` fingerprints for these 26 signatu
 PR #257 (Tranche 06: ten additional voucher, plan, referral, competition, post, product, and shop-banner Admin mutations) has merged after commit `298e2a1`. Its PR static, Local Supabase, frontend build, and Pages checks passed; the next protected schema-only baseline on the merge commit is still required before those ten signatures can be added to the manual-review count.
 
 The final activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`: it requires all 202 exact post-Stage-3/pre-issuer-guard fingerprints and class-specific evidence. The global Stage 7 Production gate remains NO-GO. No Production DDL/DML or account-data migration was performed.
+
+## Additional manual review — 24 November 2026
+
+[Tranche 11](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-11-2026-11-24.md) adds four issuer-first, caller-scoped grading/publication RPCs: `finalize_attempt_manual(uuid,numeric,text)`, `get_attempt_grading_limits(uuid)`, `publish_competition_results(uuid)`, and `release_organizer_competition(uuid)`.
+
+The immutable 21 November triage source hashes were compared with a read-only Production DB2 catalog query on 24 November. All four exact `md5(pg_proc.prosrc)` values matched. Production owner, SECURITY DEFINER flag, empty `search_path`, ACL entries, and effective role execution flags also matched the inventory: owner `postgres`; `authenticated` and `service_role` EXECUTE; `anon` EXECUTE false. The Production query was SELECT-only.
+
+The protected Auth Production Schema Baseline [#45374215915](https://github.com/taufx98/sykabelajar4.0/actions/runs/45374215915) passed **68/68 steps** on commit `07ccaddd2a2ab745243f71dcbe726d170f61d1a3`. Its schema-only PostgreSQL 17.6 disposable restore passed the legacy-issuer denial, Better Auth Admin, organizer-owner, unrelated Better Auth IDOR, Stage 3 rollback, 69-FK rehearsals, all 23 no-policy table ACL boundaries, all 14 portal invalid-token cases, valid portal lifecycle/password selector checks, and Stage 5 two-user Cloudinary/payment Edge integration. Supabase Local Auth Claims CI [#45374216128](https://github.com/taufx98/sykabelajar4.0/actions/runs/45374216128) passed on the same commit.
+
+**Cumulative manual review: 40/202 exact signatures; 162 remain.** This adds four accepted signatures to the previous 36/202 count. This is partial per-function source/runtime evidence only; it does not change the global Production gate.
+
+The final activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0` until all 202 signatures have exact post-Stage-3 fingerprints, classification, and class-specific tests. Production DB2 remains **NO-GO**. No Production DDL/DML, account-row change, role/grant/policy change, Worker deployment, DNS change, or secret change was made.
 
 ## Read-only live snapshot — 21 November 2026
 
