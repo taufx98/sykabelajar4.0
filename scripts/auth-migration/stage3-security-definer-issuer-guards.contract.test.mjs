@@ -510,4 +510,15 @@ assert.match(createCertificateAsset,
   /c\.user_id = v_uid[\s\S]*?private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_is_organizer_for\(comp\.organizer_id\)/i,
   "certificate asset lookup must be scoped to owner, Admin, or authorized organizer");
 
+
+const collectiveOrderDefinition = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.create_collective_certificate_order[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(collectiveOrderDefinition,
+  /SELECT cc\.\*[\s\S]*?INTO v_cert[\s\S]*?FOR UPDATE OF cc[\s\S]*?SELECT cp\.\*[\s\S]*?INTO v_cp/i,
+  "collective certificate and participant rows must be loaded with separate typed INTO targets");
+assert.doesNotMatch(collectiveOrderDefinition,
+  /SELECT\s+cc\s*,\s*cp\s+INTO\s+v_cert\s*,\s*v_cp/i,
+  "PL/pgSQL cannot assign composite row variables in a multi-item INTO target list");
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
