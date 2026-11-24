@@ -756,8 +756,22 @@ assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555561'"
 assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555562'"));
 assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777781'"));
 assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777782'"));
-assert.ok(trancheElevenFixture.includes("'manual_grading'"));
-assert.ok(trancheElevenFixture.includes("STAGE7_MANUAL_GRADING_ENTITLEMENT_FIXTURE_MISSING"),
+const manualGradingEntitlementStart = regression.indexOf(
+  "-- The organizer-owned finalize probe must pass the real manual_grading",
+);
+const manualGradingEntitlementEnd = regression.indexOf(
+  "INSERT INTO public.organizer_plans",
+  manualGradingEntitlementStart,
+);
+assert.ok(manualGradingEntitlementStart >= 0 &&
+  manualGradingEntitlementEnd > manualGradingEntitlementStart,
+  "manual-grading entitlement fixture must be set before assigning the synthetic organizer plan");
+const manualGradingEntitlementFixture = regression.slice(
+  manualGradingEntitlementStart,
+  manualGradingEntitlementEnd,
+);
+assert.ok(manualGradingEntitlementFixture.includes("'manual_grading'"));
+assert.ok(manualGradingEntitlementFixture.includes("STAGE7_MANUAL_GRADING_ENTITLEMENT_FIXTURE_MISSING"),
   "organizer finalize probe must have a disposable manual-grading entitlement");
 assert.ok(trancheElevenFixture.includes("'Stage 7 Organizer Finalized Attempt'"));
 assert.ok(trancheElevenFixture.includes("'FINALIZED'::public.attempt_status"));
