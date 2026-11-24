@@ -3956,7 +3956,8 @@ begin
       cp.managed_by_user_id = v_uid
       or cp.user_id = v_uid
       or private.current_user_is_admin()
-    );
+    )
+  for update of cc;
 
   if not found then
     raise exception 'FORBIDDEN';
