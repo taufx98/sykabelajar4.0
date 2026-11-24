@@ -884,11 +884,18 @@ for (const marker of [
   "STAGE7_TRANCHE12_UNPUBLISHED_SCORE_LEAK",
   "STAGE7_TRANCHE12_CROSS_PARTICIPANT_RESULT_ALLOWED",
   "STAGE7_TRANCHE12_ADMIN_RESULT_FAILED",
+  "STAGE7_TRANCHE12_COLLECTIVE_IDOR_ALLOWED",
+  "STAGE7_TRANCHE12_COLLECTIVE_OWNER_RESULT_FAILED",
+  "STAGE7_TRANCHE12_COLLECTIVE_CANONICAL_PARTICIPANT_MISSING",
 ]) {
   assert.ok(regression.includes(marker), "missing tranche 12 runtime assertion: " + marker);
 }
 assert.ok(regression.includes("'55555555-5555-4555-8555-555555555553'"));
 assert.ok(regression.includes("'77777777-7777-4777-8777-777777777773'"));
 assert.ok(regression.includes("'stage3-unpublished-result-probe'"));
+assert.ok(regression.includes("'stage7-tranche12-collective-result-probe'"));
+assert.ok(regression.includes("'STAGE7-T12-COL-001'"));
+assert.ok(regression.includes("'66666666-6666-4666-8666-666666666682'"));
+assert.ok(regression.includes("'77777777-7777-4777-8777-777777777774'"));
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
