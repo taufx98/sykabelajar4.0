@@ -689,4 +689,15 @@ assert.match(
   /private\.current_user_is_organizer_for\(c\.organizer_id\)[\s\S]*?for update of c/i,
   "release must hold the row lock only after its scoped organizer/Admin predicate");
 
+
+for (const name of trancheElevenFunctions) {
+  const start = draft.indexOf("CREATE OR REPLACE FUNCTION public." + name + "(");
+  const open = draft.indexOf("$function$", start);
+  const close = draft.indexOf("$function$", open + "$function$".length);
+  assert.ok(start >= 0 && open > start && close > open,
+    "missing complete dollar-quoted function: " + name);
+  assert.equal(draft[close + "$function$".length], ";",
+    "function definition must be terminated before the next CREATE: " + name);
+}
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
