@@ -738,9 +738,9 @@ assert.ok(trancheElevenOrganizerPositive.includes("already_published"),
   "organizer result publication test must stop at its no-op already-published boundary");
 assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
   "organizer release test must reach the existing non-draft validation boundary");
-assert.match(regression,
-  /UPDATE public\\.competitions\\s+SET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid[\\s\\S]*?33333333-3333-4333-8333-333333333333/,
-  "organizer-positive competitions must be assigned to the existing synthetic owner organizer");
+assert.ok(regression.includes(
+  "UPDATE public.competitions\nSET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid"
+), "organizer-positive competitions must be assigned to the existing synthetic owner organizer");
 
 
 const trancheElevenOutsiderStart = regression.indexOf("DO $stage7_tranche11_unrelated_user$");
