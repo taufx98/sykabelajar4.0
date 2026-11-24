@@ -760,7 +760,7 @@ const manualGradingEntitlementStart = regression.indexOf(
   "-- The organizer-owned finalize probe must pass the real manual_grading",
 );
 const manualGradingEntitlementEnd = regression.indexOf(
-  "INSERT INTO public.organizer_plans",
+  "INSERT INTO public.questions",
   manualGradingEntitlementStart,
 );
 assert.ok(manualGradingEntitlementStart >= 0 &&
