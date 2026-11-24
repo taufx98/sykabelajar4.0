@@ -738,9 +738,30 @@ assert.ok(trancheElevenOrganizerPositive.includes("already_published"),
   "organizer result publication test must stop at its no-op already-published boundary");
 assert.ok(trancheElevenOrganizerPositive.includes("COMPETITION_NOT_DRAFT"),
   "organizer release test must reach the existing non-draft validation boundary");
-assert.ok(regression.includes(
-  "UPDATE public.competitions\nSET organizer_id = '77777777-7777-4777-8777-777777777791'::uuid"
-), "organizer-positive competitions must be assigned to the existing synthetic owner organizer");
+const trancheElevenFixtureStart = regression.indexOf(
+  "-- Tranche 11 owner-scope fixture: bind the organizer when the competition is",
+);
+const trancheElevenFixtureEnd = regression.indexOf(
+  "SELECT set_config('request.jwt.claims', '{}', TRUE);",
+  trancheElevenFixtureStart,
+);
+assert.ok(trancheElevenFixtureStart >= 0 && trancheElevenFixtureEnd > trancheElevenFixtureStart,
+  "organizer-scoped competition/attempt fixtures must be inserted after the synthetic organizer exists");
+const trancheElevenFixture = regression.slice(trancheElevenFixtureStart, trancheElevenFixtureEnd);
+assert.ok(trancheElevenFixture.includes("'44444444-4444-4444-8444-444444444441'"));
+assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777791'::uuid"));
+assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555561'"));
+assert.ok(trancheElevenFixture.includes("'55555555-5555-4555-8555-555555555562'"));
+assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777781'"));
+assert.ok(trancheElevenFixture.includes("'77777777-7777-4777-8777-777777777782'"));
+assert.doesNotMatch(
+  regression.slice(
+    regression.indexOf("-- Stage 7 tranche 11 organizer-owner positive tests:"),
+    regression.indexOf("DO $stage7_tranche11_organizer_positive$"),
+  ),
+  /UPDATE public\.competitions[\s\S]*?SET organizer_id/i,
+  "tranche 11 must not change immutable organizer_id after competition insert",
+);
 
 
 const trancheElevenOutsiderStart = regression.indexOf("DO $stage7_tranche11_unrelated_user$");
