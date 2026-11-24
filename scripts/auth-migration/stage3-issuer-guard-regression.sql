@@ -1266,6 +1266,42 @@ BEGIN
   END;
   IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_set_collective_certificate_price'; END IF;
 
+
+  -- Tranche 08: collective order, organizer serial and certificate asset
+  -- RPCs reject the legacy issuer before the first protected row read.
+  v_denied := false;
+  BEGIN
+    PERFORM public.create_collective_certificate_order(
+      '99999999-9999-4999-8999-999999999931'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_collective_certificate_order'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.assign_organizer_serial(
+      '99999999-9999-4999-8999-999999999932'::uuid,
+      '99999999-9999-4999-8999-999999999933'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:assign_organizer_serial'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.create_certificate_asset(
+      '99999999-9999-4999-8999-999999999934'::uuid,
+      'stage7-legacy-probe',
+      'https://res.cloudinary.com/stage7/image/upload/legacy-probe.png'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE3_LEGACY_ADMIN_RPC_ALLOWED:create_certificate_asset'; END IF;
+
 END;
 $legacy_user_rpc_issuer_gate$;
 
@@ -1379,6 +1415,46 @@ BEGIN
   IF NOT public.is_active_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_IS_ACTIVE_ADMIN_DENIED';
   END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.create_collective_certificate_order(
+      '99999999-9999-4999-8999-999999999931'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:create_collective_certificate_order';
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.assign_organizer_serial(
+      '99999999-9999-4999-8999-999999999932'::uuid,
+      '99999999-9999-4999-8999-999999999933'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'SERIAL_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:assign_organizer_serial';
+  END IF;
+
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.create_certificate_asset(
+      '99999999-9999-4999-8999-999999999934'::uuid,
+      'stage7-better-auth-probe',
+      'https://res.cloudinary.com/stage7/image/upload/better-auth-probe.png'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'CERTIFICATE_NOT_FOUND' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:create_certificate_asset';
+  END IF;
+
   v_exam_denied := false;
   BEGIN
     PERFORM public.admin_set_collective_certificate_price(NULL::numeric);

@@ -3738,4 +3738,344 @@ BEGIN
 END;
 $stage3_identity_personal_rpc_postflight$;
 
+
+-- Stage 7 Tranche 08: enforce Better Auth identity before reading protected
+-- organizer serials, certificate assets, or collective certificate orders.
+-- Owner/organizer scoping is included in the initial lookup to avoid
+-- distinguishing another user's object from an absent object.
+
+CREATE OR REPLACE FUNCTION public.assign_organizer_serial(p_serial_id uuid, p_certificate_id uuid)
+ RETURNS organizer_serials
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_serial public.organizer_serials;
+  v_cert public.certificates;
+  v_code text;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if auth.uid() is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  select s.*
+    into v_serial
+  from public.organizer_serials s
+  where s.id = p_serial_id
+    and (
+      private.current_user_is_admin()
+      or private.current_user_can_manage_organizer(s.organizer_id)
+    )
+  for update;
+
+  if not found then
+    raise exception 'SERIAL_NOT_FOUND';
+  end if;
+
+  select c.*
+    into v_cert
+  from public.certificates c
+  join public.competitions comp
+    on comp.id = c.competition_id
+  where c.id = p_certificate_id
+    and comp.organizer_id = v_serial.organizer_id
+    and (
+      private.current_user_is_admin()
+      or private.current_user_can_manage_organizer(comp.organizer_id)
+    );
+
+  if not found then
+    raise exception 'CERTIFICATE_NOT_FOUND';
+  end if;
+
+  if v_serial.source_order_id is not null then
+    if not exists (
+      select 1 from public.orders
+      where id = v_serial.source_order_id and status = 'PAID'
+    ) then
+      raise exception 'SERIAL_PURCHASE_NOT_PAID';
+    end if;
+  else
+    perform private.require_organizer_entitlement(v_serial.organizer_id, 'certificate_serials');
+  end if;
+
+  if v_serial.status <> 'AVAILABLE' then
+    raise exception 'SERIAL_UNAVAILABLE';
+  end if;
+
+  select verification_code
+    into v_code
+  from public.certificate_verifications
+  where certificate_id = p_certificate_id
+  order by issued_at desc nulls last
+  limit 1;
+
+  if v_code is null then
+    raise exception 'CERTIFICATE_VERIFICATION_NOT_FOUND';
+  end if;
+
+  update public.organizer_serials
+  set status = 'ASSIGNED',
+      certificate_id = p_certificate_id,
+      assigned_at = now(),
+      qr_payload = '/verify/' || v_code
+  where id = p_serial_id
+  returning * into v_serial;
+
+  update public.certificates
+  set serial_number = v_serial.serial_code,
+      updated_at = now()
+  where id = p_certificate_id;
+
+  return v_serial;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.create_certificate_asset(
+  p_certificate_id uuid,
+  p_public_id text,
+  p_secure_url text,
+  p_width integer DEFAULT NULL::integer,
+  p_height integer DEFAULT NULL::integer,
+  p_version bigint DEFAULT NULL::bigint,
+  p_resource_type text DEFAULT 'raw'::text,
+  p_asset_kind text DEFAULT 'certificate'::text,
+  p_config jsonb DEFAULT '{}'::jsonb
+)
+ RETURNS certificate_assets
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_cert public.certificates%ROWTYPE;
+  v_asset public.certificate_assets%ROWTYPE;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if v_uid is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  select c.*
+    into v_cert
+  from public.certificates c
+  where c.id = p_certificate_id
+    and (
+      c.user_id = v_uid
+      or private.current_user_is_admin()
+      or (
+        c.competition_id is not null
+        and exists (
+          select 1
+          from public.competitions comp
+          where comp.id = c.competition_id
+            and private.current_user_is_organizer_for(comp.organizer_id)
+        )
+      )
+    );
+
+  -- Missing and out-of-scope certificates deliberately share the same result.
+  if not found then
+    raise exception 'CERTIFICATE_NOT_FOUND';
+  end if;
+
+  select a.*
+    into v_asset
+  from public.certificate_assets a
+  where a.certificate_id = p_certificate_id
+    and a.revision = v_cert.current_revision
+    and a.asset_kind = p_asset_kind
+  order by a.created_at desc
+  limit 1;
+
+  if found then
+    update public.certificate_assets
+    set public_id = p_public_id,
+        secure_url = p_secure_url,
+        width = p_width,
+        height = p_height,
+        version = p_version,
+        resource_type = p_resource_type,
+        config = p_config,
+        updated_at = now()
+    where id = v_asset.id
+    returning * into v_asset;
+  else
+    insert into public.certificate_assets(
+      certificate_id, revision, public_id, secure_url, width, height,
+      version, resource_type, asset_kind, config
+    )
+    values (
+      p_certificate_id, v_cert.current_revision, p_public_id, p_secure_url,
+      p_width, p_height, p_version, p_resource_type, p_asset_kind, p_config
+    )
+    returning * into v_asset;
+  end if;
+
+  return v_asset;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.create_collective_certificate_order(p_certificate_id uuid)
+ RETURNS orders
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_cert public.collective_certificates%rowtype;
+  v_cp public.collective_participants%rowtype;
+  v_order public.orders%rowtype;
+  v_price numeric;
+  v_gateway_method public.organizer_payment_methods%rowtype;
+begin
+  if not private.current_user_is_better_auth() then
+    raise exception 'BETTER_AUTH_ISSUER_REQUIRED';
+  end if;
+  if v_uid is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  -- Resolve the certificate only through the caller-owned participant or
+  -- verified Admin scope, so another user's certificate cannot be probed.
+  select cc, cp
+    into v_cert, v_cp
+  from public.collective_certificates cc
+  join public.collective_participants cp
+    on cp.id = cc.collective_participant_id
+  where cc.id = p_certificate_id
+    and (
+      cp.managed_by_user_id = v_uid
+      or cp.user_id = v_uid
+      or private.current_user_is_admin()
+    )
+  for update of cc;
+
+  if not found then
+    raise exception 'FORBIDDEN';
+  end if;
+  if v_cert.status not in ('ELIGIBLE', 'DRAFT') then
+    raise exception 'CERTIFICATE_NOT_ORDERABLE';
+  end if;
+
+  v_price := public.get_collective_certificate_price();
+  if v_price <= 0 then
+    raise exception 'CERTIFICATE_PRICE_NOT_CONFIGURED';
+  end if;
+
+  if not exists (
+    select 1
+    from public.payment_gateway_state s
+    where s.id = true
+      and s.automatic_payments_enabled = true
+      and s.active_provider in ('MIDTRANS', 'XENITHPAY')
+  ) then
+    raise exception 'GLOBAL_GATEWAY_NOT_ACTIVE';
+  end if;
+
+  select *
+    into v_gateway_method
+  from public.organizer_payment_methods
+  where is_active = true
+    and details->>'global_gateway' = 'true'
+  limit 1;
+
+  if not found then
+    raise exception 'GLOBAL_PAYMENT_METHOD_NOT_CONFIGURED';
+  end if;
+
+  select o.*
+    into v_order
+  from public.collective_certificate_orders cco
+  join public.orders o on o.id = cco.order_id
+  where cco.collective_certificate_id = v_cert.id
+    and o.status not in ('CANCELLED', 'REFUNDED')
+  order by o.created_at desc
+  limit 1
+  for update of o;
+
+  if found then
+    if v_order.status = 'PAID' then
+      return v_order;
+    end if;
+    if v_order.status = 'PENDING_PAYMENT' and v_order.payment_method_id is null then
+      if exists (select 1 from public.payment_intents pi where pi.order_id = v_order.id) then
+        raise exception 'PAYMENT_SESSION_ALREADY_EXISTS';
+      end if;
+      update public.orders
+      set payment_method = v_gateway_method.name,
+          payment_provider = 'GLOBAL',
+          payment_method_id = v_gateway_method.id,
+          payment_proof_url = null,
+          payment_proof_status = 'NOT_SUBMITTED',
+          updated_at = now()
+      where id = v_order.id
+      returning * into v_order;
+      return v_order;
+    end if;
+    if v_order.payment_method_id = v_gateway_method.id then
+      return v_order;
+    end if;
+    raise exception 'PAYMENT_METHOD_LOCKED';
+  end if;
+
+  insert into public.orders(
+    user_id, status, subtotal, discount, shipping_cost, total, currency,
+    payment_method, payment_provider, payment_method_id, contact_name,
+    contact_email, contact_note, contact_fields, payment_proof_status
+  )
+  values (
+    v_uid, 'PENDING_PAYMENT', v_price, 0, 0, v_price, 'IDR',
+    v_gateway_method.name, 'GLOBAL', v_gateway_method.id, v_cp.full_name, null,
+    'Kolektif certificate: ' || v_cp.participant_code,
+    jsonb_build_object(
+      'collective_certificate_id', v_cert.id,
+      'participant_code', v_cp.participant_code
+    ),
+    'NOT_SUBMITTED'
+  )
+  returning * into v_order;
+
+  insert into public.order_items(
+    order_id, product_type, product_ref, name, quantity, unit_price,
+    line_total, metadata
+  )
+  values (
+    v_order.id, 'DIGITAL_ITEM', 'COLLECTIVE_CERTIFICATE',
+    'Sertifikat Peserta Kolektif — ' || v_cp.full_name, 1, v_price, v_price,
+    jsonb_build_object(
+      'collective_certificate_id', v_cert.id,
+      'participant_id', v_cp.id
+    )
+  );
+
+  insert into public.collective_certificate_orders(
+    collective_certificate_id, order_id, payer_user_id, amount, status
+  )
+  values (v_cert.id, v_order.id, v_uid, v_price, 'PENDING')
+  on conflict (collective_certificate_id) do update
+  set order_id = excluded.order_id,
+      payer_user_id = excluded.payer_user_id,
+      amount = excluded.amount,
+      status = 'PENDING',
+      updated_at = now();
+
+  update public.collective_certificates
+  set status = 'ELIGIBLE',
+      updated_at = now()
+  where id = v_cert.id;
+
+  return v_order;
+end;
+$function$;
+
+
 COMMIT;

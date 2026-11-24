@@ -347,23 +347,28 @@ const issuerFirstFunctionNames = [
   "auto_grade_essay_item",
   "generate_awards_for_competition",
   "issue_certificate_for_award",
+  "create_collective_certificate_order",
+  "assign_organizer_serial",
+  "create_certificate_asset",
 ];
+const firstProtectedReadPatterns = {
+  auto_grade_essay_item: /SELECT\s+\*\s+INTO\s+v_attempt/i,
+  generate_awards_for_competition: /SELECT\s+organizer_id\s+INTO\s+v_org/i,
+  issue_certificate_for_award: /SELECT\s+\*\s+INTO\s+v_award/i,
+  create_collective_certificate_order: /v_price\s*:=\s*public\.get_collective_certificate_price\(\)/i,
+  assign_organizer_serial: /SELECT\s+s\.\*\s+INTO\s+v_serial/i,
+  create_certificate_asset: /SELECT\s+c\.\*\s+INTO\s+v_cert/i,
+};
 for (const name of issuerFirstFunctionNames) {
   const definition = draft.match(
     new RegExp("CREATE OR REPLACE FUNCTION public\\." + name + "\\([\\s\\S]*?\\$function\\$;", "i"),
   )?.[0] ?? "";
   assert.ok(definition, "missing guarded function definition: " + name);
   const issuerCheck = definition.search(/private\.current_user_is_better_auth\(\)/i);
-  const firstProtectedRead = definition.search(
-    name === "auto_grade_essay_item"
-      ? /SELECT\s+\*\s+INTO\s+v_attempt/i
-      : name === "generate_awards_for_competition"
-        ? /SELECT\s+organizer_id\s+INTO\s+v_org/i
-        : /SELECT\s+\*\s+INTO\s+v_award/i,
-  );
+  const firstProtectedRead = definition.search(firstProtectedReadPatterns[name]);
   assert.ok(issuerCheck >= 0, "missing explicit Better Auth issuer check: " + name);
   assert.ok(firstProtectedRead >= 0 && issuerCheck < firstProtectedRead,
-    "issuer check must precede first protected row read: " + name);
+    "issuer check must precede first protected row/config read: " + name);
 }
 
 const trancheFourCases = [
@@ -455,5 +460,54 @@ assert.doesNotMatch(
   /FROM\s+(?:public\.)?user_roles\b/i,
   "collective certificate price must not authorize from a legacy role row",
 );
+
+
+const trancheEightFunctionNames = [
+  "create_collective_certificate_order",
+  "assign_organizer_serial",
+  "create_certificate_asset",
+];
+for (const name of trancheEightFunctionNames) {
+  assert.ok(
+    adminRpcLegacyBlock.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy-issuer denial assertion: " + name,
+  );
+  assert.ok(
+    adminRpcBetterAuthBlock.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth boundary assertion: " + name,
+  );
+}
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.create_collective_certificate_order[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /private\.current_user_is_better_auth\(\)[\s\S]*?v_price := public\.get_collective_certificate_price\(\)/,
+  "collective certificate pricing must be read only after Better Auth issuer validation",
+);
+assert.match(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.create_collective_certificate_order[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /cp\.managed_by_user_id = v_uid[\s\S]*?private\.current_user_is_admin\(\)/,
+  "collective certificate order must scope lookup to participant owner or Admin",
+);
+assert.doesNotMatch(
+  draft.match(/CREATE OR REPLACE FUNCTION public\.create_collective_certificate_order[\s\S]*?\$function\$;/i)?.[0] ?? "",
+  /FROM\s+(?:public\.)?user_roles\b/i,
+  "collective certificate orders must not authorize from legacy user_roles",
+);
+
+const assignOrganizerSerial = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.assign_organizer_serial[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(assignOrganizerSerial,
+  /FROM public\.organizer_serials s[\s\S]*?private\.current_user_can_manage_organizer\(s\.organizer_id\)/i,
+  "serial lookup must be scoped to its owner organizer or Admin");
+assert.match(assignOrganizerSerial,
+  /JOIN public\.competitions comp[\s\S]*?comp\.organizer_id = v_serial\.organizer_id[\s\S]*?private\.current_user_can_manage_organizer\(comp\.organizer_id\)/i,
+  "certificate lookup must be scoped to the serial's organizer or Admin");
+
+const createCertificateAsset = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.create_certificate_asset[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.match(createCertificateAsset,
+  /c\.user_id = v_uid[\s\S]*?private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_is_organizer_for\(comp\.organizer_id\)/i,
+  "certificate asset lookup must be scoped to owner, Admin, or authorized organizer");
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin and organizer RPCs use issuer-gated helpers and legacy app_users rows cannot satisfy the Admin checks.");
