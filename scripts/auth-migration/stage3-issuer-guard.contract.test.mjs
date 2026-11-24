@@ -56,6 +56,8 @@ assert.match(acceptance, /stage7-tranche12-collective-result-probe/);
 assert.match(tranche09Fixture, /STAGE7-T12-COL-001/);
 assert.match(acceptance, /STAGE7_TRANCHE12_COLLECTIVE_OWNER_RESULT_FAILED/);
 assert.match(acceptance, /STAGE7_TRANCHE12_COLLECTIVE_IDOR_ALLOWED/);
+assert.match(acceptance, /stage7\.tranche12\.canonical_participant_id/);
+assert.match(acceptance, /current_setting\('stage7\.tranche12\.canonical_participant_id'\)::uuid/);
 
 const ownerMembershipSetupStart = acceptance.indexOf("-- The owner must establish their own owner membership");
 const ownerMembershipSetupEnd = acceptance.indexOf(
