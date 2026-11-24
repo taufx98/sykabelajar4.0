@@ -871,7 +871,7 @@ const myCanonicalResult = draft.match(
 assert.ok(myCanonicalResult, "missing frontend my-result wrapper");
 assert.ok(
   myCanonicalResult.indexOf("private.current_user_is_better_auth()") <
-    myCanonicalResult.indexOf("FROM public.participants"),
+    myCanonicalResult.toLowerCase().indexOf("from public.participants"),
   "the frontend result wrapper must validate issuer before its participant lookup",
 );
 assert.match(myCanonicalResult, /return public\.get_canonical_competition_result\(v_pid\)/i);
