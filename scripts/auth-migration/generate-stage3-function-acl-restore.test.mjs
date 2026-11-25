@@ -55,6 +55,11 @@ const names = [
   ["public","remove_follow","p_following_id uuid"],
   ["public","respond_follow_request","p_follow_request_id uuid, p_approved boolean"],
   ["public","save_my_commerce_product_review","p_product_id uuid, p_rating smallint, p_review text"],
+  ["public","choose_organizer_plan","p_organizer_id uuid, p_plan_code text"],
+  ["public","get_organizer_competition_result_overview","p_competition_id uuid, p_limit integer, p_offset integer"],
+  ["public","list_organizer_registrations","p_organizer_id uuid"],
+  ["public","request_custom_organizer_plan","p_organizer_id uuid, p_requested_features jsonb, p_notes text, p_contact_whatsapp text"],
+  ["public","review_registration","p_registration_id uuid, p_decision text, p_reason text"],
 ];
 
 const functionRows = names.map(([schema_name,function_name,identity_arguments],index)=>({
@@ -101,14 +106,34 @@ assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_p
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "service_role";'));
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.regenerate_collective_participant_password(uuid) TO PUBLIC;'), false);
+
+for (const signature of [
+  "public.choose_organizer_plan(uuid,text)",
+  "public.get_organizer_competition_result_overview(uuid,integer,integer)",
+  "public.list_organizer_registrations(uuid)",
+  "public.request_custom_organizer_plan(uuid,jsonb,text,text)",
+  "public.review_registration(uuid,text,text)",
+]) {
+  assert.ok(sql.includes("REVOKE ALL PRIVILEGES ON FUNCTION " + signature +
+    " FROM PUBLIC, anon, authenticated, service_role;"),
+    "Tranche 16 ACL must be reset to the exact captured Production grant set: " + signature);
+  assert.ok(sql.includes("GRANT EXECUTE ON FUNCTION " + signature + " TO \"authenticated\";"),
+    "Tranche 16 authenticated EXECUTE must be restored from Production: " + signature);
+  assert.ok(sql.includes("GRANT EXECUTE ON FUNCTION " + signature + " TO \"service_role\";"),
+    "Tranche 16 service_role EXECUTE must be restored from Production: " + signature);
+  assert.equal(sql.includes("GRANT EXECUTE ON FUNCTION " + signature + " TO \"anon\";"), false,
+    "Tranche 16 must not gain anon EXECUTE: " + signature);
+  assert.equal(sql.includes("GRANT EXECUTE ON FUNCTION " + signature + " TO PUBLIC;"), false,
+    "Tranche 16 must not gain PUBLIC EXECUTE: " + signature);
+}
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO PUBLIC;'));
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "anon";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "authenticated";'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "service_role";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 53/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 53/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 58/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 58/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
