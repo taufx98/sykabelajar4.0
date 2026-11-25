@@ -3518,5 +3518,244 @@ BEGIN
 END;
 $stage7_tranche12_collective_manager_positive$;
 
+
+-- Stage 7 tranche 13: Admin/organizer entitlement reads and currency logs.
+-- The fixture has no imported auth.users or currency-log rows, so the tests
+-- assert caller authorization, owner scoping and successful valid paths while
+-- keeping all state inside this outer rollback-only transaction.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  TRUE
+);
+
+DO $stage7_tranche13_legacy_issuer$
+DECLARE
+  v_count integer;
+  v_error text;
+BEGIN
+  IF private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_ADMIN_HELPER_ACCEPTED';
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.get_all_currency_logs(100);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_ALL_CURRENCY_LOGS_LEAKED:%', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.get_user_currency_logs(auth.uid(), 50);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_SELF_CURRENCY_LOGS_LEAKED:%', v_count;
+  END IF;
+
+  v_error := pg_temp.stage3_user_rpc_call_error(
+    'public.get_active_organizer_entitlements(uuid)'
+  );
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_ENTITLEMENTS_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := pg_temp.stage3_user_rpc_call_error(
+    'public.get_organizer_effective_plan(uuid)'
+  );
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_EFFECTIVE_PLAN_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := pg_temp.stage3_user_rpc_call_error(
+    'public.get_organizer_competition_quota(uuid)'
+  );
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_COMPETITION_QUOTA_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche13_legacy_issuer$;
+
+-- Better Auth Admin retains the admin log and organizer plan/quota reads.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+
+DO $stage7_tranche13_admin_positive$
+DECLARE
+  v_count integer;
+  v_plan text;
+  v_quota record;
+BEGIN
+  IF NOT private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_BETTER_AUTH_ADMIN_HELPER_REJECTED';
+  END IF;
+
+  PERFORM * FROM public.get_all_currency_logs(100);
+  PERFORM * FROM public.get_user_currency_logs(auth.uid(), 50);
+
+  SELECT count(*) INTO v_count
+  FROM public.get_active_organizer_entitlements(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_count < 2 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ADMIN_ENTITLEMENTS_MISSING:%', v_count;
+  END IF;
+
+  SELECT plan_code INTO v_plan
+  FROM public.get_organizer_effective_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_plan IS DISTINCT FROM 'FREE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ADMIN_EFFECTIVE_PLAN_FAILED:%',
+      COALESCE(v_plan, 'NULL');
+  END IF;
+
+  SELECT * INTO v_quota
+  FROM public.get_organizer_competition_quota(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_quota.plan_code IS DISTINCT FROM 'FREE'
+     OR v_quota.is_admin IS DISTINCT FROM TRUE
+     OR v_quota.can_publish IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ADMIN_COMPETITION_QUOTA_FAILED:%',
+      row_to_json(v_quota);
+  END IF;
+END;
+$stage7_tranche13_admin_positive$;
+
+-- The active Better Auth organizer owner may inspect only their own plan,
+-- entitlements and publication quota; a different authenticated user cannot.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  TRUE
+);
+
+DO $stage7_tranche13_organizer_positive$
+DECLARE
+  v_count integer;
+  v_plan text;
+  v_quota record;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.get_active_organizer_entitlements(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_count < 2 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ORGANIZER_ENTITLEMENTS_MISSING:%', v_count;
+  END IF;
+
+  SELECT plan_code INTO v_plan
+  FROM public.get_organizer_effective_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_plan IS DISTINCT FROM 'FREE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ORGANIZER_EFFECTIVE_PLAN_FAILED:%',
+      COALESCE(v_plan, 'NULL');
+  END IF;
+
+  SELECT * INTO v_quota
+  FROM public.get_organizer_competition_quota(
+    '77777777-7777-4777-8777-777777777791'::uuid
+  );
+  IF v_quota.plan_code IS DISTINCT FROM 'FREE'
+     OR v_quota.is_admin IS DISTINCT FROM FALSE THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_ORGANIZER_COMPETITION_QUOTA_FAILED:%',
+      row_to_json(v_quota);
+  END IF;
+
+  PERFORM * FROM public.get_user_currency_logs(auth.uid(), 50);
+END;
+$stage7_tranche13_organizer_positive$;
+
+-- An unrelated Better Auth student cannot inspect a different organizer's
+-- entitlements, effective plan or publication quota, nor another user's logs.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+
+DO $stage7_tranche13_unrelated_user$
+DECLARE
+  v_error text;
+  v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.get_user_currency_logs(
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+    50
+  );
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_FOREIGN_CURRENCY_LOGS_LEAKED:%', v_count;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.get_active_organizer_entitlements(
+      '77777777-7777-4777-8777-777777777791'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_FOREIGN_ENTITLEMENTS_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.get_organizer_effective_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_FOREIGN_EFFECTIVE_PLAN_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.get_organizer_competition_quota(
+      '77777777-7777-4777-8777-777777777791'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE13_FOREIGN_COMPETITION_QUOTA_ALLOWED:%',
+      COALESCE(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche13_unrelated_user$;
+
 RESET ROLE;
 ROLLBACK;
