@@ -105,6 +105,11 @@ user_scoped_issuer_function_meta AS (
       'grade_essay_similarity',
       'save_manual_grading_item',
       'start_organizer_exam_preview',
+      'admin_adjust_user_currency',
+      'admin_assign_organizer_plan',
+      'admin_bulk_adjust_currency',
+      'admin_change_username',
+      'admin_create_organizer',
       'provision_collective_registration',
       'regenerate_collective_participant_password'
     )
