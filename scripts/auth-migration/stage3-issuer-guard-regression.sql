@@ -4047,5 +4047,288 @@ BEGIN
 END;
 $stage7_tranche14_unrelated_user$;
 
+
+
+-- Stage 7 tranche 15: Admin-only RPCs rely on the shared current_user_is_admin
+-- -> current_user_has_role -> current_user_is_better_auth chain. Seed one plan
+-- row only in this transaction so organizer creation/plan assignment can be
+-- exercised without importing Production catalog data.
+RESET ROLE;
+
+DO $stage7_tranche15_fixture_preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.plan_catalog
+    WHERE plan_code = 'STAGE7_T15_TEST'
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizers
+    WHERE slug = 'stage7-tranche15-fixture'
+  ) OR EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE username = 'stage7t15target'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FIXTURE_UUID_OR_KEY_COLLISION';
+  END IF;
+END;
+$stage7_tranche15_fixture_preflight$;
+
+INSERT INTO public.plan_catalog (plan_code, name, is_active)
+VALUES ('STAGE7_T15_TEST', 'Stage 7 Tranche 15 Synthetic Plan', TRUE);
+
+SET LOCAL ROLE authenticated;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+
+DO $stage7_tranche15_legacy_issuer$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_adjust_user_currency(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid, 'xp', 1, 'Stage 7 T15 legacy issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'Unauthorized: only admins can adjust currency.' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_CURRENCY_ADJUST_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_bulk_adjust_currency(
+      ARRAY['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
+      'edu_coin', 1, 'Stage 7 T15 legacy issuer bulk probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'Unauthorized: only admins can bulk adjust currency.' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_BULK_CURRENCY_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_assign_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      'STAGE7_T15_TEST', clock_timestamp(), clock_timestamp() + interval '30 days'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_PLAN_ASSIGN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_change_username(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+      'stage7t15legacyname', 'Stage 7 T15 legacy issuer probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_USERNAME_CHANGE_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.admin_create_organizer(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+      'Stage 7 T15 Legacy Organizer',
+      'stage7-t15-legacy-organizer'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_ORGANIZER_CREATE_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche15_legacy_issuer$;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+
+DO $stage7_tranche15_unrelated_user$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_adjust_user_currency(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid, 'xp', 1, 'Stage 7 T15 outsider probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'Unauthorized: only admins can adjust currency.' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_CURRENCY_ADJUST_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_bulk_adjust_currency(
+      ARRAY['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
+      'edu_coin', 1, 'Stage 7 T15 outsider bulk probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'Unauthorized: only admins can bulk adjust currency.' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_BULK_CURRENCY_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_assign_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      'STAGE7_T15_TEST', clock_timestamp(), clock_timestamp() + interval '30 days'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_PLAN_ASSIGN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_change_username(
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+      'stage7t15outsidername', 'Stage 7 T15 outsider probe'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_USERNAME_CHANGE_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.admin_create_organizer(
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+      'Stage 7 T15 Outsider Organizer',
+      'stage7-t15-outsider-organizer'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_ORGANIZER_CREATE_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche15_unrelated_user$;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+
+DO $stage7_tranche15_admin_positive$
+DECLARE
+  v_before_xp bigint;
+  v_before_coin bigint;
+  v_adjustment jsonb;
+  v_bulk jsonb;
+  v_profile public.profiles%ROWTYPE;
+  v_created_organizer record;
+  v_assigned_plan public.organizer_plans%ROWTYPE;
+  v_code_hash text;
+  v_stored_access_code text;
+BEGIN
+  SELECT total_xp, edu_coin
+  INTO v_before_xp, v_before_coin
+  FROM public.profiles
+  WHERE id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_TARGET_PROFILE_MISSING';
+  END IF;
+
+  SELECT public.admin_adjust_user_currency(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+    'xp', 3, 'Stage 7 T15 rollback-only Admin currency adjustment'
+  ) INTO v_adjustment;
+  IF (v_adjustment ->> 'balance_after')::bigint IS DISTINCT FROM coalesce(v_before_xp,0) + 3 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_CURRENCY_ADJUST_FAILED:%', v_adjustment;
+  END IF;
+
+  SELECT public.admin_bulk_adjust_currency(
+    ARRAY['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
+    'edu_coin', 5, 'Stage 7 T15 rollback-only Admin bulk adjustment'
+  ) INTO v_bulk;
+  IF (v_bulk ->> 'success')::integer IS DISTINCT FROM 1
+     OR (v_bulk ->> 'failed')::integer IS DISTINCT FROM 0
+     OR (v_bulk -> 'results' -> 0 ->> 'new')::bigint IS DISTINCT FROM coalesce(v_before_coin,0) + 5 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_BULK_CURRENCY_FAILED:%', v_bulk;
+  END IF;
+
+  SELECT * INTO v_profile
+  FROM public.admin_change_username(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'stage7t15target',
+    'Stage 7 T15 rollback-only Admin username change'
+  );
+  IF v_profile.id IS DISTINCT FROM 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
+     OR v_profile.username IS DISTINCT FROM 'stage7t15target' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_USERNAME_CHANGE_FAILED:%', row_to_json(v_profile);
+  END IF;
+
+  SELECT * INTO v_created_organizer
+  FROM public.admin_create_organizer(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+    'Stage 7 Tranche 15 Synthetic Organizer',
+    'stage7-tranche15-fixture'
+  );
+  IF v_created_organizer.id IS NULL
+     OR v_created_organizer.slug IS DISTINCT FROM 'stage7-tranche15-fixture'
+     OR length(v_created_organizer.access_code) <> 10 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_ORGANIZER_CREATE_FAILED:%', row_to_json(v_created_organizer);
+  END IF;
+
+  SELECT code_hash INTO v_code_hash
+  FROM private.organizer_access_codes
+  WHERE organizer_id = v_created_organizer.id;
+  SELECT access_code INTO v_stored_access_code
+  FROM public.organizers
+  WHERE id = v_created_organizer.id;
+  IF v_code_hash IS NULL OR length(v_code_hash) < 30
+     OR v_code_hash = v_created_organizer.access_code
+     OR v_stored_access_code IS DISTINCT FROM 'SECURED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ACCESS_CODE_NOT_HASH_ONLY';
+  END IF;
+
+  SELECT * INTO v_assigned_plan
+  FROM public.admin_assign_organizer_plan(
+    v_created_organizer.id,
+    'STAGE7_T15_TEST',
+    clock_timestamp(),
+    clock_timestamp() + interval '30 days'
+  );
+  IF v_assigned_plan.organizer_id IS DISTINCT FROM v_created_organizer.id
+     OR v_assigned_plan.plan_code IS DISTINCT FROM 'STAGE7_T15_TEST'
+     OR v_assigned_plan.is_active IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_PLAN_ASSIGN_FAILED:%', row_to_json(v_assigned_plan);
+  END IF;
+END;
+$stage7_tranche15_admin_positive$;
+
 RESET ROLE;
 ROLLBACK;
