@@ -94,7 +94,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 58 reviewed auth identity, result, entitlement, quota, exam-flow and Admin functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 58 reviewed auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -167,7 +167,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 58 auth identity, result, entitlement, quota, exam-flow and Admin functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 58 auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions. No database connection was opened.\n"
   );
 }
 
