@@ -26,6 +26,11 @@ const FUNCTIONS = new Map([
   ["public.provision_collective_registration", "public.provision_collective_registration(uuid)"],
   ["public.regenerate_collective_participant_password", "public.regenerate_collective_participant_password(uuid)"],
   ["public.get_canonical_competition_result", "public.get_canonical_competition_result(uuid)"],
+  ["public.get_all_currency_logs", "public.get_all_currency_logs(integer)"],
+  ["public.get_user_currency_logs", "public.get_user_currency_logs(uuid,integer)"],
+  ["public.get_active_organizer_entitlements", "public.get_active_organizer_entitlements(uuid)"],
+  ["public.get_organizer_effective_plan", "public.get_organizer_effective_plan(uuid)"],
+  ["public.get_organizer_competition_quota", "public.get_organizer_competition_quota(uuid)"],
   ["public.create_follow_request", "public.create_follow_request(uuid)"],
   ["public.get_my_canonical_competition_result", "public.get_my_canonical_competition_result(uuid)"],
   ["public.get_my_canonical_participant", "public.get_my_canonical_participant(uuid)"],
@@ -74,7 +79,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 38 reviewed auth identity and participant-result functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 43 reviewed auth identity, result, entitlement and quota functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -147,7 +152,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 38 auth identity and participant-result functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 43 auth identity, result, entitlement and quota functions. No database connection was opened.\n"
   );
 }
 
