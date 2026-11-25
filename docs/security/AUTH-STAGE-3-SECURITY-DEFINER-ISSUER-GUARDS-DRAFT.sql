@@ -5252,8 +5252,6 @@ END;
 $function$;
 
 
-COMMIT;
-
 
 -- Stage 7 tranche 14: exam-flow RPCs must establish the exact Better Auth
 -- issuer and organizer/Admin boundary before any protected read or lock.
@@ -6031,3 +6029,5 @@ BEGIN
   RETURN private.build_linear_exam_state(v_attempt.id);
 END;
 $function$;
+
+COMMIT;
