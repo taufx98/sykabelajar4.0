@@ -41,6 +41,7 @@ const names = [
   ["public","grade_essay_similarity","p_attempt_id uuid, p_question_id uuid"],
   ["public","save_manual_grading_item","p_grading_item_id uuid, p_score numeric, p_feedback text"],
   ["public","start_organizer_exam_preview","p_competition_id uuid"],
+  ["public","start_linear_exam_attempt","p_competition_id uuid"],
   ["public","create_follow_request","p_target_user_id uuid"],
   ["public","get_my_canonical_competition_result","p_competition_id uuid"],
   ["public","get_my_canonical_participant","p_competition_id uuid"],
@@ -75,11 +76,11 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,44),
-  personal_rpc_issuer_functions: functionRows.slice(44),
+  user_scoped_issuer_functions: functionRows.slice(10,45),
+  personal_rpc_issuer_functions: functionRows.slice(45),
 };
 assert.equal(metadata.auth_dependent_functions.length, 10);
-assert.equal(metadata.user_scoped_issuer_functions.length, 34);
+assert.equal(metadata.user_scoped_issuer_functions.length, 35);
 assert.equal(metadata.personal_rpc_issuer_functions.length, 14);
 
 const sql = renderFunctionAclRestore(metadata);
@@ -100,6 +101,9 @@ assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uu
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "service_role";/);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO "anon";'), false);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.start_linear_exam_attempt\\(uuid\\) TO "authenticated";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.start_linear_exam_attempt\\(uuid\\) TO "service_role";/);
+assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.start_linear_exam_attempt(uuid) TO "anon";'), false);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "authenticated";'));
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "service_role";'));
@@ -135,8 +139,8 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collectiv
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "service_role";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 58/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 58/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 59/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 59/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
