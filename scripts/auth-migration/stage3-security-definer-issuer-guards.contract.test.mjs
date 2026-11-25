@@ -164,6 +164,35 @@ assert.match(individualExamAccess, /private\.current_user_is_better_auth\(\)/);
 assert.match(individualExamAccess, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(individualExamAccess, /preview_owner_id IS DISTINCT FROM v_uid/);
 assert.match(individualExamAccess, /participant_id IS DISTINCT FROM v_uid/);
+
+const examStartPreflight = draft.match(
+  /DO \$stage7_exam_start_fingerprint_preflight\$[\s\S]*?\$stage7_exam_start_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(examStartPreflight, "missing exact Production fingerprint preflight for individual exam start");
+assert.match(examStartPreflight, /04edc4504123d2afddd186c1d3fa750e/);
+assert.match(examStartPreflight, /p\.prosecdef/);
+assert.match(examStartPreflight, /search_path=""/);
+assert.match(examStartPreflight, /has_function_privilege\('anon'/);
+assert.match(examStartPreflight, /has_function_privilege\('authenticated'/);
+assert.match(examStartPreflight, /has_function_privilege\('service_role'/);
+
+const examStart = draft.match(
+  /CREATE OR REPLACE FUNCTION public\.start_linear_exam_attempt\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(examStart, "missing individual exam start replacement");
+const examStartIssuerAt = examStart.indexOf("private.current_user_is_better_auth()");
+const examStartFirstProtectedRead = examStart.indexOf("FROM public.attempts");
+assert.ok(examStartIssuerAt >= 0 && examStartFirstProtectedRead > examStartIssuerAt,
+  "individual exam start must validate Better Auth before its first existing-attempt lookup");
+assert.match(examStart, /BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(examStart, /private\.prepare_linear_exam_runtime/);
+assert.match(draft, /DO \$stage7_exam_start_metadata_postflight\$/);
+
+for (const marker of [
+  "STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING",
+  "STAGE3_LEGACY_START_LINEAR_EXAM_ACTIVE_ATTEMPT_NOT_DENIED",
+  "77777777-7777-4777-8777-777777777775",
+]) assert.ok(regression.includes(marker), "missing individual exam start regression marker: " + marker);
 const realtimeBind = draft.match(/CREATE OR REPLACE FUNCTION private\.collective_realtime_bind[\s\S]*?\$function\$;/i)?.[0] ?? "";
 assert.match(realtimeBind, /private\.current_user_is_better_auth\(\)/);
 
