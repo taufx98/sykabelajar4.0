@@ -64,7 +64,7 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
       ...(index===3 || index===8 ? [{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
       ...(index===6 ? [{grantee:"PUBLIC",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"anon",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
       ...(index===7 || index===9 ? [{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
-      ...(index===27 ? [{grantee:"PUBLIC",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
+      ...(index===22 ? [{grantee:"PUBLIC",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
       ...(index>=10 && index!==22 ? [{grantee:"authenticated",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"},{grantee:"service_role",privilege_type:"EXECUTE",is_grantable:false,grantor:"postgres"}] : []),
     ],
   }));
