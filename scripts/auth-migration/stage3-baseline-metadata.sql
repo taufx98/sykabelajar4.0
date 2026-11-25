@@ -95,6 +95,11 @@ user_scoped_issuer_function_meta AS (
       'complete_daily_task',
       'create_ad_banner_payment_order',
       'get_canonical_competition_result',
+      'get_all_currency_logs',
+      'get_user_currency_logs',
+      'get_active_organizer_entitlements',
+      'get_organizer_effective_plan',
+      'get_organizer_competition_quota',
       'provision_collective_registration',
       'regenerate_collective_participant_password'
     )
