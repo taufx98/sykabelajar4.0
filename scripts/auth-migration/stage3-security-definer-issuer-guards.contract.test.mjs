@@ -1087,8 +1087,8 @@ for (const item of tranche15Functions) {
     "tranche 15 issuer guard must precede protected database actions: " + item.name);
   assert.match(fn, /BETTER_AUTH_ISSUER_REQUIRED/);
   assert.match(fn, /private.current_user_is_admin\(\)/);
-  assert.ok(regression.includes("public." + item.signature),
-    "missing tranche 15 runtime signature: " + item.signature);
+  assert.match(regression, new RegExp("public[.]" + item.name + "\\("),
+    "missing tranche 15 runtime call: " + item.name);
 }
 
 const tranche15Preflight = draft.match(
