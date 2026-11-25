@@ -7,6 +7,41 @@
 
 BEGIN;
 
+DO $stage7_tranche15_fingerprint_preflight$
+DECLARE v_expected record; v_oid regprocedure; v_hash text; v_owner text;
+  v_security_definer boolean; v_config text[]; v_public_execute boolean;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.admin_adjust_user_currency(uuid,text,bigint,text)', 'aa8f5302840e39728b006496ad817275', 'search_path=public, private'),
+      ('public.admin_assign_organizer_plan(uuid,text,timestamp with time zone,timestamp with time zone)', 'ee68f31dacc8cee624c80e7a42867c56', 'search_path=public, private'),
+      ('public.admin_bulk_adjust_currency(uuid[],text,bigint,text)', '1f6215cccdc383120bbb6787e96c0f2b', 'search_path=public, private'),
+      ('public.admin_change_username(uuid,text,text)', 'f2303a11f19903297554639acbd87f06', 'search_path=public, private'),
+      ('public.admin_create_organizer(uuid,text,text)', '860b70d16e5d204cebad55924ab8c66d', 'search_path=public, private')
+    ) AS expected(signature, source_hash, function_config)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FUNCTION_MISSING:%',v_expected.signature; END IF;
+    SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef, p.proconfig,
+      EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl
+              WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE')
+      INTO v_hash,v_owner,v_security_definer,v_config,v_public_execute
+    FROM pg_catalog.pg_proc p WHERE p.oid=v_oid;
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_config IS DISTINCT FROM ARRAY[v_expected.function_config]::text[]
+       OR v_public_execute
+       OR pg_catalog.has_function_privilege('anon',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role',v_oid,'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE15_FINGERPRINT_OR_ACL_DRIFT:%',v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche15_fingerprint_preflight$;
+
+
 CREATE OR REPLACE FUNCTION private.current_user_is_better_auth()
  RETURNS boolean
  LANGUAGE sql
@@ -445,7 +480,7 @@ CREATE OR REPLACE FUNCTION public.admin_adjust_user_currency(p_target_user_id uu
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public', 'private'
-AS $function$ DECLARE v_admin_id uuid:=auth.uid();v_is_admin boolean:=false;v_column text;v_old_balance bigint:=0;v_new_balance bigint:=0;v_row jsonb; BEGIN IF p_currency_type NOT IN('xp','edu_coin') THEN RAISE EXCEPTION 'Invalid currency_type: %. Must be "xp" or "edu_coin".',p_currency_type;END IF;IF p_delta=0 THEN RAISE EXCEPTION 'Delta must not be zero.';END IF;IF trim(p_reason)='' THEN RAISE EXCEPTION 'Reason must not be empty.';END IF;SELECT private.current_user_is_admin() INTO v_is_admin;IF NOT v_is_admin THEN RAISE EXCEPTION 'Unauthorized: only admins can adjust currency.';END IF;IF p_currency_type='xp' THEN v_column:='total_xp';ELSE v_column:='edu_coin';END IF;EXECUTE format('SELECT COALESCE(%I, 0) FROM profiles WHERE id = $1 FOR UPDATE',v_column) INTO v_old_balance USING p_target_user_id;IF v_old_balance IS NULL THEN RAISE EXCEPTION 'User not found: %',p_target_user_id;END IF;v_new_balance:=v_old_balance+p_delta;IF v_new_balance<0 THEN RAISE EXCEPTION 'Insufficient %: current %, delta % would result in %.',p_currency_type,v_old_balance,p_delta,v_new_balance;END IF;EXECUTE format('UPDATE profiles SET %I = $1, updated_at = now() WHERE id = $2',v_column) USING v_new_balance,p_target_user_id;INSERT INTO currency_adjustment_logs(admin_id,target_user_id,currency_type,delta,reason,balance_before,balance_after) VALUES(v_admin_id,p_target_user_id,p_currency_type,p_delta,p_reason,v_old_balance,v_new_balance) RETURNING to_jsonb(currency_adjustment_logs.*) INTO v_row;RETURN v_row;END;$function$;
+AS $function$ DECLARE v_admin_id uuid:=auth.uid();v_is_admin boolean:=false;v_column text;v_old_balance bigint:=0;v_new_balance bigint:=0;v_row jsonb; BEGIN IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF; IF p_currency_type NOT IN('xp','edu_coin') THEN RAISE EXCEPTION 'Invalid currency_type: %. Must be "xp" or "edu_coin".',p_currency_type;END IF;IF p_delta=0 THEN RAISE EXCEPTION 'Delta must not be zero.';END IF;IF trim(p_reason)='' THEN RAISE EXCEPTION 'Reason must not be empty.';END IF;SELECT private.current_user_is_admin() INTO v_is_admin;IF NOT v_is_admin THEN RAISE EXCEPTION 'Unauthorized: only admins can adjust currency.';END IF;IF p_currency_type='xp' THEN v_column:='total_xp';ELSE v_column:='edu_coin';END IF;EXECUTE format('SELECT COALESCE(%I, 0) FROM profiles WHERE id = $1 FOR UPDATE',v_column) INTO v_old_balance USING p_target_user_id;IF v_old_balance IS NULL THEN RAISE EXCEPTION 'User not found: %',p_target_user_id;END IF;v_new_balance:=v_old_balance+p_delta;IF v_new_balance<0 THEN RAISE EXCEPTION 'Insufficient %: current %, delta % would result in %.',p_currency_type,v_old_balance,p_delta,v_new_balance;END IF;EXECUTE format('UPDATE profiles SET %I = $1, updated_at = now() WHERE id = $2',v_column) USING v_new_balance,p_target_user_id;INSERT INTO currency_adjustment_logs(admin_id,target_user_id,currency_type,delta,reason,balance_before,balance_after) VALUES(v_admin_id,p_target_user_id,p_currency_type,p_delta,p_reason,v_old_balance,v_new_balance) RETURNING to_jsonb(currency_adjustment_logs.*) INTO v_row;RETURN v_row;END;$function$;
 
 -- admin_bulk_adjust_currency
 CREATE OR REPLACE FUNCTION public.admin_bulk_adjust_currency(p_user_ids uuid[], p_currency_type text, p_delta bigint, p_reason text DEFAULT 'Bulk admin adjustment'::text)
@@ -453,7 +488,7 @@ CREATE OR REPLACE FUNCTION public.admin_bulk_adjust_currency(p_user_ids uuid[], 
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public', 'private'
-AS $function$ DECLARE v_admin_id uuid:=auth.uid();v_is_admin boolean:=false;v_column text;v_success int:=0;v_failed int:=0;v_skipped int:=0;v_results jsonb:='[]'::jsonb;v_uid uuid;v_old bigint;v_new bigint;v_username text;v_display text; BEGIN IF p_currency_type NOT IN('xp','edu_coin') THEN RAISE EXCEPTION 'Invalid currency_type: %',p_currency_type;END IF;IF p_delta=0 THEN RAISE EXCEPTION 'Delta must not be zero.';END IF;IF trim(p_reason)='' THEN RAISE EXCEPTION 'Reason must not be empty.';END IF;IF array_length(p_user_ids,1) IS NULL OR array_length(p_user_ids,1)=0 THEN RAISE EXCEPTION 'No users selected.';END IF;SELECT private.current_user_is_admin() INTO v_is_admin;IF NOT v_is_admin THEN RAISE EXCEPTION 'Unauthorized: only admins can bulk adjust currency.';END IF;IF p_currency_type='xp' THEN v_column:='total_xp';ELSE v_column:='edu_coin';END IF;FOREACH v_uid IN ARRAY p_user_ids LOOP BEGIN EXECUTE format('SELECT COALESCE(%I, 0) FROM profiles WHERE id = $1',v_column) INTO v_old USING v_uid;IF v_old IS NULL THEN v_failed:=v_failed+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','not_found');CONTINUE;END IF;v_new:=v_old+p_delta;IF v_new<0 THEN v_skipped:=v_skipped+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','insufficient','balance',v_old);CONTINUE;END IF;EXECUTE format('UPDATE profiles SET %I = $1, updated_at = now() WHERE id = $2',v_column) USING v_new,v_uid;INSERT INTO currency_adjustment_logs(admin_id,target_user_id,currency_type,delta,reason,balance_before,balance_after) VALUES(v_admin_id,v_uid,p_currency_type,p_delta,p_reason,v_old,v_new);SELECT username,COALESCE(full_name,username,'Pengguna') INTO v_username,v_display FROM profiles WHERE id=v_uid;INSERT INTO notifications(user_id,type,title,body,data) VALUES(v_uid,'rank-up',CASE WHEN p_delta>0 THEN 'Selamat! Kamu menerima '||p_delta||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END ELSE 'Penyesuaian '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' oleh Admin' END,CASE WHEN p_delta>0 THEN 'Kamu menerima +'||p_delta||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' dari Admin. Alasan: '||p_reason ELSE 'Saldo kamu dikurangi '||abs(p_delta)||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' oleh Admin. Alasan: '||p_reason END,jsonb_build_object('link','/leaderboard','icon','coins'));v_success:=v_success+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'username',v_username,'status','ok','old',v_old,'new',v_new);EXCEPTION WHEN OTHERS THEN v_failed:=v_failed+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','error','message',SQLERRM);END;END LOOP;RETURN jsonb_build_object('success',v_success,'failed',v_failed,'skipped',v_skipped,'total',array_length(p_user_ids,1),'results',v_results);END;$function$;
+AS $function$ DECLARE v_admin_id uuid:=auth.uid();v_is_admin boolean:=false;v_column text;v_success int:=0;v_failed int:=0;v_skipped int:=0;v_results jsonb:='[]'::jsonb;v_uid uuid;v_old bigint;v_new bigint;v_username text;v_display text; BEGIN IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF; IF p_currency_type NOT IN('xp','edu_coin') THEN RAISE EXCEPTION 'Invalid currency_type: %',p_currency_type;END IF;IF p_delta=0 THEN RAISE EXCEPTION 'Delta must not be zero.';END IF;IF trim(p_reason)='' THEN RAISE EXCEPTION 'Reason must not be empty.';END IF;IF array_length(p_user_ids,1) IS NULL OR array_length(p_user_ids,1)=0 THEN RAISE EXCEPTION 'No users selected.';END IF;SELECT private.current_user_is_admin() INTO v_is_admin;IF NOT v_is_admin THEN RAISE EXCEPTION 'Unauthorized: only admins can bulk adjust currency.';END IF;IF p_currency_type='xp' THEN v_column:='total_xp';ELSE v_column:='edu_coin';END IF;FOREACH v_uid IN ARRAY p_user_ids LOOP BEGIN EXECUTE format('SELECT COALESCE(%I, 0) FROM profiles WHERE id = $1',v_column) INTO v_old USING v_uid;IF v_old IS NULL THEN v_failed:=v_failed+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','not_found');CONTINUE;END IF;v_new:=v_old+p_delta;IF v_new<0 THEN v_skipped:=v_skipped+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','insufficient','balance',v_old);CONTINUE;END IF;EXECUTE format('UPDATE profiles SET %I = $1, updated_at = now() WHERE id = $2',v_column) USING v_new,v_uid;INSERT INTO currency_adjustment_logs(admin_id,target_user_id,currency_type,delta,reason,balance_before,balance_after) VALUES(v_admin_id,v_uid,p_currency_type,p_delta,p_reason,v_old,v_new);SELECT username,COALESCE(full_name,username,'Pengguna') INTO v_username,v_display FROM profiles WHERE id=v_uid;INSERT INTO notifications(user_id,type,title,body,data) VALUES(v_uid,'rank-up',CASE WHEN p_delta>0 THEN 'Selamat! Kamu menerima '||p_delta||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END ELSE 'Penyesuaian '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' oleh Admin' END,CASE WHEN p_delta>0 THEN 'Kamu menerima +'||p_delta||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' dari Admin. Alasan: '||p_reason ELSE 'Saldo kamu dikurangi '||abs(p_delta)||' '||CASE WHEN p_currency_type='xp' THEN 'XP' ELSE 'Coin EDU' END||' oleh Admin. Alasan: '||p_reason END,jsonb_build_object('link','/leaderboard','icon','coins'));v_success:=v_success+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'username',v_username,'status','ok','old',v_old,'new',v_new);EXCEPTION WHEN OTHERS THEN v_failed:=v_failed+1;v_results:=v_results||jsonb_build_object('user_id',v_uid,'status','error','message',SQLERRM);END;END LOOP;RETURN jsonb_build_object('success',v_success,'failed',v_failed,'skipped',v_skipped,'total',array_length(p_user_ids,1),'results',v_results);END;$function$;
 
 -- admin_set_certificate_status
 CREATE OR REPLACE FUNCTION public.admin_set_certificate_status(p_certificate_verification_id uuid, p_to_status certificate_status, p_reason text DEFAULT NULL::text)
@@ -5991,5 +6026,95 @@ BEGIN
 
   PERFORM private.prepare_linear_exam_runtime(v_attempt.id);
   RETURN private.build_linear_exam_state(v_attempt.id);
+END;
+$function$;
+
+-- Stage 7 tranche 15: explicit Better Auth issuer guard before each Admin
+-- helper, protected read, lock, or write. Existing business behavior is kept.
+CREATE OR REPLACE FUNCTION public.admin_assign_organizer_plan(
+  p_organizer_id uuid, p_plan_code text,
+  p_starts_at timestamp with time zone DEFAULT now(),
+  p_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone
+)
+RETURNS public.organizer_plans
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'private'
+AS $function$
+DECLARE v_plan public.plan_catalog; v_assignment public.organizer_plans;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF;
+  IF NOT private.current_user_is_admin() THEN RAISE EXCEPTION 'ACCESS_DENIED'; END IF;
+  SELECT * INTO v_plan FROM public.plan_catalog
+  WHERE plan_code=upper(p_plan_code) AND is_active=TRUE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'PLAN_NOT_AVAILABLE'; END IF;
+  UPDATE public.organizer_plans SET is_active=FALSE, ends_at=coalesce(p_starts_at,now())
+  WHERE organizer_id=p_organizer_id AND is_active=TRUE;
+  INSERT INTO public.organizer_plans(organizer_id,plan_code,starts_at,ends_at,is_active)
+  VALUES(p_organizer_id,upper(p_plan_code),coalesce(p_starts_at,now()),p_ends_at,TRUE)
+  RETURNING * INTO v_assignment;
+  PERFORM private.write_audit('organizer.plan_assigned','organizer_plans',v_assignment.id::text,
+    'Admin assigned organizer plan',NULL,
+    jsonb_build_object('organizer_id',p_organizer_id,'plan_code',upper(p_plan_code),
+      'starts_at',p_starts_at,'ends_at',p_ends_at),NULL);
+  RETURN v_assignment;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.admin_change_username(
+  p_user_id uuid,p_username text,p_reason text DEFAULT 'Admin panel'::text
+)
+RETURNS public.profiles
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'private'
+AS $function$
+DECLARE v_before public.profiles; v_after public.profiles; v_username text;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF;
+  IF NOT private.current_user_is_admin() THEN RAISE EXCEPTION 'ACCESS_DENIED'; END IF;
+  IF p_user_id IS NULL THEN RAISE EXCEPTION 'USER_ID_REQUIRED'; END IF;
+  v_username:=lower(regexp_replace(btrim(coalesce(p_username,'')),'^@+',''));
+  IF v_username='' THEN RAISE EXCEPTION 'USERNAME_REQUIRED'; END IF;
+  IF length(v_username)<3 OR length(v_username)>30 THEN RAISE EXCEPTION 'USERNAME_LENGTH_INVALID'; END IF;
+  IF v_username !~ '^[a-z0-9][a-z0-9._-]*$' THEN RAISE EXCEPTION 'USERNAME_FORMAT_INVALID'; END IF;
+  SELECT * INTO v_before FROM public.profiles WHERE id=p_user_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'USER_NOT_FOUND'; END IF;
+  IF v_before.username=v_username THEN RETURN v_before; END IF;
+  IF EXISTS(SELECT 1 FROM public.profiles WHERE username=v_username AND id<>p_user_id)
+  THEN RAISE EXCEPTION 'USERNAME_TAKEN'; END IF;
+  UPDATE public.profiles SET username=v_username,updated_at=now()
+  WHERE id=p_user_id RETURNING * INTO v_after;
+  PERFORM private.write_audit('user.username_update','user',p_user_id::text,p_reason,
+    jsonb_build_object('username',v_before.username),
+    jsonb_build_object('username',v_after.username),NULL);
+  RETURN v_after;
+EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION 'USERNAME_TAKEN';
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.admin_create_organizer(
+  p_owner_user_id uuid,p_name text,p_slug text
+)
+RETURNS TABLE(id uuid,name text,slug text,access_code text)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'private'
+AS $function$
+DECLARE v_id uuid; v_code text; v_code_hash text;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF;
+  IF NOT private.current_user_is_admin() THEN RAISE EXCEPTION 'ACCESS_DENIED'; END IF;
+  IF p_owner_user_id IS NULL THEN RAISE EXCEPTION 'OWNER_REQUIRED'; END IF;
+  IF coalesce(trim(p_name),'')='' OR coalesce(trim(p_slug),'')=''
+  THEN RAISE EXCEPTION 'NAME_AND_SLUG_REQUIRED'; END IF;
+  v_code:=upper(substr(encode(gen_random_bytes(6),'hex'),1,10));
+  v_code_hash:=crypt(v_code,gen_salt('bf'));
+  INSERT INTO public.organizers(name,slug,owner_user_id,status,access_code)
+  VALUES(trim(p_name),trim(p_slug),p_owner_user_id,'ACTIVE','SECURED')
+  RETURNING id INTO v_id;
+  INSERT INTO public.organizer_members(organizer_id,user_id,member_role,role,is_active,status)
+  VALUES(v_id,p_owner_user_id,'owner','owner',TRUE,'ACTIVE');
+  INSERT INTO private.organizer_access_codes(organizer_id,code_hash)
+  VALUES(v_id,v_code_hash);
+  INSERT INTO public.organizer_plans(organizer_id,plan_code,starts_at,ends_at,is_active)
+  VALUES(v_id,'FREE',now(),now()+interval '6 months',TRUE);
+  PERFORM private.write_audit('organizer.admin_created','organizers',v_id::text,
+    'Admin created organizer',NULL,jsonb_build_object('owner_user_id',p_owner_user_id),NULL);
+  RETURN QUERY SELECT v_id,p_name,p_slug,v_code;
 END;
 $function$;
