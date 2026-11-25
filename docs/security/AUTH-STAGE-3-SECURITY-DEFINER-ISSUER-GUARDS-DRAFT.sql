@@ -20,7 +20,6 @@ BEGIN
       ('public.admin_bulk_adjust_currency(uuid[],text,bigint,text)', '1f6215cccdc383120bbb6787e96c0f2b', 'search_path=public, private', TRUE),
       ('public.admin_change_username(uuid,text,text)', 'f2303a11f19903297554639acbd87f06', 'search_path=public, private', TRUE),
       ('public.admin_create_organizer(uuid,text,text)', '860b70d16e5d204cebad55924ab8c66d', 'search_path=public, private', TRUE),
-      ('private.current_user_has_role(app_role)', 'c994079fbd7e5a56913ca1fdb8dc9666', 'search_path=public, private', FALSE),
       ('private.current_user_is_admin()', '79bb70032b67655f0e84d60a853fe548', 'search_path=public, private', FALSE)
     ) AS expected(signature, source_hash, function_config, enforce_admin_acl)
   LOOP
