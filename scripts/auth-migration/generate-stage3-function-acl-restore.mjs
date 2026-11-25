@@ -55,6 +55,11 @@ const FUNCTIONS = new Map([
   ["public.remove_follow", "public.remove_follow(uuid)"],
   ["public.respond_follow_request", "public.respond_follow_request(uuid,boolean)"],
   ["public.save_my_commerce_product_review", "public.save_my_commerce_product_review(uuid,smallint,text)"],
+  ["public.choose_organizer_plan", "public.choose_organizer_plan(uuid,text)"],
+  ["public.get_organizer_competition_result_overview", "public.get_organizer_competition_result_overview(uuid,integer,integer)"],
+  ["public.list_organizer_registrations", "public.list_organizer_registrations(uuid)"],
+  ["public.request_custom_organizer_plan", "public.request_custom_organizer_plan(uuid,jsonb,text,text)"],
+  ["public.review_registration", "public.review_registration(uuid,text,text)"],
 ]);
 const ALLOWED_GRANTEES = new Set(["PUBLIC", "anon", "authenticated", "service_role", "postgres"]);
 
@@ -89,7 +94,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 53 reviewed auth identity, result, entitlement, quota, exam-flow and Admin functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 58 reviewed auth identity, result, entitlement, quota, exam-flow and Admin functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -162,7 +167,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 53 auth identity, result, entitlement, quota, exam-flow and Admin functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 58 auth identity, result, entitlement, quota, exam-flow and Admin functions. No database connection was opened.\n"
   );
 }
 
