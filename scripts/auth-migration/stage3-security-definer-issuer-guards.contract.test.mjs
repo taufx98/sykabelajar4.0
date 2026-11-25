@@ -1132,6 +1132,30 @@ for (const name of [
   "admin_create_organizer",
 ]) assert.ok(regression.includes("public." + name + "("), "missing tranche 15 runtime call: " + name);
 
+const tranche15FixturePreflight = regression.match(
+  /DO \$stage7_tranche15_fixture_preflight\$[\s\S]*?\$stage7_tranche15_fixture_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche15FixturePreflight, "missing Tranche 15 disposable fixture preflight");
+assert.match(
+  tranche15FixturePreflight,
+  /owner_user_id = 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid/,
+  "Tranche 15 organizer owner must be rejected if it already owns an organizer",
+);
+
+const tranche15Positive = regression.match(
+  /DO \$stage7_tranche15_admin_positive\$[\s\S]*?\$stage7_tranche15_admin_positive\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche15Positive, "missing Tranche 15 positive Admin runtime block");
+assert.match(
+  tranche15Positive,
+  /public\.admin_create_organizer\([\s\S]*?'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid/,
+  "Tranche 15 positive organizer creation must use the unclaimed synthetic owner",
+);
+assert.match(tranche15Positive, /STAGE7_TRANCHE15_ADMIN_OWNER_MEMBERSHIP_FAILED/);
+assert.match(tranche15Positive, /member_role = 'owner'/);
+assert.match(regression, /extensions\.crypt\(v_access_code, v_code_hash\)/,
+  "hash verification must resolve pgcrypto through the trusted extensions schema");
+
 for (const marker of [
   "STAGE7_TRANCHE15_LEGACY_CURRENCY_ADJUST_ALLOWED",
   "STAGE7_TRANCHE15_LEGACY_BULK_CURRENCY_ALLOWED",
