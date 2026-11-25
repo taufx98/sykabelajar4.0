@@ -46,9 +46,9 @@ The rollback-only Stage 3 issuer regression covers both RPCs and the supported i
 
 ## Count and remaining gate
 
-Previous accepted manual review: 40/202.  
+Previous accepted manual review after Tranches 01–11: 61/202.  
 Tranche 12 accepted signatures: 2.  
-**Cumulative accepted manual review: 42/202; 160 remain.**
+**Cumulative accepted manual review: 63/202; 139 remain.**
 
 This partial per-function review count does not change the final activation manifest. The canonical all-functions manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0` until all 202 signatures have exact post-Stage-3 fingerprints, explicit classification, and class-specific tests. Production DB2 remains **NO-GO**.
 
