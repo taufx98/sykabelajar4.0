@@ -100,6 +100,11 @@ user_scoped_issuer_function_meta AS (
       'get_active_organizer_entitlements',
       'get_organizer_effective_plan',
       'get_organizer_competition_quota',
+      'get_linear_exam_activity',
+      'grade_competition_attempt',
+      'grade_essay_similarity',
+      'save_manual_grading_item',
+      'start_organizer_exam_preview',
       'provision_collective_registration',
       'regenerate_collective_participant_password'
     )
