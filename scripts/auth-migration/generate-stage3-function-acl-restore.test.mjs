@@ -75,9 +75,12 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,39),
-  personal_rpc_issuer_functions: functionRows.slice(39),
+  user_scoped_issuer_functions: functionRows.slice(10,44),
+  personal_rpc_issuer_functions: functionRows.slice(44),
 };
+assert.equal(metadata.auth_dependent_functions.length, 10);
+assert.equal(metadata.user_scoped_issuer_functions.length, 34);
+assert.equal(metadata.personal_rpc_issuer_functions.length, 14);
 
 const sql = renderFunctionAclRestore(metadata);
 assert.match(sql,/REVOKE ALL PRIVILEGES ON FUNCTION "public"."create_organizer"|REVOKE ALL PRIVILEGES ON FUNCTION public\.create_organizer/);
