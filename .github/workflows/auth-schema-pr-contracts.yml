@@ -43,7 +43,7 @@ jobs:
       - name: Verify exact restored FK catalog contract
         run: node scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
 
-      - name: Verify Stage 3 Production metadata parity and 37-function ACL restore
+      - name: Verify Stage 3 Production metadata parity and 58-function ACL restore
         run: |
           node scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
           node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
@@ -70,6 +70,9 @@ jobs:
 
       - name: Verify all 23 application RLS table-boundary reviews
         run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
+
+      - name: Verify Stage 7 disposable no-browser table ACL restore contract
+        run: node scripts/auth-migration/stage7-disposable-table-acl-restore.contract.test.mjs
 
       - name: Verify collective participant portal token boundary
         run: node scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs
