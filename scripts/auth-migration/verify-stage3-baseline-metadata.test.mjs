@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
 import { verifyStage3BaselineMetadata } from "./verify-stage3-baseline-metadata.mjs";
+import { readFileSync } from "node:fs";
+
+const metadataSql = readFileSync(new URL("./stage3-baseline-metadata.sql", import.meta.url), "utf8");
+for (const name of [
+  "choose_organizer_plan",
+  "get_organizer_competition_result_overview",
+  "list_organizer_registrations",
+  "request_custom_organizer_plan",
+  "review_registration",
+]) assert.ok(metadataSql.includes("'" + name + "'"), "missing Tranche 16 ACL metadata query entry: " + name);
 
 const makeMetadata = () => ({
   auth_dependent_functions: Array.from({ length: 10 }, (_, i) => ({ name: "function_" + i, definition_md5: "f" + i })),
-  user_scoped_issuer_functions: Array.from({ length: 29 }, (_, i) => ({ name: "user_rpc_" + i, definition_md5: "r" + i })),
+  user_scoped_issuer_functions: Array.from({ length: 34 }, (_, i) => ({ name: "user_rpc_" + i, definition_md5: "r" + i })),
   personal_rpc_issuer_functions: Array.from({ length: 14 }, (_, i) => ({ name: "personal_rpc_" + i, definition_md5: "p" + i })),
   stage5_payment_fulfillment_function: {
     schema_name: "public",
@@ -31,7 +41,7 @@ const restored = structuredClone(production);
 const result = verifyStage3BaselineMetadata(production, restored);
 assert.deepEqual(result, {
   functions: 10,
-  userScopedIssuerFunctions: 29,
+  userScopedIssuerFunctions: 34,
   personalRpcIssuerFunctions: 14,
   triggers: 7,
   policies: 109,
