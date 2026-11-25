@@ -31,6 +31,11 @@ const FUNCTIONS = new Map([
   ["public.get_active_organizer_entitlements", "public.get_active_organizer_entitlements(uuid)"],
   ["public.get_organizer_effective_plan", "public.get_organizer_effective_plan(uuid)"],
   ["public.get_organizer_competition_quota", "public.get_organizer_competition_quota(uuid)"],
+  ["public.admin_adjust_user_currency", "public.admin_adjust_user_currency(uuid,text,bigint,text)"],
+  ["public.admin_assign_organizer_plan", "public.admin_assign_organizer_plan(uuid,text,timestamp with time zone,timestamp with time zone)"],
+  ["public.admin_bulk_adjust_currency", "public.admin_bulk_adjust_currency(uuid[],text,bigint,text)"],
+  ["public.admin_change_username", "public.admin_change_username(uuid,text,text)"],
+  ["public.admin_create_organizer", "public.admin_create_organizer(uuid,text,text)"],
   ["public.get_linear_exam_activity", "public.get_linear_exam_activity(uuid,integer,integer)"],
   ["public.grade_competition_attempt", "public.grade_competition_attempt(uuid)"],
   ["public.grade_essay_similarity", "public.grade_essay_similarity(uuid,uuid)"],
@@ -84,7 +89,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 48 reviewed auth identity, result, entitlement, quota and exam-flow functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 53 reviewed auth identity, result, entitlement, quota, exam-flow and Admin functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -157,7 +162,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 48 auth identity, result, entitlement, quota and exam-flow functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 53 auth identity, result, entitlement, quota, exam-flow and Admin functions. No database connection was opened.\n"
   );
 }
 
