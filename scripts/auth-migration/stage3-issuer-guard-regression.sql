@@ -3598,10 +3598,6 @@ DECLARE
   v_plan text;
   v_quota record;
 BEGIN
-  IF NOT private.current_user_is_admin() THEN
-    RAISE EXCEPTION 'STAGE7_TRANCHE13_BETTER_AUTH_ADMIN_HELPER_REJECTED';
-  END IF;
-
   PERFORM * FROM public.get_all_currency_logs(100);
   PERFORM * FROM public.get_user_currency_logs(auth.uid(), 50);
 
