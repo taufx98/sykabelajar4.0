@@ -3542,10 +3542,6 @@ DECLARE
   v_count integer;
   v_error text;
 BEGIN
-  IF private.current_user_is_admin() THEN
-    RAISE EXCEPTION 'STAGE7_TRANCHE13_LEGACY_ADMIN_HELPER_ACCEPTED';
-  END IF;
-
   SELECT count(*) INTO v_count
   FROM public.get_all_currency_logs(100);
   IF v_count <> 0 THEN
