@@ -4064,6 +4064,9 @@ BEGIN
     WHERE plan_code = 'PRO'
   ) OR EXISTS (
     SELECT 1 FROM public.organizers
+    WHERE owner_user_id = 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizers
     WHERE slug = 'stage7-tranche15-fixture'
   ) OR EXISTS (
     SELECT 1 FROM public.profiles
@@ -4253,6 +4256,7 @@ DECLARE
   v_profile public.profiles%ROWTYPE;
   v_created_organizer record;
   v_assigned_plan public.organizer_plans%ROWTYPE;
+  v_owner_membership_count integer;
 BEGIN
   SELECT total_xp, edu_coin
   INTO v_before_xp, v_before_coin
@@ -4293,7 +4297,7 @@ BEGIN
 
   SELECT * INTO v_created_organizer
   FROM public.admin_create_organizer(
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+    'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid,
     'Stage 7 Tranche 15 Synthetic Organizer',
     'stage7-tranche15-fixture'
   );
@@ -4301,6 +4305,18 @@ BEGIN
      OR v_created_organizer.slug IS DISTINCT FROM 'stage7-tranche15-fixture'
      OR length(v_created_organizer.access_code) <> 10 THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_ORGANIZER_CREATE_FAILED:%', row_to_json(v_created_organizer);
+  END IF;
+
+  SELECT count(*) INTO v_owner_membership_count
+  FROM public.organizer_members
+  WHERE organizer_id = v_created_organizer.id
+    AND user_id = 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+    AND member_role = 'owner'
+    AND role = 'owner'
+    AND is_active IS TRUE
+    AND status = 'ACTIVE';
+  IF v_owner_membership_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_OWNER_MEMBERSHIP_FAILED:%', v_owner_membership_count;
   END IF;
 
   PERFORM set_config('stage7.tranche15.organizer_id', v_created_organizer.id::text, TRUE);
@@ -4344,7 +4360,7 @@ BEGIN
      OR v_code_hash IS NULL
      OR length(v_code_hash) < 30
      OR v_code_hash = v_access_code
-     OR crypt(v_access_code, v_code_hash) IS DISTINCT FROM v_code_hash THEN
+     OR extensions.crypt(v_access_code, v_code_hash) IS DISTINCT FROM v_code_hash THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE15_ACCESS_CODE_NOT_HASH_ONLY';
   END IF;
 END;
