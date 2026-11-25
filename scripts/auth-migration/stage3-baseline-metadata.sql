@@ -111,7 +111,12 @@ user_scoped_issuer_function_meta AS (
       'save_manual_grading_item',
       'start_organizer_exam_preview',
       'provision_collective_registration',
-      'regenerate_collective_participant_password'
+      'regenerate_collective_participant_password',
+      'choose_organizer_plan',
+      'get_organizer_competition_result_overview',
+      'list_organizer_registrations',
+      'request_custom_organizer_plan',
+      'review_registration'
     )
 ),
 personal_rpc_issuer_function_meta AS (
