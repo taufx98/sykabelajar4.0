@@ -6,6 +6,8 @@ BEGIN;
 DO $stage7_tranche10_fixture_preflight$
 BEGIN
   IF EXISTS (
+    SELECT 1 FROM public.organizers WHERE slug='stage7-tranche15-admin-created'
+  ) OR EXISTS (
     SELECT 1 FROM public.commerce_products
     WHERE id = '77777777-7777-4777-8777-777777777793'::uuid
        OR code = 'STAGE7-ISSUER-PRODUCT'
@@ -4046,6 +4048,107 @@ BEGIN
   END IF;
 END;
 $stage7_tranche14_unrelated_user$;
+
+-- Stage 7 tranche 15: rollback-only Admin positive, legacy issuer, and
+-- unrelated Better Auth student paths for five Admin SECURITY DEFINER RPCs.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',TRUE);
+SELECT set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+
+DO $stage7_tranche15_admin_positive$
+DECLARE
+  v_adjust jsonb; v_bulk jsonb; v_plan public.organizer_plans%ROWTYPE;
+  v_profile public.profiles%ROWTYPE; v_created record;
+BEGIN
+  v_adjust:=public.admin_adjust_user_currency('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,'xp',7,'Stage 7 T15 rollback');
+  IF v_adjust->>'admin_id' IS DISTINCT FROM 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     OR v_adjust->>'target_user_id' IS DISTINCT FROM 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+     OR (v_adjust->>'delta')::bigint IS DISTINCT FROM 7
+  THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_CURRENCY_ADJUST_FAILED:%',v_adjust; END IF;
+
+  v_bulk:=public.admin_bulk_adjust_currency(ARRAY['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],
+    'edu_coin',5,'Stage 7 T15 rollback bulk');
+  IF (v_bulk->>'success')::integer IS DISTINCT FROM 1
+     OR (v_bulk->>'failed')::integer IS DISTINCT FROM 0
+     OR (v_bulk->>'total')::integer IS DISTINCT FROM 1
+  THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_BULK_CURRENCY_FAILED:%',v_bulk; END IF;
+
+  v_plan:=public.admin_assign_organizer_plan('77777777-7777-4777-8777-777777777791'::uuid,
+    'FREE',clock_timestamp(),clock_timestamp()+interval '1 day');
+  IF v_plan.organizer_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777791'::uuid
+     OR v_plan.plan_code IS DISTINCT FROM 'FREE' OR v_plan.is_active IS DISTINCT FROM TRUE
+  THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_PLAN_ASSIGN_FAILED:%',row_to_json(v_plan); END IF;
+
+  v_profile:=public.admin_change_username('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'stage7_t15_admin_renamed','Stage 7 T15 rollback');
+  IF v_profile.id IS DISTINCT FROM 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid
+     OR v_profile.username IS DISTINCT FROM 'stage7_t15_admin_renamed'
+  THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_USERNAME_FAILED:%',row_to_json(v_profile); END IF;
+
+  SELECT * INTO v_created FROM public.admin_create_organizer(
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,
+    'Stage 7 Tranche 15 Admin Organizer','stage7-tranche15-admin-created');
+  IF v_created.id IS NULL OR v_created.slug IS DISTINCT FROM 'stage7-tranche15-admin-created'
+     OR v_created.access_code !~ '^[A-F0-9]{10}
+
+  THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_CREATE_ORGANIZER_FAILED:%',row_to_json(v_created); END IF;
+  PERFORM set_config('stage7.tranche15.organizer_id',v_created.id::text,TRUE);
+  PERFORM set_config('stage7.tranche15.access_code',v_created.access_code,TRUE);
+END;
+$stage7_tranche15_admin_positive$;
+
+RESET ROLE;
+DO $stage7_tranche15_organizer_secret_storage$
+DECLARE
+ v_id uuid:=current_setting('stage7.tranche15.organizer_id')::uuid;
+ v_code text:=current_setting('stage7.tranche15.access_code');
+ v_public_code text; v_hash text;
+BEGIN
+ SELECT access_code INTO v_public_code FROM public.organizers WHERE id=v_id;
+ SELECT code_hash INTO v_hash FROM private.organizer_access_codes WHERE organizer_id=v_id;
+ IF v_public_code IS DISTINCT FROM 'SECURED' OR v_hash IS NULL
+    OR crypt(v_code,v_hash) IS DISTINCT FROM v_hash
+ THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_ORGANIZER_ACCESS_CODE_STORAGE_FAILED'; END IF;
+END;
+$stage7_tranche15_organizer_secret_storage$;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',TRUE);
+SELECT set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',TRUE);
+DO $stage7_tranche15_legacy_issuer$
+DECLARE v_error text;
+BEGIN
+ v_error:=NULL; BEGIN PERFORM public.admin_adjust_user_currency('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,'xp',1,'probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_CURRENCY_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_bulk_adjust_currency(ARRAY['cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid],'xp',1,'probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_BULK_CURRENCY_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_assign_organizer_plan('77777777-7777-4777-8777-777777777791'::uuid,'FREE',now(),NULL); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_PLAN_ASSIGN_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_change_username('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,'legacy_probe_name','probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_USERNAME_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM * FROM public.admin_create_organizer('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,'Legacy Probe','stage7-tranche15-legacy-probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_LEGACY_CREATE_ORGANIZER_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+END;
+$stage7_tranche15_legacy_issuer$;
+
+SELECT set_config('request.jwt.claims','{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',TRUE);
+SELECT set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
+DO $stage7_tranche15_unrelated_user$
+DECLARE v_error text;
+BEGIN
+ v_error:=NULL; BEGIN PERFORM public.admin_adjust_user_currency('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,'xp',1,'probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'Unauthorized: only admins can adjust currency.' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_CURRENCY_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_bulk_adjust_currency(ARRAY['dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid],'xp',1,'probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'Unauthorized: only admins can bulk adjust currency.' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_BULK_CURRENCY_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_assign_organizer_plan('77777777-7777-4777-8777-777777777791'::uuid,'FREE',now(),NULL); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_PLAN_ASSIGN_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM public.admin_change_username('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,'outsider_probe_name','probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_USERNAME_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+ v_error:=NULL; BEGIN PERFORM * FROM public.admin_create_organizer('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid,'Outsider Probe','stage7-tranche15-outsider-probe'); EXCEPTION WHEN OTHERS THEN v_error:=SQLERRM; END;
+ IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FOREIGN_CREATE_ORGANIZER_ALLOWED:%',coalesce(v_error,'NO_ERROR'); END IF;
+END;
+$stage7_tranche15_unrelated_user$;
 
 RESET ROLE;
 ROLLBACK;
