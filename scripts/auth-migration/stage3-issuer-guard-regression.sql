@@ -79,6 +79,9 @@ BEGIN
       '77777777-7777-4777-8777-777777777782'::uuid,
       '77777777-7777-4777-8777-777777777773'::uuid
     )
+  ) OR EXISTS (
+    SELECT 1 FROM public.grading_items
+    WHERE id = '88888888-8888-4888-8888-888888888893'::uuid
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
   END IF;
@@ -752,6 +755,17 @@ VALUES
     now(),
     FALSE
   );
+
+INSERT INTO public.grading_items (
+  id, attempt_id, question_id, score, feedback
+)
+VALUES (
+  '88888888-8888-4888-8888-888888888893',
+  '77777777-7777-4777-8777-777777777781',
+  '77777777-7777-4777-8777-777777777797',
+  0,
+  'Stage 7 tranche 14 rollback-only authorization fixture'
+);
 
 SELECT set_config('request.jwt.claims', '{}', TRUE);
 SELECT set_config('request.jwt.claim.sub', '', TRUE);
@@ -3748,6 +3762,290 @@ BEGIN
   END IF;
 END;
 $stage7_tranche13_unrelated_user$;
+
+
+
+-- Stage 7 tranche 14: exam activity, grading and organizer preview must
+-- reject legacy issuers before protected reads/locks, retain owner/Admin
+-- access, and deny unrelated Better Auth identities.
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+
+DO $stage7_tranche14_legacy_issuer$
+DECLARE
+  v_signature text;
+  v_error text;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.get_linear_exam_activity(uuid,integer,integer)',
+    'public.grade_competition_attempt(uuid)',
+    'public.grade_essay_similarity(uuid,uuid)',
+    'public.save_manual_grading_item(uuid,numeric,text)',
+    'public.start_organizer_exam_preview(uuid)'
+  ] LOOP
+    v_error := pg_temp.stage3_user_rpc_call_error(v_signature);
+    IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE14_LEGACY_ISSUER_ALLOWED:%:%',
+        v_signature, coalesce(v_error, 'NO_ERROR');
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche14_legacy_issuer$;
+
+-- The real organizer owner can inspect activity and reach the safe
+-- business-state boundary for grading and preview without mutating attempts.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  TRUE
+);
+
+DO $stage7_tranche14_organizer_owner$
+DECLARE
+  v_activity jsonb;
+  v_attempt public.attempts%rowtype;
+  v_error text;
+BEGIN
+  v_activity := public.get_linear_exam_activity(
+    '44444444-4444-4444-8444-444444444441'::uuid, 100, 0
+  );
+  IF v_activity ->> 'competition_id' IS DISTINCT FROM
+     '44444444-4444-4444-8444-444444444441'
+     OR jsonb_typeof(v_activity -> 'participants') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_ACTIVITY_FAILED:%', v_activity;
+  END IF;
+
+  v_attempt := public.grade_competition_attempt(
+    '77777777-7777-4777-8777-777777777781'::uuid
+  );
+  IF v_attempt.id IS DISTINCT FROM '77777777-7777-4777-8777-777777777781'::uuid
+     OR v_attempt.status::text IS DISTINCT FROM 'FINALIZED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_GRADE_ATTEMPT_FAILED:%', row_to_json(v_attempt);
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.grade_essay_similarity(
+      '77777777-7777-4777-8777-777777777781'::uuid,
+      '77777777-7777-4777-8777-777777777797'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_AI_GRADE_SCOPE_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.save_manual_grading_item(
+      '88888888-8888-4888-8888-888888888893'::uuid,
+      0,
+      'Rollback-only owner authorization probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_MANUAL_GRADE_SCOPE_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.start_organizer_exam_preview(
+      '44444444-4444-4444-8444-444444444441'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_REQUIRES_DRAFT_COMPETITION' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_PREVIEW_SCOPE_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche14_organizer_owner$;
+
+-- Admin access remains available for the same exam/activity and grading scope.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+
+DO $stage7_tranche14_admin_positive$
+DECLARE
+  v_activity jsonb;
+  v_attempt public.attempts%rowtype;
+  v_error text;
+BEGIN
+  v_activity := public.get_linear_exam_activity(
+    '44444444-4444-4444-8444-444444444441'::uuid, 100, 0
+  );
+  IF v_activity ->> 'competition_id' IS DISTINCT FROM
+     '44444444-4444-4444-8444-444444444441' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_ACTIVITY_FAILED:%', v_activity;
+  END IF;
+
+  v_attempt := public.grade_competition_attempt(
+    '77777777-7777-4777-8777-777777777781'::uuid
+  );
+  IF v_attempt.status::text IS DISTINCT FROM 'FINALIZED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_GRADE_ATTEMPT_FAILED:%', row_to_json(v_attempt);
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.grade_essay_similarity(
+      '77777777-7777-4777-8777-777777777781'::uuid,
+      '77777777-7777-4777-8777-777777777797'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_AI_GRADE_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.save_manual_grading_item(
+      '88888888-8888-4888-8888-888888888893'::uuid,
+      0,
+      'Rollback-only Admin authorization probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_GRADABLE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_MANUAL_GRADE_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.start_organizer_exam_preview(
+      '44444444-4444-4444-8444-444444444441'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_REQUIRES_DRAFT_COMPETITION' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_PREVIEW_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche14_admin_positive$;
+
+-- An unrelated Better Auth student cannot inspect or invoke any organizer
+-- exam, grading, manual-grading or preview entrypoint.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  TRUE
+);
+
+DO $stage7_tranche14_unrelated_user$
+DECLARE
+  v_error text;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_linear_exam_activity(
+      '44444444-4444-4444-8444-444444444441'::uuid, 100, 0
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_ACTIVITY_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.grade_competition_attempt(
+      '77777777-7777-4777-8777-777777777781'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_GRADE_ATTEMPT_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.grade_essay_similarity(
+      '77777777-7777-4777-8777-777777777781'::uuid,
+      '77777777-7777-4777-8777-777777777797'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_AI_GRADE_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.save_manual_grading_item(
+      '88888888-8888-4888-8888-888888888893'::uuid,
+      0,
+      'Rollback-only outsider authorization probe'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'GRADING_ITEM_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_MANUAL_GRADE_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.start_organizer_exam_preview(
+      '44444444-4444-4444-8444-444444444441'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'NOT_AUTHORIZED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_PREVIEW_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche14_unrelated_user$;
 
 RESET ROLE;
 ROLLBACK;
