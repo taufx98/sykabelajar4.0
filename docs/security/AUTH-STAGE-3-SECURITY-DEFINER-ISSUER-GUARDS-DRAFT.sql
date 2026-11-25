@@ -4970,4 +4970,248 @@ begin
   );
 end;
 $function$;
+
+-- Stage 7 tranche 13: organizer entitlement/quota and currency-log reads.
+-- Pin the exact Production definitions before replacing bodies in the
+-- schema-only disposable restore. CREATE OR REPLACE preserves owner, ACL,
+-- signatures and search_path; this block never runs against Production.
+DO $stage7_tranche13_fingerprint_preflight$
+DECLARE
+  v_expected record;
+  v_oid regprocedure;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_config text[];
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.get_all_currency_logs(integer)', '58989fc6a65d26a228f06769e444903a', 'search_path=public, private'),
+      ('public.get_user_currency_logs(uuid,integer)', 'bf7a478554b65bffaddb761ecae34019', 'search_path=public, private'),
+      ('public.get_active_organizer_entitlements(uuid)', '347c3643c3860af5dca477b5a4f4f598', 'search_path=""'),
+      ('public.get_organizer_effective_plan(uuid)', 'a07ecfd264fc5401b954d1381f0fc8b5', 'search_path=""'),
+      ('public.get_organizer_competition_quota(uuid)', '72d733e2b864c9f5171176d158f2d366', 'search_path=""')
+    ) AS expected(signature, source_hash, function_config)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE13_FUNCTION_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner),
+           p.prosecdef, p.proconfig
+      INTO v_hash, v_owner, v_security_definer, v_config
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid = v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_config IS DISTINCT FROM ARRAY[v_expected.function_config]::text[]
+       OR pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE13_FINGERPRINT_OR_ACL_DRIFT:%', v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche13_fingerprint_preflight$;
+
+-- SQL result RPCs apply the issuer predicate in their row filter. In
+-- particular, self-scoped currency logs must not treat auth.uid() alone as
+-- proof of a Better Auth identity.
+CREATE OR REPLACE FUNCTION public.get_all_currency_logs(p_limit integer DEFAULT 100)
+RETURNS TABLE (
+  id uuid,
+  admin_id uuid,
+  target_user_id uuid,
+  target_username text,
+  currency_type text,
+  delta bigint,
+  reason text,
+  balance_before bigint,
+  balance_after bigint,
+  created_at timestamptz
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public', 'private'
+AS $function$
+  SELECT
+    l.id,
+    l.admin_id,
+    l.target_user_id,
+    COALESCE(p.username, 'unknown'),
+    l.currency_type,
+    l.delta,
+    l.reason,
+    l.balance_before,
+    l.balance_after,
+    l.created_at
+  FROM public.currency_adjustment_logs l
+  LEFT JOIN public.profiles p ON p.id = l.target_user_id
+  WHERE private.current_user_is_better_auth()
+    AND private.current_user_is_admin()
+  ORDER BY l.created_at DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 100), 500));
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_user_currency_logs(
+  p_target_user_id uuid,
+  p_limit integer DEFAULT 50
+)
+RETURNS TABLE (
+  id uuid,
+  admin_id uuid,
+  target_user_id uuid,
+  currency_type text,
+  delta bigint,
+  reason text,
+  balance_before bigint,
+  balance_after bigint,
+  created_at timestamptz
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public', 'private'
+AS $function$
+  SELECT
+    l.id,
+    l.admin_id,
+    l.target_user_id,
+    l.currency_type,
+    l.delta,
+    l.reason,
+    l.balance_before,
+    l.balance_after,
+    l.created_at
+  FROM public.currency_adjustment_logs l
+  WHERE private.current_user_is_better_auth()
+    AND l.target_user_id = p_target_user_id
+    AND (
+      p_target_user_id = (SELECT auth.uid())
+      OR private.current_user_is_admin()
+    )
+  ORDER BY l.created_at DESC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 50), 1), 100);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_active_organizer_entitlements(p_organizer_id uuid)
+RETURNS TABLE (
+  plan_code text,
+  entitlement_capability text,
+  limit_value numeric,
+  config jsonb
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_plan_code text;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF NOT (
+    private.current_user_is_admin()
+    OR private.current_user_is_organizer_for(p_organizer_id)
+  ) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  SELECT effective.plan_code
+    INTO v_plan_code
+  FROM private.get_effective_organizer_plan(p_organizer_id) effective
+  LIMIT 1;
+
+  IF v_plan_code IS NULL THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT v_plan_code, pe.capability::text, pe.limit_value,
+         COALESCE(pe.config, '{}'::jsonb)
+  FROM public.plan_entitlements pe
+  WHERE pe.plan_code = v_plan_code
+  ORDER BY pe.capability;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_organizer_effective_plan(p_organizer_id uuid)
+RETURNS TABLE (
+  plan_code text,
+  starts_at timestamptz,
+  ends_at timestamptz
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF NOT (
+    private.current_user_is_admin()
+    OR private.current_user_is_organizer_for(p_organizer_id)
+  ) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  RETURN QUERY
+  SELECT effective.plan_code, effective.starts_at, effective.ends_at
+  FROM private.get_effective_organizer_plan(p_organizer_id) effective;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_organizer_competition_quota(p_organizer_id uuid)
+RETURNS TABLE (
+  plan_code text,
+  quota_limit numeric,
+  used_count bigint,
+  reset_at timestamptz,
+  can_publish boolean,
+  is_admin boolean
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_is_admin boolean;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  v_is_admin := COALESCE(private.current_user_is_admin(), FALSE);
+
+  IF NOT v_is_admin
+     AND NOT private.current_user_can_edit_competition(p_organizer_id) THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    quota.plan_code,
+    CASE WHEN v_is_admin THEN NULL::numeric ELSE quota.quota_limit END,
+    quota.used_count,
+    quota.reset_at,
+    v_is_admin OR quota.used_count < COALESCE(quota.quota_limit, 0),
+    v_is_admin
+  FROM private.monthly_organizer_competition_quota(p_organizer_id) quota;
+END;
+$function$;
+
+
 COMMIT;
