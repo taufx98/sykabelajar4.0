@@ -433,7 +433,9 @@ VALUES
   ('55555555-5555-4555-8555-555555555552', '33333333-3333-4333-8333-333333333333',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Better Auth Private Participant'),
   ('55555555-5555-4555-8555-555555555553', '33333333-3333-4333-8333-333333333334',
-   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Unpublished Result Participant');
+   'ffffffff-ffff-4fff-8fff-fffffffffff6', 'INDIVIDUAL', 'Unpublished Result Participant'),
+  ('55555555-5555-4555-8555-555555555554', '33333333-3333-4333-8333-333333333334',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'INDIVIDUAL', 'Active Exam Issuer Probe Participant');
 
 INSERT INTO public.attempts (
   id, competition_id, participant_id, canonical_participant_id, status, score, finalized_at
@@ -448,6 +450,19 @@ VALUES
   ('77777777-7777-4777-8777-777777777773', '33333333-3333-4333-8333-333333333334',
    'ffffffff-ffff-4fff-8fff-fffffffffff6', '55555555-5555-4555-8555-555555555553',
    'FINALIZED'::public.attempt_status, 88, now());
+
+-- An existing in-progress attempt specifically exercises the legacy-issuer
+-- start/resume path before any runtime initialization is attempted.
+INSERT INTO public.attempts (
+  id, competition_id, participant_id, canonical_participant_id, status
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777775',
+  '33333333-3333-4333-8333-333333333334',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '55555555-5555-4555-8555-555555555554',
+  'IN_PROGRESS'::public.attempt_status
+);
 
 -- A collective attempt must link both the canonical participant and the
 -- collective participant while leaving the individual Auth participant NULL.
@@ -897,6 +912,31 @@ DECLARE
   v_rpc_source text;
   v_count integer := 0;
 BEGIN
+  -- This subject owns an active synthetic attempt. The legacy issuer must
+  -- be rejected before the start/resume RPC can read or initialize that row.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id = '77777777-7777-4777-8777-777777777775'::uuid
+      AND competition_id = '33333333-3333-4333-8333-333333333334'::uuid
+      AND participant_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+      AND status = 'IN_PROGRESS'::public.attempt_status
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING';
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.start_linear_exam_attempt(
+      '33333333-3333-4333-8333-333333333334'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE3_LEGACY_START_LINEAR_EXAM_ACTIVE_ATTEMPT_NOT_DENIED:%',
+      coalesce(v_error, '<no error>');
+  END IF;
+
   FOREACH v_signature IN ARRAY ARRAY[
     'public.answer_linear_exam_question(uuid,uuid,jsonb,boolean)',
     'public.archive_my_order_history(uuid)',

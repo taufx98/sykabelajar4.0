@@ -7,6 +7,77 @@
 
 BEGIN;
 
+-- Stage 7 Tranche 17: pin the original individual exam-start RPC before replacing it.
+-- This preflight runs only on the schema-only disposable restore.
+DO $stage7_exam_start_fingerprint_preflight$
+DECLARE
+  v_oid oid;
+  v_source_md5 text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_return_type text;
+  v_language text;
+  v_acl_count integer;
+  v_acl_invalid integer;
+BEGIN
+  v_oid := pg_catalog.to_regprocedure('public.start_linear_exam_attempt(uuid)');
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_EXAM_START_FUNCTION_MISSING';
+  END IF;
+
+  SELECT
+    md5(p.prosrc),
+    p.proowner::regrole::text,
+    p.prosecdef,
+    coalesce(array_to_string(p.proconfig, ', '), '(none)'),
+    pg_catalog.pg_get_function_result(p.oid),
+    l.lanname
+  INTO
+    v_source_md5, v_owner, v_security_definer, v_settings, v_return_type, v_language
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_language l ON l.oid = p.prolang
+  WHERE p.oid = v_oid;
+
+  IF v_source_md5 IS DISTINCT FROM '04edc4504123d2afddd186c1d3fa750e'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_settings IS DISTINCT FROM 'search_path=""'
+     OR v_return_type IS DISTINCT FROM 'jsonb'
+     OR v_language IS DISTINCT FROM 'plpgsql' THEN
+    RAISE EXCEPTION 'STAGE7_EXAM_START_FUNCTION_METADATA_DRIFT:hash=%:owner=%:security_definer=%:search_path=%:return=%:language=%',
+      v_source_md5, v_owner, v_security_definer, v_settings, v_return_type, v_language;
+  END IF;
+
+  SELECT
+    count(*)::integer,
+    count(*) FILTER (
+      WHERE coalesce(grantee.rolname, 'PUBLIC') NOT IN ('postgres', 'authenticated', 'service_role')
+         OR acl.privilege_type <> 'EXECUTE'
+         OR grantor.rolname <> 'postgres'
+    )::integer
+  INTO v_acl_count, v_acl_invalid
+  FROM pg_catalog.pg_proc p
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+  ) AS acl
+  LEFT JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN pg_catalog.pg_roles grantor ON grantor.oid = acl.grantor
+  WHERE p.oid = v_oid;
+
+  IF v_acl_count <> 3 OR v_acl_invalid <> 0
+     OR pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE7_EXAM_START_FUNCTION_ACL_DRIFT:count=%:invalid=%:anon=%:authenticated=%:service_role=%',
+      v_acl_count, v_acl_invalid,
+      pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE'),
+      pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE'),
+      pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE');
+  END IF;
+END;
+$stage7_exam_start_fingerprint_preflight$;
+
 DO $stage7_tranche15_fingerprint_preflight$
 DECLARE
   v_expected record; v_oid regprocedure; v_hash text; v_owner text;
@@ -378,6 +449,107 @@ BEGIN
   END IF;
 END;
 $function$;
+
+-- Starting or resuming an individual exam is a user-bound path too. Validate
+-- the exact Better Auth issuer before the first existing-attempt lookup.
+CREATE OR REPLACE FUNCTION public.start_linear_exam_attempt(p_competition_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_attempt public.attempts%rowtype;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.attempts a
+  WHERE a.competition_id = p_competition_id
+    AND a.participant_id = v_uid
+    AND a.status = 'IN_PROGRESS'
+  ORDER BY a.created_at DESC
+  LIMIT 1;
+
+  IF FOUND THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.exam_attempt_runtime r
+      WHERE r.attempt_id = v_attempt.id
+    ) THEN
+      IF EXISTS (
+        SELECT 1 FROM public.answers x
+        WHERE x.attempt_id = v_attempt.id
+      ) THEN
+        RAISE EXCEPTION 'LEGACY_ATTEMPT_REQUIRES_REVIEW';
+      END IF;
+      UPDATE public.attempts
+      SET started_at = clock_timestamp(), updated_at = clock_timestamp()
+      WHERE id = v_attempt.id
+      RETURNING * INTO v_attempt;
+      PERFORM private.prepare_linear_exam_runtime(v_attempt.id);
+      RETURN private.build_linear_exam_state(v_attempt.id);
+    END IF;
+    PERFORM private.resolve_linear_exam_timeouts(v_attempt.id, clock_timestamp());
+    RETURN private.build_linear_exam_state(v_attempt.id);
+  END IF;
+
+  SELECT a.* INTO v_attempt
+  FROM public.attempts a
+  JOIN public.exam_attempt_runtime r
+    ON r.attempt_id = a.id AND r.phase = 'COMPLETED'
+  WHERE a.competition_id = p_competition_id
+    AND a.participant_id = v_uid
+  ORDER BY a.created_at DESC
+  LIMIT 1;
+
+  IF FOUND THEN
+    RETURN private.build_linear_exam_state(v_attempt.id);
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.start_competition_attempt(p_competition_id);
+  PERFORM private.prepare_linear_exam_runtime(v_attempt.id);
+  RETURN private.build_linear_exam_state(v_attempt.id);
+END;
+$function$;
+
+DO $stage7_exam_start_metadata_postflight$
+DECLARE
+  v_oid oid := pg_catalog.to_regprocedure('public.start_linear_exam_attempt(uuid)');
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_EXAM_START_POSTFLIGHT_FUNCTION_MISSING';
+  END IF;
+  SELECT p.proowner::regrole::text, p.prosecdef,
+         coalesce(array_to_string(p.proconfig, ', '), '(none)'),
+         pg_catalog.pg_get_function_result(p.oid), l.lanname
+  INTO v_owner, v_security_definer, v_settings, v_return_type, v_language
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_language l ON l.oid = p.prolang
+  WHERE p.oid = v_oid;
+  IF v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_settings IS DISTINCT FROM 'search_path=""'
+     OR v_return_type IS DISTINCT FROM 'jsonb'
+     OR v_language IS DISTINCT FROM 'plpgsql'
+     OR pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE7_EXAM_START_POSTFLIGHT_METADATA_OR_ACL_DRIFT';
+  END IF;
+END;
+$stage7_exam_start_metadata_postflight$;
 
 CREATE OR REPLACE FUNCTION private.current_user_is_active_organizer_member(p_organizer_id uuid)
  RETURNS boolean
