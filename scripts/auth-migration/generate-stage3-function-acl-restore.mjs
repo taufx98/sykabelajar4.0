@@ -41,6 +41,7 @@ const FUNCTIONS = new Map([
   ["public.grade_essay_similarity", "public.grade_essay_similarity(uuid,uuid)"],
   ["public.save_manual_grading_item", "public.save_manual_grading_item(uuid,numeric,text)"],
   ["public.start_organizer_exam_preview", "public.start_organizer_exam_preview(uuid)"],
+  ["public.start_linear_exam_attempt", "public.start_linear_exam_attempt(uuid)"],
   ["public.create_follow_request", "public.create_follow_request(uuid)"],
   ["public.get_my_canonical_competition_result", "public.get_my_canonical_competition_result(uuid)"],
   ["public.get_my_canonical_participant", "public.get_my_canonical_participant(uuid)"],
@@ -94,7 +95,7 @@ function renderFunctionAclRestore(metadata) {
   }
 
   if (records.size !== FUNCTIONS.size) {
-    throw new Error("Expected ACL metadata for all 58 reviewed auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions; found " + records.size + ".");
+    throw new Error("Expected ACL metadata for all 59 reviewed auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions; found " + records.size + ".");
   }
 
   const statements = [
@@ -167,7 +168,7 @@ function main() {
   const sql = renderFunctionAclRestore(metadata);
   writeFileSync(args.out, sql, { encoding: "utf8", flag: "wx", mode: 0o600 });
   process.stdout.write(
-    "Generated local-only ACL restoration SQL for all 58 auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions. No database connection was opened.\n"
+    "Generated local-only ACL restoration SQL for all 59 auth identity, result, entitlement, quota, exam-flow, organizer and Admin functions. No database connection was opened.\n"
   );
 }
 
