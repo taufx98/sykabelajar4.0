@@ -36,6 +36,11 @@ const names = [
   ["public","grade_essay_similarity","p_attempt_id uuid, p_question_id uuid"],
   ["public","save_manual_grading_item","p_grading_item_id uuid, p_score numeric, p_feedback text"],
   ["public","start_organizer_exam_preview","p_competition_id uuid"],
+  ["public","admin_adjust_user_currency","p_target_user_id uuid, p_currency_type text, p_delta bigint, p_reason text"],
+  ["public","admin_assign_organizer_plan","p_organizer_id uuid, p_plan_code text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone"],
+  ["public","admin_bulk_adjust_currency","p_user_ids uuid[], p_currency_type text, p_delta bigint, p_reason text"],
+  ["public","admin_change_username","p_user_id uuid, p_username text, p_reason text"],
+  ["public","admin_create_organizer","p_owner_user_id uuid, p_name text, p_slug text"],
   ["public","create_follow_request","p_target_user_id uuid"],
   ["public","get_my_canonical_competition_result","p_competition_id uuid"],
   ["public","get_my_canonical_participant","p_competition_id uuid"],
@@ -65,8 +70,8 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,34),
-  personal_rpc_issuer_functions: functionRows.slice(34),
+  user_scoped_issuer_functions: functionRows.slice(10,39),
+  personal_rpc_issuer_functions: functionRows.slice(39),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -102,8 +107,8 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collectiv
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "service_role";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 48/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 48/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 53/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 53/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
