@@ -8,6 +8,10 @@ const draft = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql"),
   "utf8",
 );
+const issuerRestrictionDraft = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"),
+  "utf8",
+);
 const regression = readFileSync(
   path.join(here, "./stage3-issuer-guard-regression.sql"),
   "utf8",
@@ -1078,13 +1082,20 @@ for (const hash of [
   "1f6215cccdc383120bbb6787e96c0f2b",
   "f2303a11f19903297554639acbd87f06",
   "860b70d16e5d204cebad55924ab8c66d",
-  "c994079fbd7e5a56913ca1fdb8dc9666",
   "79bb70032b67655f0e84d60a853fe548",
 ]) assert.ok(tranche15Preflight.includes(hash), "missing tranche 15 source/helper fingerprint " + hash);
 assert.match(tranche15Preflight, /acl\.grantee = 0/);
 assert.match(tranche15Preflight, /has_function_privilege\('anon'/);
 assert.match(tranche15Preflight, /has_function_privilege\('authenticated'/);
 assert.match(tranche15Preflight, /has_function_privilege\('service_role'/);
+
+const roleHelperPreflight = issuerRestrictionDraft.match(
+  /DO \$stage7_tranche15_role_helper_fingerprint_preflight\$[\s\S]*?\$stage7_tranche15_role_helper_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(roleHelperPreflight, "missing pre-replacement Production current_user_has_role fingerprint");
+assert.ok(roleHelperPreflight.includes("c994079fbd7e5a56913ca1fdb8dc9666"));
+assert.match(roleHelperPreflight, /'postgres'/);
+assert.match(roleHelperPreflight, /search_path=public, private/);
 
 const betterAuthRoleHelper = draft.match(
   /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)[\s\S]*?\$function\$;/i,
