@@ -7,6 +7,45 @@
 
 BEGIN;
 
+DO $stage7_tranche15_fingerprint_preflight$
+DECLARE
+  v_expected record; v_oid regprocedure; v_hash text; v_owner text;
+  v_security_definer boolean; v_config text[]; v_public_execute boolean;
+  v_anon_execute boolean; v_authenticated_execute boolean; v_service_role_execute boolean;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.admin_adjust_user_currency(uuid,text,bigint,text)', 'aa8f5302840e39728b006496ad817275', 'search_path=public, private', TRUE),
+      ('public.admin_assign_organizer_plan(uuid,text,timestamp with time zone,timestamp with time zone)', 'ee68f31dacc8cee624c80e7a42867c56', 'search_path=public, private', TRUE),
+      ('public.admin_bulk_adjust_currency(uuid[],text,bigint,text)', '1f6215cccdc383120bbb6787e96c0f2b', 'search_path=public, private', TRUE),
+      ('public.admin_change_username(uuid,text,text)', 'f2303a11f19903297554639acbd87f06', 'search_path=public, private', TRUE),
+      ('public.admin_create_organizer(uuid,text,text)', '860b70d16e5d204cebad55924ab8c66d', 'search_path=public, private', TRUE),
+      ('private.current_user_has_role(app_role)', 'c994079fbd7e5a56913ca1fdb8dc9666', 'search_path=public, private', FALSE),
+      ('private.current_user_is_admin()', '79bb70032b67655f0e84d60a853fe548', 'search_path=public, private', FALSE)
+    ) AS expected(signature, source_hash, function_config, enforce_admin_acl)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FUNCTION_MISSING:%', v_expected.signature; END IF;
+    SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef, p.proconfig,
+      EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'),
+      pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE'),
+      pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE'),
+      pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE')
+    INTO v_hash,v_owner,v_security_definer,v_config,v_public_execute,v_anon_execute,v_authenticated_execute,v_service_role_execute
+    FROM pg_catalog.pg_proc p WHERE p.oid=v_oid;
+    IF v_hash IS DISTINCT FROM v_expected.source_hash OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_config IS DISTINCT FROM ARRAY[v_expected.function_config]::text[] THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE15_FINGERPRINT_OR_OWNER_DRIFT:%',v_expected.signature;
+    END IF;
+    IF v_expected.enforce_admin_acl AND (v_public_execute OR v_anon_execute
+       OR NOT v_authenticated_execute OR NOT v_service_role_execute) THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_ACL_DRIFT:%',v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche15_fingerprint_preflight$;
+
 CREATE OR REPLACE FUNCTION private.current_user_is_better_auth()
  RETURNS boolean
  LANGUAGE sql
