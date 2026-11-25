@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 25 November 2026; 73/202 exact signatures individually reviewed (129 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 25 November 2026; 78/202 exact signatures individually reviewed (124 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -74,6 +74,20 @@ PR [#282](https://github.com/taufx98/sykabelajar4.0/pull/282) added issuer-first
 Protected Auth Production Schema Baseline [#45578016932](https://github.com/taufx98/sykabelajar4.0/actions/runs/45578016932) passed **68/68 steps** on merge commit \`051d4d300edc40179cf7218115019d8faafc8609\`. Its Stage 3 trusted-issuer regression step executed the full rollback-only regression, including all five Tranche 14 functions. The run also confirmed zero imported Auth/profile rows, completed all prior Stage 7/Stage 5 disposable checks, and removed the disposable database/export artifacts. Supabase Local Auth Claims [#45578017158](https://github.com/taufx98/sykabelajar4.0/actions/runs/45578017158) passed on the same commit.
 
 **Cumulative accepted manual review: 73/202 exact signatures; 129 remain.** The canonical activation manifest remains \`status: blocked\` with \`reviewedAuthenticatedFunctionCount: 0\`; Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change or secret change was performed.
+
+## Accepted manual review — 25 November 2026 (Tranche 15)
+
+[Tranche 15 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-15-2026-11-25.md) adds five Admin-only currency, organizer-plan, username and organizer-creation RPCs: `admin_adjust_user_currency(uuid,text,bigint,text)`, `admin_assign_organizer_plan(uuid,text,timestamptz,timestamptz)`, `admin_bulk_adjust_currency(uuid[],text,bigint,text)`, `admin_change_username(uuid,text,text)`, and `admin_create_organizer(uuid,text,text)`.
+
+A read-only Production DB2 catalog query on 25 November confirmed all five exact `md5(pg_proc.prosrc)` fingerprints match the immutable 21 November triage inventory. Each remains owned by `postgres`, SECURITY DEFINER, with its original `search_path=public, private` and ACL: `authenticated` and `service_role` EXECUTE; no `anon` or `PUBLIC` EXECUTE. The Stage 3 replacement routes all five through the shared issuer-gated Admin helper. The pre-replacement `current_user_has_role(app_role)` helper fingerprint is checked before that helper is replaced.
+
+The rollback-only runtime regression proves legacy Supabase Auth issuer denial for all five RPCs, denial for an unrelated Better Auth non-Admin identity, and positive Better Auth Admin paths for single/bulk currency adjustment, username change, organizer creation and PRO plan assignment. It also confirms organizer creation produces one active owner membership and stores the access code hash-only: the public organizer row contains the `SECURED` sentinel and the private credential table contains a bcrypt hash verifiable via `extensions.crypt`. All test identities and data are synthetic; the regression ends in ROLLBACK.
+
+PRs #283 and #285–#291 add the five reviewed replacements, hash-only test correction, fingerprint-preflight ordering, valid PRO fixture, pgcrypto search_path migration, atomic Stage 3 draft transaction, and unique organizer-owner fixture. PR #289's fail-closed migration changes only the `admin_create_organizer` search_path to `public, private, extensions`, preserving its body, owner, SECURITY DEFINER mode and ACL. It was applied **only to the disposable restore**. Production still has the old path and requires this migration during the separately approved zero-start cutover; it has not been applied to Production.
+
+Protected Auth Production Schema Baseline [#45598325366](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325366) passed **68/68 steps** on merge commit `17118b4964484988f85f47842b68c72bec4d64eb`. It passed schema-only export/restore, zero imported Auth/profile rows, all 69 FK catalog checks and cutover/rollback simulations, Stage 3 trusted-issuer regression including Tranche 15, all 23 application RLS boundaries, all 14 collective portal invalid-token denials, valid portal lifecycle and 5,000 selector cases, and the two-user Cloudinary/payment Edge integration. The disposable Supabase stack and schema export were removed. Supabase Local Auth Claims CI [#45598325344](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325344) also passed on the same commit.
+
+**Cumulative accepted manual review: 78/202 exact signatures; 124 remain.** This adds five accepted signatures to the previous 73/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; it is the complete post-Stage-3/pre-issuer-guard allowlist and is not the partial manual-review counter. Production DB2 remains **NO-GO**. No Production DDL/DML, user-data export/backup/migration, row changes, role/grant/policy edits, Worker deployment, DNS change or secret change was performed.
 
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
