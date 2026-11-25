@@ -4251,8 +4251,6 @@ DECLARE
   v_profile public.profiles%ROWTYPE;
   v_created_organizer record;
   v_assigned_plan public.organizer_plans%ROWTYPE;
-  v_code_hash text;
-  v_stored_access_code text;
 BEGIN
   SELECT total_xp, edu_coin
   INTO v_before_xp, v_before_coin
@@ -4303,17 +4301,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_ORGANIZER_CREATE_FAILED:%', row_to_json(v_created_organizer);
   END IF;
 
-  SELECT code_hash INTO v_code_hash
-  FROM private.organizer_access_codes
-  WHERE organizer_id = v_created_organizer.id;
-  SELECT access_code INTO v_stored_access_code
-  FROM public.organizers
-  WHERE id = v_created_organizer.id;
-  IF v_code_hash IS NULL OR length(v_code_hash) < 30
-     OR v_code_hash = v_created_organizer.access_code
-     OR v_stored_access_code IS DISTINCT FROM 'SECURED' THEN
-    RAISE EXCEPTION 'STAGE7_TRANCHE15_ACCESS_CODE_NOT_HASH_ONLY';
-  END IF;
+  PERFORM set_config('stage7.tranche15.organizer_id', v_created_organizer.id::text, TRUE);
+  PERFORM set_config('stage7.tranche15.access_code', v_created_organizer.access_code, TRUE);
 
   SELECT * INTO v_assigned_plan
   FROM public.admin_assign_organizer_plan(
@@ -4330,5 +4319,35 @@ BEGIN
 END;
 $stage7_tranche15_admin_positive$;
 
+-- The caller-facing RPC test remains under authenticated Admin. Inspect the
+-- private credential table only after restoring the disposable database owner.
+RESET ROLE;
+DO $stage7_tranche15_access_code_hash_only$
+DECLARE
+  v_organizer_id uuid := nullif(current_setting('stage7.tranche15.organizer_id', TRUE), '')::uuid;
+  v_access_code text := current_setting('stage7.tranche15.access_code', TRUE);
+  v_stored_access_code text;
+  v_code_hash text;
+BEGIN
+  IF v_organizer_id IS NULL OR v_access_code IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ACCESS_CODE_FIXTURE_MISSING';
+  END IF;
+  SELECT access_code INTO v_stored_access_code
+  FROM public.organizers
+  WHERE id = v_organizer_id;
+  SELECT code_hash INTO v_code_hash
+  FROM private.organizer_access_codes
+  WHERE organizer_id = v_organizer_id;
+  IF v_stored_access_code IS DISTINCT FROM 'SECURED'
+     OR v_code_hash IS NULL
+     OR length(v_code_hash) < 30
+     OR v_code_hash = v_access_code
+     OR crypt(v_access_code, v_code_hash) IS DISTINCT FROM v_code_hash THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ACCESS_CODE_NOT_HASH_ONLY';
+  END IF;
+END;
+$stage7_tranche15_access_code_hash_only$;
+
+SET LOCAL ROLE authenticated;
 RESET ROLE;
 ROLLBACK;
