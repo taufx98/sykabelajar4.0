@@ -982,4 +982,89 @@ for (const functionName of [
   assert.ok(regression.includes("public." + functionName), "missing tranche 13 regression call: " + functionName);
 }
 
+
+const tranche14Functions = [
+  { name: "get_linear_exam_activity", signature: "get_linear_exam_activity(uuid,integer,integer)" },
+  { name: "grade_competition_attempt", signature: "grade_competition_attempt(uuid)" },
+  { name: "grade_essay_similarity", signature: "grade_essay_similarity(uuid,uuid)" },
+  { name: "save_manual_grading_item", signature: "save_manual_grading_item(uuid,numeric,text)" },
+  { name: "start_organizer_exam_preview", signature: "start_organizer_exam_preview(uuid)" },
+];
+for (const item of tranche14Functions) {
+  const fn = draft.match(new RegExp(
+    "CREATE OR REPLACE FUNCTION public[.]" + item.name + "\\([\\s\\S]*?\\$function\\$;",
+    "i",
+  ))?.[0] ?? "";
+  assert.ok(fn, "missing tranche 14 replacement: " + item.name);
+  const issuerIndex = fn.indexOf("private.current_user_is_better_auth()");
+  const firstReadIndex = fn.search(/\bSELECT\b/i);
+  assert.ok(
+    issuerIndex >= 0 && firstReadIndex >= 0 && issuerIndex < firstReadIndex,
+    "tranche 14 issuer guard must precede the first protected read: " + item.name,
+  );
+  assert.match(fn, /BETTER_AUTH_ISSUER_REQUIRED/);
+  if (item.name !== "get_linear_exam_activity") {
+    const lockIndex = Math.min(
+      ...["FOR UPDATE", "pg_advisory_xact_lock"].map((token) => {
+        const index = fn.indexOf(token);
+        return index < 0 ? Number.POSITIVE_INFINITY : index;
+      }),
+    );
+    if (Number.isFinite(lockIndex)) {
+      const scopeIndexes = [
+        fn.indexOf("private.current_user_is_admin()"),
+        fn.indexOf("private.current_user_is_organizer_for("),
+        fn.indexOf("private.current_user_can_edit_competition("),
+        fn.indexOf("private.current_user_organizer_role("),
+      ].filter((index) => index >= 0);
+      assert.ok(
+        scopeIndexes.length > 0 && Math.min(...scopeIndexes) < lockIndex,
+        "tranche 14 owner/Admin authorization must precede protected locks: " + item.name,
+      );
+    }
+  }
+  assert.ok(
+    regression.includes("public." + item.signature),
+    "missing tranche 14 runtime function reference: " + item.signature,
+  );
+}
+
+const tranche14Preflight = draft.match(
+  /DO \$stage7_tranche14_fingerprint_preflight\$[\s\S]*?\$stage7_tranche14_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche14Preflight, "missing tranche 14 Production fingerprint/ACL preflight");
+for (const hash of [
+  "a9d641b464ace5b963f91c9d6a3d096d",
+  "a04c581242d9180a7ab7bfd8dfe643d4",
+  "92be45614ce3fab0a2e9aa441ca9636f",
+  "65a5b9937cdd159a29dad736d996b2fc",
+  "643f1d4554a7dc62a8037c2eb6d0bd08",
+]) assert.ok(tranche14Preflight.includes(hash), "missing tranche 14 source fingerprint " + hash);
+assert.match(tranche14Preflight, /acl\.grantee = 0/);
+assert.match(tranche14Preflight, /has_function_privilege\('anon'/);
+assert.match(tranche14Preflight, /has_function_privilege\('authenticated'/);
+assert.match(tranche14Preflight, /has_function_privilege\('service_role'/);
+
+for (const marker of [
+  "STAGE7_TRANCHE14_LEGACY_ISSUER_ALLOWED",
+  "STAGE7_TRANCHE14_OWNER_ACTIVITY_FAILED",
+  "STAGE7_TRANCHE14_OWNER_GRADE_ATTEMPT_FAILED",
+  "STAGE7_TRANCHE14_OWNER_AI_GRADE_SCOPE_FAILED",
+  "STAGE7_TRANCHE14_OWNER_MANUAL_GRADE_SCOPE_FAILED",
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_SCOPE_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_ACTIVITY_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_GRADE_ATTEMPT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_AI_GRADE_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_MANUAL_GRADE_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_FAILED",
+  "STAGE7_TRANCHE14_FOREIGN_ACTIVITY_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_GRADE_ATTEMPT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_AI_GRADE_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_MANUAL_GRADE_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_ALLOWED",
+]) assert.ok(regression.includes(marker), "missing tranche 14 runtime assertion: " + marker);
+
+assert.match(regression, /INSERT INTO public\.grading_items[\s\S]*?Stage 7 tranche 14 rollback-only authorization fixture/);
+assert.match(regression, /88888888-8888-4888-8888-888888888893/);
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
