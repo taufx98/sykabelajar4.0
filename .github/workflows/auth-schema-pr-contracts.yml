@@ -43,7 +43,7 @@ jobs:
       - name: Verify exact restored FK catalog contract
         run: node scripts/auth-migration/verify-restored-auth-fk-catalog.test.mjs
 
-      - name: Verify Stage 3 Production metadata parity and 58-function ACL restore
+      - name: Verify Stage 3 Production metadata parity and 59-function ACL restore
         run: |
           node scripts/auth-migration/verify-stage3-baseline-metadata.test.mjs
           node scripts/auth-migration/generate-stage3-function-acl-restore.test.mjs
