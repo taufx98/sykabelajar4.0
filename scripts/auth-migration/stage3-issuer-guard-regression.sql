@@ -4052,14 +4052,16 @@ $stage7_tranche14_unrelated_user$;
 -- Stage 7 tranche 15: Admin-only RPCs rely on the shared current_user_is_admin
 -- -> current_user_has_role -> current_user_is_better_auth chain. Seed one plan
 -- row only in this transaction so organizer creation/plan assignment can be
--- exercised without importing Production catalog data.
+-- exercised without importing Production catalog data. Production constrains
+-- plan_code to FREE, PREMIUM, or PRO; use PRO on this empty schema-only restore
+-- and fail closed if that key unexpectedly exists.
 RESET ROLE;
 
 DO $stage7_tranche15_fixture_preflight$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM public.plan_catalog
-    WHERE plan_code = 'STAGE7_T15_TEST'
+    WHERE plan_code = 'PRO'
   ) OR EXISTS (
     SELECT 1 FROM public.organizers
     WHERE slug = 'stage7-tranche15-fixture'
@@ -4073,7 +4075,7 @@ END;
 $stage7_tranche15_fixture_preflight$;
 
 INSERT INTO public.plan_catalog (plan_code, name, is_active)
-VALUES ('STAGE7_T15_TEST', 'Stage 7 Tranche 15 Synthetic Plan', TRUE);
+VALUES ('PRO', 'Stage 7 Tranche 15 Synthetic Plan', TRUE);
 
 SET LOCAL ROLE authenticated;
 
@@ -4119,7 +4121,7 @@ BEGIN
   BEGIN
     PERFORM public.admin_assign_organizer_plan(
       '77777777-7777-4777-8777-777777777791'::uuid,
-      'STAGE7_T15_TEST', clock_timestamp(), clock_timestamp() + interval '30 days'
+      'PRO', clock_timestamp(), clock_timestamp() + interval '30 days'
     );
   EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
   END;
@@ -4196,7 +4198,7 @@ BEGIN
   BEGIN
     PERFORM public.admin_assign_organizer_plan(
       '77777777-7777-4777-8777-777777777791'::uuid,
-      'STAGE7_T15_TEST', clock_timestamp(), clock_timestamp() + interval '30 days'
+      'PRO', clock_timestamp(), clock_timestamp() + interval '30 days'
     );
   EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
   END;
@@ -4307,12 +4309,12 @@ BEGIN
   SELECT * INTO v_assigned_plan
   FROM public.admin_assign_organizer_plan(
     v_created_organizer.id,
-    'STAGE7_T15_TEST',
+    'PRO',
     clock_timestamp(),
     clock_timestamp() + interval '30 days'
   );
   IF v_assigned_plan.organizer_id IS DISTINCT FROM v_created_organizer.id
-     OR v_assigned_plan.plan_code IS DISTINCT FROM 'STAGE7_T15_TEST'
+     OR v_assigned_plan.plan_code IS DISTINCT FROM 'PRO'
      OR v_assigned_plan.is_active IS DISTINCT FROM TRUE THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE15_ADMIN_PLAN_ASSIGN_FAILED:%', row_to_json(v_assigned_plan);
   END IF;
