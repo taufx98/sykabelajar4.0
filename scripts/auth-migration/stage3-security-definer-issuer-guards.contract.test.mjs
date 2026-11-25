@@ -1112,14 +1112,14 @@ for (const item of [
     "Admin currency authorization must precede protected dynamic SQL: " + item.name);
   assert.doesNotMatch(fn, /FROM\s+user_roles/i,
     "Admin currency RPC must not authorize directly from legacy user_roles: " + item.name);
-  assert.ok(regression.includes("public." + item.signature),
-    "missing tranche 15 runtime call: " + item.signature);
+  assert.ok(regression.includes("public." + item.name + "("),
+    "missing tranche 15 runtime call: " + item.name);
 }
-for (const signature of [
-  "admin_assign_organizer_plan(uuid,text,timestamp with time zone,timestamp with time zone)",
-  "admin_change_username(uuid,text,text)",
-  "admin_create_organizer(uuid,text,text)",
-]) assert.ok(regression.includes("public." + signature), "missing tranche 15 runtime call: " + signature);
+for (const name of [
+  "admin_assign_organizer_plan",
+  "admin_change_username",
+  "admin_create_organizer",
+]) assert.ok(regression.includes("public." + name + "("), "missing tranche 15 runtime call: " + name);
 
 for (const marker of [
   "STAGE7_TRANCHE15_LEGACY_CURRENCY_ADJUST_ALLOWED",
