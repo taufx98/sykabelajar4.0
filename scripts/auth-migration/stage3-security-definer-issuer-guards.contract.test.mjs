@@ -1177,7 +1177,7 @@ for (const marker of [
 
 
 const tranche16Preflight = draft.match(
-  /DO \\$stage7_tranche16_fingerprint_preflight\\$[\\s\\S]*?\\$stage7_tranche16_fingerprint_preflight\\$;/i,
+  /DO \$stage7_tranche16_fingerprint_preflight\$[\s\S]*?\$stage7_tranche16_fingerprint_preflight\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16Preflight, "missing Tranche 16 Production fingerprint/ACL preflight");
 for (const hash of [
@@ -1188,14 +1188,14 @@ for (const hash of [
   "248f15764ae7b4c89888407ba0031851",
 ]) assert.ok(tranche16Preflight.includes(hash), "missing Tranche 16 Production source fingerprint " + hash);
 assert.match(tranche16Preflight, /'postgres'/);
-assert.match(tranche16Preflight, /p\\.prosecdef/);
-assert.match(tranche16Preflight, /p\\.proacl::text/);
-assert.match(tranche16Preflight, /has_function_privilege\\('anon'/);
-assert.match(tranche16Preflight, /has_function_privilege\\('authenticated'/);
-assert.match(tranche16Preflight, /has_function_privilege\\('service_role'/);
+assert.match(tranche16Preflight, /p\.prosecdef/);
+assert.match(tranche16Preflight, /p\.proacl::text/);
+assert.match(tranche16Preflight, /has_function_privilege\('anon'/);
+assert.match(tranche16Preflight, /has_function_privilege\('authenticated'/);
+assert.match(tranche16Preflight, /has_function_privilege\('service_role'/);
 
 const tranche16Overview = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.get_organizer_competition_result_overview\\([\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.get_organizer_competition_result_overview\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16Overview, "missing Tranche 16 organizer results overview replacement");
 assert.ok(
@@ -1203,19 +1203,19 @@ assert.ok(
   tranche16Overview.indexOf("private.current_user_is_better_auth()") < tranche16Overview.indexOf("FROM public.competitions"),
   "organizer result overview must validate Better Auth before its first competition read",
 );
-assert.match(tranche16Overview, /WHERE c\\.id = p_competition_id[\\s\\S]*?private\\.current_user_is_admin\\(\\)[\\s\\S]*?private\\.current_user_can_edit_competition\\(c\\.organizer_id\\)/i);
+assert.match(tranche16Overview, /WHERE c\.id = p_competition_id[\s\S]*?private\.current_user_is_admin\(\)[\s\S]*?private\.current_user_can_edit_competition\(c\.organizer_id\)/i);
 assert.match(tranche16Overview, /RAISE EXCEPTION 'COMPETITION_NOT_FOUND'/);
 
 const tranche16List = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.list_organizer_registrations\\([\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.list_organizer_registrations\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16List, "missing Tranche 16 organizer registration-list replacement");
-assert.match(tranche16List, /WHERE \\(SELECT private\\.current_user_is_better_auth\\(\\)\\)/);
-assert.match(tranche16List, /private\\.current_user_is_admin\\(\\)/);
-assert.match(tranche16List, /private\\.current_user_is_organizer_for\\(p_organizer_id\\)/);
+assert.match(tranche16List, /WHERE \(SELECT private\.current_user_is_better_auth\(\)\)/);
+assert.match(tranche16List, /private\.current_user_is_admin\(\)/);
+assert.match(tranche16List, /private\.current_user_is_organizer_for\(p_organizer_id\)/);
 
 const tranche16ChoosePlan = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.choose_organizer_plan\\([\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.choose_organizer_plan\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16ChoosePlan, "missing Tranche 16 choose-organizer-plan replacement");
 assert.ok(
@@ -1225,7 +1225,7 @@ assert.ok(
 );
 
 const tranche16Request = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.request_custom_organizer_plan\\([\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.request_custom_organizer_plan\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16Request, "missing Tranche 16 custom-plan request replacement");
 assert.ok(
@@ -1235,7 +1235,7 @@ assert.ok(
 );
 
 const tranche16Review = draft.match(
-  /CREATE OR REPLACE FUNCTION public\\.review_registration\\([\\s\\S]*?\\$function\\$;/i,
+  /CREATE OR REPLACE FUNCTION public\.review_registration\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16Review, "missing Tranche 16 registration-review replacement");
 const tranche16IssuerAt = tranche16Review.indexOf("private.current_user_is_better_auth()");
@@ -1275,6 +1275,6 @@ for (const marker of [
 
 assert.ok(regression.includes("'66666666-6666-4666-8666-666666666691'"));
 assert.ok(regression.includes("'Stage 7 Tranche 16 owner custom plan probe'"));
-assert.match(regression, /RESET ROLE;\\s*ROLLBACK;\\s*$/i);
+assert.match(regression, /RESET ROLE;\s*ROLLBACK;\s*$/i);
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
