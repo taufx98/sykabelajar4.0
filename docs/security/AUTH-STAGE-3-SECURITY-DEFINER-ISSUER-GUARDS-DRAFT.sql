@@ -6030,4 +6030,609 @@ BEGIN
 END;
 $function$;
 
+
+-- Stage 7 Tranche 16: organizer results, registration, plan and custom-plan RPCs.
+-- These exact Production functions are issuer/owner-gated before protected reads,
+-- row locks or business mutations. The preflight runs on the disposable restore
+-- before any replacement and fails closed on any source/metadata/ACL drift.
+DO $stage7_tranche16_fingerprint_preflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_source_md5 text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.choose_organizer_plan(uuid,text)', '5ddce4c8479e0ef29315a289680c823b', 'organizer_plans', 'search_path=public, private', 'plpgsql'),
+      ('public.get_organizer_competition_result_overview(uuid,integer,integer)', 'cb9939c070a2ae7512a72dfd2a2c4539', 'jsonb', 'search_path=""', 'plpgsql'),
+      ('public.list_organizer_registrations(uuid)', '7cc4b51d7604d7a591a6b7feccb1084a', 'TABLE(registration_id uuid, competition_id uuid, competition_title text, user_id uuid, full_name text, username text, institution text, avatar_url text, status text, submitted_at timestamp with time zone, created_at timestamp with time zone, social_proof_url text)', 'search_path=public, private', 'sql'),
+      ('public.request_custom_organizer_plan(uuid,jsonb,text,text)', 'b7513a253a348990382f06cbbbf8d382', 'organizer_custom_plan_requests', 'search_path=public, private', 'plpgsql'),
+      ('public.review_registration(uuid,text,text)', '248f15764ae7b4c89888407ba0031851', 'registrations', 'search_path=public', 'plpgsql')
+    ) AS expected(signature, source_md5, return_type, settings, language)
+  LOOP
+    v_oid := to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_FUNCTION_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT
+      md5(p.prosrc),
+      p.proowner::regrole::text,
+      p.prosecdef,
+      coalesce(array_to_string(p.proconfig, ', '), '(none)'),
+      p.proacl::text,
+      pg_get_function_result(p.oid),
+      l.lanname
+    INTO
+      v_source_md5,
+      v_owner,
+      v_security_definer,
+      v_settings,
+      v_acl,
+      v_return_type,
+      v_language
+    FROM pg_proc p
+    JOIN pg_language l ON l.oid = p.prolang
+    WHERE p.oid = v_oid;
+
+    IF v_source_md5 IS DISTINCT FROM v_expected.source_md5
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_FINGERPRINT_OR_METADATA_DRIFT:%', v_expected.signature;
+    END IF;
+
+    IF has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_DRIFT:%', v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche16_fingerprint_preflight$;
+
+-- Organizer plan selection must prove the exact Better Auth identity before
+-- consulting the plan catalog or current assignment.
+CREATE OR REPLACE FUNCTION public.choose_organizer_plan(p_organizer_id uuid, p_plan_code text)
+ RETURNS public.organizer_plans
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  v_plan public.plan_catalog;
+  v_assignment public.organizer_plans;
+  v_current text;
+  v_current_rank integer := 0;
+  v_target_rank integer := 0;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_organizer_for(p_organizer_id)
+     AND NOT private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+
+  SELECT * INTO v_plan
+  FROM public.plan_catalog
+  WHERE plan_code = upper(p_plan_code)
+    AND is_active = true;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PLAN_NOT_AVAILABLE';
+  END IF;
+  IF upper(p_plan_code) <> 'FREE' THEN
+    RAISE EXCEPTION 'PAID_PLAN_REQUIRES_PAYMENT';
+  END IF;
+
+  SELECT plan_code INTO v_current
+  FROM public.organizer_plans
+  WHERE organizer_id = p_organizer_id
+    AND is_active = true
+  ORDER BY starts_at DESC
+  LIMIT 1;
+
+  v_current_rank := CASE upper(coalesce(v_current, 'FREE'))
+    WHEN 'FREE' THEN 0
+    WHEN 'PREMIUM' THEN 1
+    WHEN 'PRO' THEN 2
+    ELSE 0
+  END;
+  v_target_rank := 0;
+  IF v_current_rank > v_target_rank THEN
+    RAISE EXCEPTION 'PLAN_DOWNGRADE_NOT_ALLOWED';
+  END IF;
+
+  IF v_current = 'FREE' THEN
+    RETURN (
+      SELECT op
+      FROM public.organizer_plans op
+      WHERE op.organizer_id = p_organizer_id
+        AND op.is_active = true
+      ORDER BY op.starts_at DESC
+      LIMIT 1
+    );
+  END IF;
+
+  UPDATE public.organizer_plans
+  SET is_active = false, ends_at = now()
+  WHERE organizer_id = p_organizer_id
+    AND is_active = true;
+
+  INSERT INTO public.organizer_plans(organizer_id, plan_code, starts_at, is_active)
+  VALUES (p_organizer_id, 'FREE', now(), true)
+  RETURNING * INTO v_assignment;
+
+  PERFORM private.write_audit(
+    'organizer.plan_selected',
+    'organizer_plans',
+    v_assignment.id::text,
+    'Organizer selected FREE plan',
+    null,
+    jsonb_build_object('organizer_id', p_organizer_id, 'plan_code', 'FREE'),
+    null
+  );
+
+  RETURN v_assignment;
+END;
+$function$;
+
+-- The organizer results overview validates the issuer first and scopes the
+-- first competition read to an Admin or authorized owner/editor. Foreign and
+-- nonexistent competitions share the same not-found boundary.
+CREATE OR REPLACE FUNCTION public.get_organizer_competition_result_overview(
+  p_competition_id uuid,
+  p_limit integer DEFAULT 500,
+  p_offset integer DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_comp public.competitions%rowtype;
+  v_results jsonb;
+  v_participant_count integer;
+  v_result_count integer;
+  v_pending_attempt_count integer;
+  v_manual_pending_count integer;
+  v_expired_attempt_count integer;
+  v_legacy_active_count integer;
+  v_missing_canonical_count integer;
+  v_limit integer := greatest(1, least(coalesce(p_limit, 500), 1000));
+  v_offset integer := greatest(0, coalesce(p_offset, 0));
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT c.* INTO v_comp
+  FROM public.competitions c
+  WHERE c.id = p_competition_id
+    AND (
+      private.current_user_is_admin()
+      OR (
+        c.organizer_id IS NOT NULL
+        AND private.current_user_can_edit_competition(c.organizer_id)
+      )
+    );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+
+  SELECT count(*)::integer INTO v_participant_count
+  FROM public.participants p
+  WHERE p.competition_id = v_comp.id;
+
+  SELECT count(*)::integer INTO v_result_count
+  FROM private.canonical_competition_results(v_comp.id);
+
+  SELECT coalesce(jsonb_agg(row_data ORDER BY rank_position, full_name), '[]'::jsonb)
+  INTO v_results
+  FROM (
+    SELECT
+      r.rank_position,
+      r.full_name,
+      jsonb_build_object(
+        'participant_id', r.canonical_participant_id,
+        'rank', r.rank_position,
+        'full_name', r.full_name,
+        'participant_type', r.participant_type,
+        'participant_code', r.participant_code,
+        'class_name', r.class_name,
+        'grade', r.grade,
+        'school_name', r.school_name,
+        'score', r.score,
+        'finalized_at', r.finalized_at
+      ) AS row_data
+    FROM private.canonical_competition_results(v_comp.id) r
+    ORDER BY r.rank_position, r.full_name
+    LIMIT v_limit OFFSET v_offset
+  ) page;
+
+  SELECT
+    count(*) FILTER (
+      WHERE a.status::text IN ('NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'GRADING')
+    )::integer,
+    count(*) FILTER (WHERE a.status::text = 'EXPIRED')::integer,
+    count(*) FILTER (
+      WHERE a.status::text = 'IN_PROGRESS'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.exam_attempt_runtime runtime
+          WHERE runtime.attempt_id = a.id
+        )
+    )::integer,
+    count(*) FILTER (
+      WHERE a.status::text = 'FINALIZED'
+        AND a.canonical_participant_id IS NULL
+    )::integer
+  INTO
+    v_pending_attempt_count,
+    v_expired_attempt_count,
+    v_legacy_active_count,
+    v_missing_canonical_count
+  FROM public.attempts a
+  WHERE a.competition_id = v_comp.id
+    AND a.is_preview = false;
+
+  SELECT count(*)::integer
+  INTO v_manual_pending_count
+  FROM public.grading_items gi
+  JOIN public.attempts a ON a.id = gi.attempt_id
+  WHERE a.competition_id = v_comp.id
+    AND a.is_preview = false
+    AND a.status::text IN ('SUBMITTED', 'GRADING')
+    AND gi.grader_id IS NULL
+    AND gi.automatic_score IS NULL;
+
+  RETURN jsonb_build_object(
+    'competition', jsonb_build_object(
+      'id', v_comp.id,
+      'slug', v_comp.slug,
+      'title', v_comp.title,
+      'category', v_comp.category,
+      'status', v_comp.status,
+      'visibility', v_comp.visibility,
+      'announcement_at', v_comp.announcement_at,
+      'poster_url', v_comp.poster_url
+    ),
+    'readiness', jsonb_build_object(
+      'participant_count', v_participant_count,
+      'result_count', v_result_count,
+      'pending_attempt_count', v_pending_attempt_count,
+      'manual_pending_count', v_manual_pending_count,
+      'expired_attempt_count', v_expired_attempt_count,
+      'legacy_active_count', v_legacy_active_count,
+      'missing_canonical_count', v_missing_canonical_count,
+      'can_publish',
+        v_comp.status::text = 'GRADING'
+        AND v_result_count > 0
+        AND v_pending_attempt_count = 0
+        AND v_manual_pending_count = 0
+        AND v_missing_canonical_count = 0
+    ),
+    'results', v_results,
+    'result_limit', v_limit,
+    'result_offset', v_offset
+  );
+END;
+$function$;
+
+-- Keep organizer registration listing read-only and scoped to the issuer-
+-- gated Admin/organizer helpers. The Better Auth predicate makes legacy
+-- issuer requests return an empty projection rather than owner-scoped rows.
+CREATE OR REPLACE FUNCTION public.list_organizer_registrations(p_organizer_id uuid)
+ RETURNS TABLE(
+   registration_id uuid,
+   competition_id uuid,
+   competition_title text,
+   user_id uuid,
+   full_name text,
+   username text,
+   institution text,
+   avatar_url text,
+   status text,
+   submitted_at timestamptz,
+   created_at timestamptz,
+   social_proof_url text
+ )
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'private'
+AS $function$
+  SELECT
+    r.id,
+    c.id,
+    c.title,
+    r.user_id,
+    coalesce(p.full_name, p.username, 'Pengguna'),
+    p.username,
+    p.institution,
+    p.avatar_url,
+    r.status,
+    r.submitted_at,
+    r.created_at,
+    r.social_proof_url
+  FROM public.registrations r
+  JOIN public.competitions c ON c.id = r.competition_id
+  LEFT JOIN public.profiles p ON p.id = r.user_id
+  WHERE (SELECT private.current_user_is_better_auth())
+    AND c.organizer_id = p_organizer_id
+    AND (
+      private.current_user_is_admin()
+      OR private.current_user_is_organizer_for(p_organizer_id)
+    )
+  ORDER BY r.created_at DESC;
+$function$;
+
+-- Custom plan requests explicitly require the Better Auth identity before
+-- owner/Admin scope checks or the request INSERT.
+CREATE OR REPLACE FUNCTION public.request_custom_organizer_plan(
+  p_organizer_id uuid,
+  p_requested_features jsonb,
+  p_notes text DEFAULT NULL::text,
+  p_contact_whatsapp text DEFAULT NULL::text
+)
+RETURNS public.organizer_custom_plan_requests
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  v_request public.organizer_custom_plan_requests;
+  v_feature text;
+  v_qty numeric;
+  v_quantities jsonb := coalesce(p_requested_features->'quantities', '{}'::jsonb);
+  v_quantity_features constant text[] := ARRAY['competition_create','participant_limit','question_limit','certificate_serials'];
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF NOT private.current_user_can_manage_organizer(p_organizer_id)
+     AND NOT private.current_user_is_admin() THEN
+    RAISE EXCEPTION 'ACCESS_DENIED';
+  END IF;
+  IF coalesce(jsonb_typeof(p_requested_features), 'object') <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_FEATURE_REQUEST';
+  END IF;
+  IF jsonb_typeof(coalesce(p_requested_features->'features', '[]'::jsonb)) <> 'array' THEN
+    RAISE EXCEPTION 'INVALID_FEATURE_REQUEST';
+  END IF;
+  IF jsonb_typeof(v_quantities) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_FEATURE_QUANTITIES';
+  END IF;
+  IF coalesce(trim(p_contact_whatsapp), '') = '' THEN
+    RAISE EXCEPTION 'WHATSAPP_REQUIRED';
+  END IF;
+
+  FOREACH v_feature IN ARRAY v_quantity_features LOOP
+    IF p_requested_features->'features' ? v_feature THEN
+      IF NOT (v_quantities ? v_feature) THEN
+        RAISE EXCEPTION 'QUANTITY_REQUIRED:%', v_feature;
+      END IF;
+      BEGIN
+        v_qty := (v_quantities->>v_feature)::numeric;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'INVALID_QUANTITY:%', v_feature;
+      END;
+      IF v_qty IS NULL OR v_qty < 1 OR v_qty <> trunc(v_qty) THEN
+        RAISE EXCEPTION 'INVALID_QUANTITY:%', v_feature;
+      END IF;
+    END IF;
+  END LOOP;
+
+  INSERT INTO public.organizer_custom_plan_requests(
+    organizer_id, requester_user_id, requested_features, notes, contact_whatsapp
+  )
+  VALUES (
+    p_organizer_id, auth.uid(), p_requested_features,
+    nullif(trim(p_notes), ''), trim(p_contact_whatsapp)
+  )
+  RETURNING * INTO v_request;
+
+  PERFORM private.write_audit(
+    'organizer.custom_plan_requested',
+    'organizer_custom_plan_requests',
+    v_request.id::text,
+    'Custom organizer plan requested',
+    null,
+    jsonb_build_object('organizer_id', p_organizer_id, 'request_id', v_request.id),
+    null
+  );
+
+  RETURN v_request;
+END;
+$function$;
+
+-- Registration review performs issuer validation first, scopes the initial
+-- read to the authorized organizer/Admin before taking FOR UPDATE, then
+-- rechecks the scope after the row lock to close TOCTOU ownership changes.
+CREATE OR REPLACE FUNCTION public.review_registration(
+  p_registration_id uuid,
+  p_decision text,
+  p_reason text DEFAULT NULL::text
+)
+RETURNS public.registrations
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  r public.registrations;
+  c public.competitions;
+  new_status public.registration_status;
+  actor uuid := auth.uid();
+BEGIN
+  IF actor IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+
+  SELECT reg, comp INTO r, c
+  FROM public.registrations reg
+  JOIN public.competitions comp ON comp.id = reg.competition_id
+  WHERE reg.id = p_registration_id
+    AND (
+      private.current_user_is_admin()
+      OR (
+        comp.organizer_id IS NOT NULL
+        AND private.current_user_is_organizer_for(comp.organizer_id)
+      )
+    );
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REGISTRATION_NOT_FOUND';
+  END IF;
+
+  SELECT reg.* INTO r
+  FROM public.registrations reg
+  WHERE reg.id = p_registration_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REGISTRATION_NOT_FOUND';
+  END IF;
+
+  SELECT comp.* INTO c
+  FROM public.competitions comp
+  WHERE comp.id = r.competition_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'REGISTRATION_NOT_FOUND';
+  END IF;
+  IF NOT (
+    private.current_user_is_admin()
+    OR (
+      c.organizer_id IS NOT NULL
+      AND private.current_user_is_organizer_for(c.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'REGISTRATION_NOT_FOUND';
+  END IF;
+
+  IF upper(p_decision) NOT IN ('APPROVED', 'ACTIVE', 'REJECTED') THEN
+    RAISE EXCEPTION 'INVALID_DECISION';
+  END IF;
+  IF upper(p_decision) = 'REJECTED' AND nullif(trim(p_reason), '') IS NULL THEN
+    RAISE EXCEPTION 'REJECTION_REASON_REQUIRED';
+  END IF;
+
+  new_status := CASE
+    WHEN upper(p_decision) IN ('APPROVED', 'ACTIVE')
+      THEN 'ACTIVE'::public.registration_status
+    ELSE 'REJECTED'::public.registration_status
+  END;
+
+  UPDATE public.registrations
+  SET status = new_status,
+      approved_at = CASE WHEN new_status = 'ACTIVE' THEN now() ELSE approved_at END,
+      approved_by = CASE WHEN new_status = 'ACTIVE' THEN actor ELSE approved_by END,
+      rejected_at = CASE WHEN new_status = 'REJECTED' THEN now() ELSE rejected_at END,
+      rejection_reason = CASE WHEN new_status = 'REJECTED' THEN trim(p_reason) ELSE NULL END,
+      updated_at = now()
+  WHERE id = r.id
+  RETURNING * INTO r;
+
+  INSERT INTO public.audit_logs(actor_user_id, action, entity_type, entity_id, reason, after_data)
+  VALUES (
+    actor,
+    'registration.review',
+    'registration',
+    r.id::text,
+    nullif(trim(p_reason), ''),
+    to_jsonb(r)
+  );
+
+  INSERT INTO public.notifications(user_id, type, title, body, data)
+  VALUES (
+    r.user_id,
+    CASE WHEN new_status = 'ACTIVE' THEN 'REGISTRATION_APPROVED' ELSE 'REGISTRATION_REJECTED' END,
+    CASE WHEN new_status = 'ACTIVE' THEN 'Pendaftaran disetujui' ELSE 'Pendaftaran ditolak' END,
+    CASE WHEN new_status = 'ACTIVE'
+      THEN 'Pendaftaran kamu telah disetujui.'
+      ELSE 'Pendaftaran kamu ditolak. ' || coalesce(trim(p_reason), '')
+    END,
+    jsonb_build_object('competition_id', r.competition_id, 'registration_id', r.id)
+  );
+
+  RETURN r;
+END;
+$function$;
+
+DO $stage7_tranche16_metadata_postflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.choose_organizer_plan(uuid,text)', 'organizer_plans', 'search_path=public, private', 'plpgsql'),
+      ('public.get_organizer_competition_result_overview(uuid,integer,integer)', 'jsonb', 'search_path=""', 'plpgsql'),
+      ('public.list_organizer_registrations(uuid)', 'TABLE(registration_id uuid, competition_id uuid, competition_title text, user_id uuid, full_name text, username text, institution text, avatar_url text, status text, submitted_at timestamp with time zone, created_at timestamp with time zone, social_proof_url text)', 'search_path=public, private', 'sql'),
+      ('public.request_custom_organizer_plan(uuid,jsonb,text,text)', 'organizer_custom_plan_requests', 'search_path=public, private', 'plpgsql'),
+      ('public.review_registration(uuid,text,text)', 'registrations', 'search_path=public', 'plpgsql')
+    ) AS expected(signature, return_type, settings, language)
+  LOOP
+    v_oid := to_regprocedure(v_expected.signature);
+    SELECT
+      p.proowner::regrole::text,
+      p.prosecdef,
+      coalesce(array_to_string(p.proconfig, ', '), '(none)'),
+      p.proacl::text,
+      pg_get_function_result(p.oid),
+      l.lanname
+    INTO
+      v_owner,
+      v_security_definer,
+      v_settings,
+      v_acl,
+      v_return_type,
+      v_language
+    FROM pg_proc p
+    JOIN pg_language l ON l.oid = p.prolang
+    WHERE p.oid = v_oid;
+
+    IF v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_METADATA_OR_ACL_POSTFLIGHT_FAILED:%', v_expected.signature;
+    END IF;
+    IF has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_POSTFLIGHT_FAILED:%', v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche16_metadata_postflight$;
+
 COMMIT;
