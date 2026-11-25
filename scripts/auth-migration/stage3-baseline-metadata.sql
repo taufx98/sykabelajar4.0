@@ -109,6 +109,7 @@ user_scoped_issuer_function_meta AS (
       'grade_competition_attempt',
       'grade_essay_similarity',
       'save_manual_grading_item',
+      'start_linear_exam_attempt',
       'start_organizer_exam_preview',
       'provision_collective_registration',
       'regenerate_collective_participant_password',
