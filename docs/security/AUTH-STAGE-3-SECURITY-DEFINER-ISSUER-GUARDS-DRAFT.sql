@@ -6081,20 +6081,43 @@ BEGIN
     JOIN pg_language l ON l.oid = p.prolang
     WHERE p.oid = v_oid;
 
-    IF v_source_md5 IS DISTINCT FROM v_expected.source_md5
-       OR v_owner IS DISTINCT FROM 'postgres'
-       OR v_security_definer IS DISTINCT FROM TRUE
-       OR v_settings IS DISTINCT FROM v_expected.settings
-       OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
-       OR v_return_type IS DISTINCT FROM v_expected.return_type
-       OR v_language IS DISTINCT FROM v_expected.lang THEN
-      RAISE EXCEPTION 'STAGE7_TRANCHE16_FINGERPRINT_OR_METADATA_DRIFT:%', v_expected.signature;
+    IF v_source_md5 IS DISTINCT FROM v_expected.source_md5 THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_SOURCE_FINGERPRINT_DRIFT:%:actual=%:expected=%',
+        v_expected.signature, v_source_md5, v_expected.source_md5;
+    END IF;
+    IF v_owner IS DISTINCT FROM 'postgres' THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_DRIFT:%:actual=%:expected=postgres',
+        v_expected.signature, v_owner;
+    END IF;
+    IF v_security_definer IS DISTINCT FROM TRUE THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_SECURITY_DEFINER_DRIFT:%:actual=%:expected=true',
+        v_expected.signature, v_security_definer;
+    END IF;
+    IF v_settings IS DISTINCT FROM v_expected.settings THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_SEARCH_PATH_DRIFT:%:actual=%:expected=%',
+        v_expected.signature, v_settings, v_expected.settings;
+    END IF;
+    IF v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}' THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_ACL_DRIFT:%:actual=%:expected={postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}',
+        v_expected.signature, v_acl;
+    END IF;
+    IF v_return_type IS DISTINCT FROM v_expected.return_type THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_RETURN_TYPE_DRIFT:%:actual=%:expected=%',
+        v_expected.signature, v_return_type, v_expected.return_type;
+    END IF;
+    IF v_language IS DISTINCT FROM v_expected.lang THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_LANGUAGE_DRIFT:%:actual=%:expected=%',
+        v_expected.signature, v_language, v_expected.lang;
     END IF;
 
     IF has_function_privilege('anon', v_oid, 'EXECUTE')
        OR NOT has_function_privilege('authenticated', v_oid, 'EXECUTE')
        OR NOT has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
-      RAISE EXCEPTION 'STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_DRIFT:%', v_expected.signature;
+      RAISE EXCEPTION 'STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_DRIFT:%:anon=%:authenticated=%:service_role=%',
+        v_expected.signature,
+        has_function_privilege('anon', v_oid, 'EXECUTE'),
+        has_function_privilege('authenticated', v_oid, 'EXECUTE'),
+        has_function_privilege('service_role', v_oid, 'EXECUTE');
     END IF;
   END LOOP;
 END;
