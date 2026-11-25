@@ -53,6 +53,18 @@ Protected Auth Production Schema Baseline [#45459397254](https://github.com/tauf
 
 **Cumulative manual review: 63/202 exact signatures; 139 remain.** This adds two accepted signatures to the previous 61/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; Production DB2 remains **NO-GO**. No Production DDL/DML, account/data changes, role/grant/policy edits, Worker deployment, DNS change, or secret change was made.
 
+## Additional manual review — 25 November 2026
+
+[Tranche 13](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-13-2026-11-25.md) adds five issuer-guarded currency-log and organizer plan/quota RPCs: `get_all_currency_logs(integer)`, `get_user_currency_logs(uuid,integer)`, `get_active_organizer_entitlements(uuid)`, `get_organizer_effective_plan(uuid)` and `get_organizer_competition_quota(uuid)`.
+
+A read-only Production DB2 query on 25 November confirmed all five exact `md5(pg_proc.prosrc)` values still match the immutable 21 November inventory. Each function remains owned by `postgres`, SECURITY DEFINER, and retains the inventoried search_path and grants: `authenticated` and `service_role` EXECUTE, with no `anon` or `PUBLIC` EXECUTE. PR #279 adds direct Better Auth issuer checks and self/organizer/Admin scope; PR #280 reconstructs the five exact Production ACLs on the disposable restore only.
+
+The rollback-only regression covers legacy-issuer denial/empty currency-log projection, Better Auth Admin and organizer-owner positive plan/entitlement/quota paths, and unrelated-user IDOR denial. Currency-log rows are absent by design from the schema-only restore, so the runtime positive currency calls execute against an empty projection; no non-empty log read is claimed.
+
+Protected Auth Production Schema Baseline [#45527720909](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720909) passed **68/68 steps** on commit `e7b0b20b853fc83682cabb8894499922428e2a6d`. Supabase Local Auth Claims [#45527720794](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720794) and Auth Worker CI [#45527720824](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720824) also passed on the same commit.
+
+**Cumulative manual review: 68/202 exact signatures; 134 remain.** This adds five accepted signatures to the previous 63/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; Production DB2 remains **NO-GO**. No Production DDL/DML, row/data changes, role/grant/policy edits, Worker deployment, DNS change or secret change was made.
+
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
 [Tranches 06–10 acceptance record](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHES-06-10-2026-11-25.md) records 21 additional source-reviewed Admin, certificate/order, teacher/collective/organizer, product-order and question-bank functions. A read-only Production catalog query confirmed all 21 exact source hashes, owner, SECURITY DEFINER flag, search_path and ACL against the immutable 21 November triage snapshot. The rollback-only regression contains legacy-issuer denial and valid Better Auth/Admin/owner boundary tests for all 21 signatures.
