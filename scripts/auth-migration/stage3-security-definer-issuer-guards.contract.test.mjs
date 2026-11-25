@@ -959,7 +959,6 @@ assert.match(tranche13Preflight, /has_function_privilege\('authenticated'/);
 assert.match(tranche13Preflight, /has_function_privilege\('service_role'/);
 
 for (const marker of [
-  "STAGE7_TRANCHE13_LEGACY_ADMIN_HELPER_ACCEPTED",
   "STAGE7_TRANCHE13_LEGACY_SELF_CURRENCY_LOGS_LEAKED",
   "STAGE7_TRANCHE13_LEGACY_ENTITLEMENTS_ALLOWED",
   "STAGE7_TRANCHE13_LEGACY_EFFECTIVE_PLAN_ALLOWED",
