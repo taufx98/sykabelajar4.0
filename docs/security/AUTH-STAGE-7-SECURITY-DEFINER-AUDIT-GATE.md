@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking, updated 24 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking, updated 25 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -42,6 +42,18 @@ The protected Auth Production Schema Baseline [#45374215915](https://github.com/
 **Cumulative manual review: 40/202 exact signatures; 162 remain.** This adds four accepted signatures to the previous 36/202 count. This is partial per-function source/runtime evidence only; it does not change the global Production gate.
 
 The final activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0` until all 202 signatures have exact post-Stage-3 fingerprints, classification, and class-specific tests. Production DB2 remains **NO-GO**. No Production DDL/DML, account-row change, role/grant/policy change, Worker deployment, DNS change, or secret change was made.
+
+## Additional manual review — 25 November 2026
+
+[Tranche 12](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-12-2026-11-25.md) adds two issuer-first canonical competition-result RPCs: `get_canonical_competition_result(uuid)` and `get_my_canonical_competition_result(uuid)`. The direct participant-ID RPC now validates the Better Auth issuer before its first participant read; the frontend wrapper validates issuer before its participant lookup and continues to scope by `auth.uid()`.
+
+A read-only Production DB2 catalog query on 25 November confirmed both exact `md5(pg_proc.prosrc)` hashes still match the immutable 21 November inventory. Owner remains `postgres`, both remain SECURITY DEFINER, and their original search paths and ACLs are unchanged: `authenticated` and `service_role` EXECUTE; no `anon` or `PUBLIC` EXECUTE.
+
+The rollback-only regression covers legacy-issuer denial for both RPCs, individual owner and Admin positive paths, cross-participant IDOR denial, score/rank withholding before publication, collective-manager positive access, and collective IDOR denial against an existing trigger-created canonical participant. PRs #274–#277 completed the code, ACL-restore, and collective fixture coverage.
+
+Protected Auth Production Schema Baseline [#45459397254](https://github.com/taufx98/sykabelajar4.0/actions/runs/45459397254) passed **68/68 steps** on commit `56e04fef7f3658edcca0fd3ebc03a3d2e5571711`. Supabase Local Auth Claims CI [#45459397223](https://github.com/taufx98/sykabelajar4.0/actions/runs/45459397223) passed on the same commit.
+
+**Cumulative manual review: 42/202 exact signatures; 160 remain.** This adds two accepted signatures to the previous 40/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; Production DB2 remains **NO-GO**. No Production DDL/DML, account/data changes, role/grant/policy edits, Worker deployment, DNS change, or secret change was made.
 
 ## Read-only live snapshot — 21 November 2026
 
