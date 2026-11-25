@@ -31,6 +31,11 @@ const names = [
   ["public","get_active_organizer_entitlements","p_organizer_id uuid"],
   ["public","get_organizer_effective_plan","p_organizer_id uuid"],
   ["public","get_organizer_competition_quota","p_organizer_id uuid"],
+  ["public","get_linear_exam_activity","p_competition_id uuid, p_limit integer, p_offset integer"],
+  ["public","grade_competition_attempt","p_attempt_id uuid"],
+  ["public","grade_essay_similarity","p_attempt_id uuid, p_question_id uuid"],
+  ["public","save_manual_grading_item","p_grading_item_id uuid, p_score numeric, p_feedback text"],
+  ["public","start_organizer_exam_preview","p_competition_id uuid"],
   ["public","create_follow_request","p_target_user_id uuid"],
   ["public","get_my_canonical_competition_result","p_competition_id uuid"],
   ["public","get_my_canonical_participant","p_competition_id uuid"],
@@ -60,8 +65,8 @@ const functionRows = names.map(([schema_name,function_name,identity_arguments],i
   }));
 const metadata = {
   auth_dependent_functions: functionRows.slice(0,10),
-  user_scoped_issuer_functions: functionRows.slice(10,29),
-  personal_rpc_issuer_functions: functionRows.slice(29),
+  user_scoped_issuer_functions: functionRows.slice(10,34),
+  personal_rpc_issuer_functions: functionRows.slice(34),
 };
 
 const sql = renderFunctionAclRestore(metadata);
@@ -97,8 +102,8 @@ assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collectiv
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION private.provision_collective_registration(uuid) TO "service_role";'), false);
 assert.match(sql,/FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(sql,/local disposable restore only/);
-assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 43/);
-assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 43/);
+assert.throws(()=>renderFunctionAclRestore({...metadata,user_scoped_issuer_functions:metadata.user_scoped_issuer_functions.slice(1)}),/all 48/);
+assert.throws(()=>renderFunctionAclRestore({...metadata, personal_rpc_issuer_functions:metadata.personal_rpc_issuer_functions.slice(1)}),/all 48/);
 
 assert.throws(()=>renderFunctionAclRestore({
   ...metadata,
