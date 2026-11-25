@@ -415,7 +415,7 @@ jobs:
 
           {
             echo ""
-            echo "- Reconstructed exact ACLs for all forty-three allowlisted identity, user-scoped, personal and canonical participant-result functions from Production metadata in the disposable local database only"
+            echo "- Reconstructed exact ACLs for all fifty-eight allowlisted identity, user-scoped, personal, organizer and canonical participant-result functions from Production metadata in the disposable local database only"
             echo "- No production grant/revoke statement was executed"
           } >> "$GITHUB_STEP_SUMMARY"
 
