@@ -6054,7 +6054,7 @@ BEGIN
       ('public.list_organizer_registrations(uuid)', '7cc4b51d7604d7a591a6b7feccb1084a', 'TABLE(registration_id uuid, competition_id uuid, competition_title text, user_id uuid, full_name text, username text, institution text, avatar_url text, status text, submitted_at timestamp with time zone, created_at timestamp with time zone, social_proof_url text)', 'search_path=public, private', 'sql'),
       ('public.request_custom_organizer_plan(uuid,jsonb,text,text)', 'b7513a253a348990382f06cbbbf8d382', 'organizer_custom_plan_requests', 'search_path=public, private', 'plpgsql'),
       ('public.review_registration(uuid,text,text)', '248f15764ae7b4c89888407ba0031851', 'registrations', 'search_path=public', 'plpgsql')
-    ) AS expected(signature, source_md5, return_type, settings, language)
+    ) AS expected(signature, source_md5, return_type, settings, lang)
   LOOP
     v_oid := to_regprocedure(v_expected.signature);
     IF v_oid IS NULL THEN
@@ -6087,7 +6087,7 @@ BEGIN
        OR v_settings IS DISTINCT FROM v_expected.settings
        OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
        OR v_return_type IS DISTINCT FROM v_expected.return_type
-       OR v_language IS DISTINCT FROM v_expected.language THEN
+       OR v_language IS DISTINCT FROM v_expected.lang THEN
       RAISE EXCEPTION 'STAGE7_TRANCHE16_FINGERPRINT_OR_METADATA_DRIFT:%', v_expected.signature;
     END IF;
 
@@ -6623,7 +6623,7 @@ BEGIN
        OR v_settings IS DISTINCT FROM v_expected.settings
        OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
        OR v_return_type IS DISTINCT FROM v_expected.return_type
-       OR v_language IS DISTINCT FROM v_expected.language THEN
+       OR v_language IS DISTINCT FROM v_expected.lang THEN
       RAISE EXCEPTION 'STAGE7_TRANCHE16_METADATA_OR_ACL_POSTFLIGHT_FAILED:%', v_expected.signature;
     END IF;
     IF has_function_privilege('anon', v_oid, 'EXECUTE')
