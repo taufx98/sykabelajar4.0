@@ -900,4 +900,72 @@ assert.ok(regression.includes("'77777777-7777-4777-8777-777777777774'"));
 assert.ok(regression.includes("stage7.tranche12.canonical_participant_id"));
 assert.ok(regression.includes("current_setting('stage7.tranche12.canonical_participant_id')::uuid"));
 
+
+const tranche13Functions = [
+  {
+    name: "get_all_currency_logs",
+    source: /CREATE OR REPLACE FUNCTION public\\.get_all_currency_logs\\(p_limit integer DEFAULT 100\\)[\\s\\S]*?\\$function\\$;/i,
+    fingerprint: "58989fc6a65d26a228f06769e444903a",
+  },
+  {
+    name: "get_user_currency_logs",
+    source: /CREATE OR REPLACE FUNCTION public\\.get_user_currency_logs\\([\\s\\S]*?\\$function\\$;/i,
+    fingerprint: "bf7a478554b65bffaddb761ecae34019",
+  },
+  {
+    name: "get_active_organizer_entitlements",
+    source: /CREATE OR REPLACE FUNCTION public\\.get_active_organizer_entitlements\\(p_organizer_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+    fingerprint: "347c3643c3860af5dca477b5a4f4f598",
+  },
+  {
+    name: "get_organizer_effective_plan",
+    source: /CREATE OR REPLACE FUNCTION public\\.get_organizer_effective_plan\\(p_organizer_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+    fingerprint: "a07ecfd264fc5401b954d1381f0fc8b5",
+  },
+  {
+    name: "get_organizer_competition_quota",
+    source: /CREATE OR REPLACE FUNCTION public\\.get_organizer_competition_quota\\(p_organizer_id uuid\\)[\\s\\S]*?\\$function\\$;/i,
+    fingerprint: "72d733e2b864c9f5171176d158f2d366",
+  },
+];
+for (const item of tranche13Functions) {
+  const fn = draft.match(item.source)?.[0] ?? "";
+  assert.ok(fn, "missing tranche 13 replacement: " + item.name);
+  assert.match(fn, /private\\.current_user_is_better_auth\\(\\)/);
+  assert.match(fn, new RegExp(item.fingerprint));
+  if (item.name === "get_all_currency_logs") {
+    assert.match(fn, /WHERE private\\.current_user_is_better_auth\\(\\)[\\s\\S]*?private\\.current_user_is_admin\\(\\)/i);
+  } else if (item.name === "get_user_currency_logs") {
+    assert.match(fn, /WHERE private\\.current_user_is_better_auth\\(\\)[\\s\\S]*?l\\.target_user_id = p_target_user_id[\\s\\S]*?p_target_user_id = \\(SELECT auth\\.uid\\(\\)\\)/i);
+  } else {
+    assert.ok(
+      fn.indexOf("private.current_user_is_better_auth()") <
+        fn.indexOf("private.get_effective_organizer_plan(") && fn.indexOf("private.get_effective_organizer_plan(") >= 0 ||
+        (item.name === "get_organizer_competition_quota" &&
+          fn.indexOf("private.current_user_is_better_auth()") < fn.indexOf("RETURN QUERY")),
+      "tranche 13 issuer guard must precede protected entitlement/quota reads: " + item.name,
+    );
+  }
+}
+
+const tranche13Preflight = draft.match(
+  /DO \\$stage7_tranche13_fingerprint_preflight\\$[\\s\\S]*?\\$stage7_tranche13_fingerprint_preflight\\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche13Preflight, "missing tranche 13 Production fingerprint/ACL preflight");
+for (const item of tranche13Functions) assert.ok(tranche13Preflight.includes(item.fingerprint));
+for (const marker of [
+  "STAGE7_TRANCHE13_LEGACY_ADMIN_HELPER_ACCEPTED",
+  "STAGE7_TRANCHE13_LEGACY_SELF_CURRENCY_LOGS_LEAKED",
+  "STAGE7_TRANCHE13_LEGACY_ENTITLEMENTS_ALLOWED",
+  "STAGE7_TRANCHE13_LEGACY_EFFECTIVE_PLAN_ALLOWED",
+  "STAGE7_TRANCHE13_LEGACY_COMPETITION_QUOTA_ALLOWED",
+  "STAGE7_TRANCHE13_ADMIN_ENTITLEMENTS_MISSING",
+  "STAGE7_TRANCHE13_ORGANIZER_ENTITLEMENTS_MISSING",
+  "STAGE7_TRANCHE13_FOREIGN_CURRENCY_LOGS_LEAKED",
+  "STAGE7_TRANCHE13_FOREIGN_ENTITLEMENTS_ALLOWED",
+  "STAGE7_TRANCHE13_FOREIGN_EFFECTIVE_PLAN_ALLOWED",
+  "STAGE7_TRANCHE13_FOREIGN_COMPETITION_QUOTA_ALLOWED",
+]) assert.ok(regression.includes(marker), "missing tranche 13 runtime assertion: " + marker);
+
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
