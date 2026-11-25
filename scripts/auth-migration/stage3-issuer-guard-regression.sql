@@ -82,6 +82,14 @@ BEGIN
   ) OR EXISTS (
     SELECT 1 FROM public.grading_items
     WHERE id = '88888888-8888-4888-8888-888888888893'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.registrations
+    WHERE id = '66666666-6666-4666-8666-666666666691'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizer_custom_plan_requests
+    WHERE organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
+      AND requester_user_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+      AND notes = 'Stage 7 Tranche 16 owner custom plan probe'
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
   END IF;
@@ -765,6 +773,19 @@ VALUES (
   '77777777-7777-4777-8777-777777777797',
   0,
   'Stage 7 tranche 14 rollback-only authorization fixture'
+);
+
+-- Tranche 16 organizer registration fixture. It reuses the fresh synthetic
+-- owner/competition created above and one unrelated synthetic student profile.
+INSERT INTO public.registrations (
+  id, competition_id, user_id, status, metadata
+)
+VALUES (
+  '66666666-6666-4666-8666-666666666691',
+  '44444444-4444-4444-8444-444444444441',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'PENDING'::public.registration_status,
+  jsonb_build_object('fixture', 'stage7-tranche16')
 );
 
 SELECT set_config('request.jwt.claims', '{}', TRUE);
@@ -4365,6 +4386,272 @@ BEGIN
   END IF;
 END;
 $stage7_tranche15_access_code_hash_only$;
+
+-- Stage 7 Tranche 16: organizer result, registration and plan RPC issuer/scope boundary.
+-- All fixtures are synthetic and the outer transaction remains rollback-only.
+SET LOCAL ROLE authenticated;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  TRUE
+);
+SELECT set_config('request.jwt.claim.sub', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', TRUE);
+
+DO $stage7_tranche16_legacy_issuer$
+DECLARE
+  v_error text;
+  v_count integer;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_organizer_competition_result_overview(
+      '44444444-4444-4444-8444-444444444441'::uuid, 20, 0
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_LEGACY_OVERVIEW_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_organizer_registrations('77777777-7777-4777-8777-777777777791'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_LEGACY_REGISTRATIONS_LEAKED:%', v_count;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.review_registration(
+      '66666666-6666-4666-8666-666666666691'::uuid, 'APPROVED', NULL
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_LEGACY_REVIEW_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.choose_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid, 'FREE'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_LEGACY_PLAN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.request_custom_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '{"features":["competition_create"],"quantities":{"competition_create":1}}'::jsonb,
+      'Stage 7 Tranche 16 legacy issuer probe',
+      '081234567890'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_LEGACY_CUSTOM_PLAN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche16_legacy_issuer$;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config('request.jwt.claim.sub', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', TRUE);
+
+DO $stage7_tranche16_unrelated_user$
+DECLARE
+  v_error text;
+  v_count integer;
+BEGIN
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_organizer_competition_result_overview(
+      '44444444-4444-4444-8444-444444444441'::uuid, 20, 0
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'COMPETITION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_FOREIGN_OVERVIEW_DISCLOSED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_organizer_registrations('77777777-7777-4777-8777-777777777791'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_FOREIGN_REGISTRATIONS_LEAKED:%', v_count;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.review_registration(
+      '66666666-6666-4666-8666-666666666691'::uuid, 'APPROVED', NULL
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'REGISTRATION_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_FOREIGN_REVIEW_DISCLOSED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.choose_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid, 'FREE'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_FOREIGN_PLAN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.request_custom_organizer_plan(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '{"features":["competition_create"],"quantities":{"competition_create":1}}'::jsonb,
+      'Stage 7 Tranche 16 unrelated user probe',
+      '081234567890'
+    );
+  EXCEPTION WHEN OTHERS THEN v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_FOREIGN_CUSTOM_PLAN_ALLOWED:%', coalesce(v_error,'NO_ERROR');
+  END IF;
+END;
+$stage7_tranche16_unrelated_user$;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config('request.jwt.claim.sub', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', TRUE);
+
+DO $stage7_tranche16_owner_positive$
+DECLARE
+  v_overview jsonb;
+  v_count integer;
+  v_registration public.registrations;
+  v_plan public.organizer_plans;
+  v_request public.organizer_custom_plan_requests;
+BEGIN
+  v_overview := public.get_organizer_competition_result_overview(
+    '44444444-4444-4444-8444-444444444441'::uuid, 20, 0
+  );
+  IF v_overview->'competition'->>'slug' IS DISTINCT FROM 'stage7-organizer-scope-probe'
+     OR jsonb_typeof(v_overview->'results') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_OVERVIEW_FAILED:%', v_overview;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_organizer_registrations('77777777-7777-4777-8777-777777777791'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_REGISTRATIONS_FAILED:%', v_count;
+  END IF;
+
+  SELECT * INTO v_registration
+  FROM public.review_registration(
+    '66666666-6666-4666-8666-666666666691'::uuid, 'APPROVED', NULL
+  );
+  IF v_registration.id IS DISTINCT FROM '66666666-6666-4666-8666-666666666691'::uuid
+     OR v_registration.status::text IS DISTINCT FROM 'ACTIVE'
+     OR v_registration.approved_by IS DISTINCT FROM 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_REVIEW_FAILED:%', row_to_json(v_registration);
+  END IF;
+
+  SELECT * INTO v_plan
+  FROM public.choose_organizer_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid, 'FREE'
+  );
+  IF v_plan.organizer_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777791'::uuid
+     OR v_plan.plan_code IS DISTINCT FROM 'FREE'
+     OR v_plan.is_active IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_PLAN_FAILED:%', row_to_json(v_plan);
+  END IF;
+
+  SELECT * INTO v_request
+  FROM public.request_custom_organizer_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid,
+    '{"features":["competition_create"],"quantities":{"competition_create":1}}'::jsonb,
+    'Stage 7 Tranche 16 owner custom plan probe',
+    '081234567890'
+  );
+  IF v_request.organizer_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777791'::uuid
+     OR v_request.requester_user_id IS DISTINCT FROM 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+     OR v_request.status IS DISTINCT FROM 'PENDING' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_OWNER_CUSTOM_PLAN_FAILED:%', row_to_json(v_request);
+  END IF;
+END;
+$stage7_tranche16_owner_positive$;
+
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', TRUE);
+
+DO $stage7_tranche16_admin_positive$
+DECLARE
+  v_overview jsonb;
+  v_count integer;
+  v_registration public.registrations;
+  v_plan public.organizer_plans;
+  v_request public.organizer_custom_plan_requests;
+BEGIN
+  v_overview := public.get_organizer_competition_result_overview(
+    '44444444-4444-4444-8444-444444444441'::uuid, 20, 0
+  );
+  IF v_overview->'competition'->>'slug' IS DISTINCT FROM 'stage7-organizer-scope-probe' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_ADMIN_OVERVIEW_FAILED:%', v_overview;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.list_organizer_registrations('77777777-7777-4777-8777-777777777791'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_ADMIN_REGISTRATIONS_FAILED:%', v_count;
+  END IF;
+
+  SELECT * INTO v_registration
+  FROM public.review_registration(
+    '66666666-6666-4666-8666-666666666691'::uuid,
+    'REJECTED',
+    'Stage 7 Tranche 16 rollback-only Admin review'
+  );
+  IF v_registration.status::text IS DISTINCT FROM 'REJECTED'
+     OR v_registration.approved_by IS DISTINCT FROM 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+     OR v_registration.rejection_reason IS DISTINCT FROM 'Stage 7 Tranche 16 rollback-only Admin review' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_ADMIN_REVIEW_FAILED:%', row_to_json(v_registration);
+  END IF;
+
+  SELECT * INTO v_plan
+  FROM public.choose_organizer_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid, 'FREE'
+  );
+  IF v_plan.organizer_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777791'::uuid
+     OR v_plan.plan_code IS DISTINCT FROM 'FREE' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_ADMIN_PLAN_FAILED:%', row_to_json(v_plan);
+  END IF;
+
+  SELECT * INTO v_request
+  FROM public.request_custom_organizer_plan(
+    '77777777-7777-4777-8777-777777777791'::uuid,
+    '{"features":["competition_create"],"quantities":{"competition_create":1}}'::jsonb,
+    'Stage 7 Tranche 16 Admin custom plan probe',
+    '081234567891'
+  );
+  IF v_request.organizer_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777791'::uuid
+     OR v_request.requester_user_id IS DISTINCT FROM 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+     OR v_request.status IS DISTINCT FROM 'PENDING' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE16_ADMIN_CUSTOM_PLAN_FAILED:%', row_to_json(v_request);
+  END IF;
+END;
+$stage7_tranche16_admin_positive$;
 
 RESET ROLE;
 ROLLBACK;
