@@ -1193,6 +1193,16 @@ assert.match(tranche16Preflight, /p\.proacl::text/);
 assert.match(tranche16Preflight, /has_function_privilege\('anon'/);
 assert.match(tranche16Preflight, /has_function_privilege\('authenticated'/);
 assert.match(tranche16Preflight, /has_function_privilege\('service_role'/);
+for (const marker of [
+  "STAGE7_TRANCHE16_SOURCE_FINGERPRINT_DRIFT",
+  "STAGE7_TRANCHE16_OWNER_DRIFT",
+  "STAGE7_TRANCHE16_SECURITY_DEFINER_DRIFT",
+  "STAGE7_TRANCHE16_SEARCH_PATH_DRIFT",
+  "STAGE7_TRANCHE16_ACL_DRIFT",
+  "STAGE7_TRANCHE16_RETURN_TYPE_DRIFT",
+  "STAGE7_TRANCHE16_LANGUAGE_DRIFT",
+  "STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_DRIFT",
+]) assert.ok(tranche16Preflight.includes(marker), "missing fail-closed Tranche 16 metadata diagnostic: " + marker);
 
 const tranche16Overview = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_organizer_competition_result_overview\([\s\S]*?\$function\$;/i,
