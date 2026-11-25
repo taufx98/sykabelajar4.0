@@ -27,7 +27,7 @@ BEGIN
     v_oid := pg_catalog.to_regprocedure(v_expected.signature);
     IF v_oid IS NULL THEN RAISE EXCEPTION 'STAGE7_TRANCHE15_FUNCTION_MISSING:%', v_expected.signature; END IF;
     SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner), p.prosecdef, p.proconfig,
-      EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'),
+      EXISTS (SELECT 1 FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl WHERE acl.grantee = 0 AND acl.privilege_type='EXECUTE'),
       pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE'),
       pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE'),
       pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE')
