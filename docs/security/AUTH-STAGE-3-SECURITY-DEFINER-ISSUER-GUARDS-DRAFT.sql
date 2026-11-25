@@ -5215,3 +5215,781 @@ $function$;
 
 
 COMMIT;
+
+
+-- Stage 7 tranche 14: exam-flow RPCs must establish the exact Better Auth
+-- issuer and organizer/Admin boundary before any protected read or lock.
+-- This is a draft for the isolated Stage 3 restore; the preflight refuses
+-- catalog drift before the CREATE OR REPLACE statements below.
+DO $stage7_tranche14_fingerprint_preflight$
+DECLARE
+  v_expected record;
+  v_oid regprocedure;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_config text[];
+  v_public_execute boolean;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      ('public.get_linear_exam_activity(uuid,integer,integer)', 'a9d641b464ace5b963f91c9d6a3d096d', 'search_path=""'),
+      ('public.grade_competition_attempt(uuid)', 'a04c581242d9180a7ab7bfd8dfe643d4', 'search_path=public, private'),
+      ('public.grade_essay_similarity(uuid,uuid)', '92be45614ce3fab0a2e9aa441ca9636f', 'search_path=""'),
+      ('public.save_manual_grading_item(uuid,numeric,text)', '65a5b9937cdd159a29dad736d996b2fc', 'search_path=""'),
+      ('public.start_organizer_exam_preview(uuid)', '643f1d4554a7dc62a8037c2eb6d0bd08', 'search_path=""')
+    ) AS expected(signature, source_hash, function_config)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE14_FUNCTION_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT md5(p.prosrc), pg_catalog.pg_get_userbyid(p.proowner),
+           p.prosecdef, p.proconfig,
+           EXISTS (
+             SELECT 1
+             FROM pg_catalog.aclexplode(
+               COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+             ) AS acl
+             WHERE acl.grantee = 0
+               AND acl.privilege_type = 'EXECUTE'
+           )
+      INTO v_hash, v_owner, v_security_definer, v_config, v_public_execute
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid = v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_config IS DISTINCT FROM ARRAY[v_expected.function_config]::text[]
+       OR v_public_execute
+       OR pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION 'STAGE7_TRANCHE14_FINGERPRINT_OR_ACL_DRIFT:%', v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_tranche14_fingerprint_preflight$;
+
+CREATE OR REPLACE FUNCTION public.get_linear_exam_activity(
+  p_competition_id uuid,
+  p_limit integer DEFAULT 100,
+  p_offset integer DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_comp public.competitions%rowtype;
+  v_result jsonb;
+  v_limit integer := greatest(1, least(coalesce(p_limit, 100), 200));
+  v_offset integer := greatest(0, coalesce(p_offset, 0));
+  v_total integer := 0;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = p_competition_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_is_organizer_for(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_total
+  FROM public.attempts a
+  JOIN public.exam_attempt_runtime r ON r.attempt_id = a.id
+  WHERE a.competition_id = p_competition_id;
+
+  -- Process overdue state transitions only for the bounded page currently requested.
+  PERFORM private.resolve_linear_exam_timeouts(a.id, clock_timestamp())
+  FROM public.attempts a
+  JOIN public.exam_attempt_runtime r
+    ON r.attempt_id = a.id
+   AND r.phase <> 'COMPLETED'
+  WHERE a.competition_id = p_competition_id
+  ORDER BY a.created_at DESC, a.id
+  LIMIT v_limit OFFSET v_offset;
+
+  SELECT coalesce(jsonb_agg(row_data ORDER BY created_at DESC), '[]'::jsonb)
+  INTO v_result
+  FROM (
+    SELECT
+      a.created_at,
+      jsonb_build_object(
+        'attempt_id', a.id,
+        'participant_name', coalesce(p.full_name, p.username, cp.full_name, 'Peserta'),
+        'participant_kind', CASE WHEN a.collective_participant_id IS NULL THEN 'INDIVIDUAL' ELSE 'COLLECTIVE' END,
+        'attempt_status', a.status,
+        'phase', r.phase,
+        'current_position', r.current_position,
+        'total_questions', r.question_count,
+        'answered_count', (
+          SELECT count(*)
+          FROM public.exam_attempt_questions eq
+          WHERE eq.attempt_id = a.id AND eq.state = 'ANSWERED'
+        ),
+        'skipped_count', (
+          SELECT count(*)
+          FROM public.exam_attempt_questions eq
+          WHERE eq.attempt_id = a.id AND eq.state = 'SKIPPED'
+        ),
+        'timeout_count', (
+          SELECT count(*)
+          FROM public.exam_attempt_events ev
+          WHERE ev.attempt_id = a.id AND ev.event_type = 'QUESTION_TIMEOUT'
+        ),
+        'current_question_deadline', (
+          SELECT eq.question_deadline
+          FROM public.exam_attempt_questions eq
+          WHERE eq.attempt_id = a.id AND eq.position = r.current_position
+        ),
+        'events', coalesce((
+          SELECT jsonb_agg(jsonb_build_object(
+            'position', recent.question_position,
+            'event_type', recent.event_type,
+            'occurred_at', recent.occurred_at,
+            'metadata', recent.metadata
+          ) ORDER BY recent.occurred_at DESC)
+          FROM (
+            SELECT ev.question_position, ev.event_type, ev.occurred_at, ev.metadata
+            FROM public.exam_attempt_events ev
+            WHERE ev.attempt_id = a.id
+            ORDER BY ev.occurred_at DESC
+            LIMIT 10
+          ) recent
+        ), '[]'::jsonb)
+      ) AS row_data
+    FROM public.attempts a
+    JOIN public.exam_attempt_runtime r ON r.attempt_id = a.id
+    LEFT JOIN public.profiles p ON p.id = a.participant_id
+    LEFT JOIN public.collective_participants cp ON cp.id = a.collective_participant_id
+    WHERE a.competition_id = p_competition_id
+    ORDER BY a.created_at DESC, a.id
+    LIMIT v_limit OFFSET v_offset
+  ) activity;
+
+  RETURN jsonb_build_object(
+    'competition_id', p_competition_id,
+    'generated_at', clock_timestamp(),
+    'total_count', v_total,
+    'page_size', v_limit,
+    'offset', v_offset,
+    'has_more', (v_offset + jsonb_array_length(coalesce(v_result, '[]'::jsonb))) < v_total,
+    'participants', coalesce(v_result, '[]'::jsonb)
+  );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.grade_competition_attempt(p_attempt_id uuid)
+RETURNS attempts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'private'
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_attempt public.attempts%ROWTYPE;
+  v_question public.questions%ROWTYPE;
+  v_answer public.answers%ROWTYPE;
+  v_score numeric := 0;
+  v_item_score numeric;
+  v_answer_value text;
+  v_correct boolean;
+  v_season uuid;
+  v_org uuid;
+  v_plan text;
+  v_similarity numeric;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  -- Establish owner/Admin scope without taking a row lock. Re-read the attempt
+  -- and recheck the scope after locking to close the authorization race.
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  SELECT organizer_id INTO v_org
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+  IF NOT FOUND OR v_org IS NULL THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT (
+    private.current_user_is_admin()
+    OR private.current_user_is_organizer_for(v_org)
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  -- Preserve finalization/automatic-grading serialization.
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  SELECT organizer_id INTO v_org
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+  IF NOT FOUND OR v_org IS NULL THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT (
+    private.current_user_is_admin()
+    OR private.current_user_is_organizer_for(v_org)
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  IF v_attempt.status NOT IN ('SUBMITTED', 'GRADING') THEN
+    RETURN v_attempt;
+  END IF;
+
+  SELECT op.plan_code INTO v_plan
+  FROM public.organizer_plans op
+  WHERE op.organizer_id = v_org
+    AND op.is_active = TRUE
+    AND op.starts_at <= now()
+    AND (op.ends_at IS NULL OR op.ends_at > now())
+  ORDER BY op.starts_at DESC, op.created_at DESC
+  LIMIT 1;
+
+  UPDATE public.attempts
+  SET status = 'GRADING', updated_at = now()
+  WHERE id = p_attempt_id;
+
+  DELETE FROM public.grading_items
+  WHERE attempt_id = p_attempt_id;
+
+  FOR v_question IN
+    SELECT *
+    FROM public.questions
+    WHERE competition_id = v_attempt.competition_id
+      AND status = 'PUBLISHED'
+    ORDER BY display_order, id
+  LOOP
+    SELECT * INTO v_answer
+    FROM public.answers
+    WHERE attempt_id = p_attempt_id
+      AND question_id = v_question.id
+    LIMIT 1;
+
+    v_item_score := 0;
+    v_correct := FALSE;
+    IF FOUND THEN
+      v_answer_value := coalesce(
+        v_answer.answer_json ->> 'value',
+        v_answer.answer_json ->> 'answer',
+        v_answer.answer_json::text
+      );
+
+      IF lower(v_question.type) IN ('multiple-choice', 'single-choice', 'true-false', 'true_false') THEN
+        SELECT EXISTS (
+          SELECT 1
+          FROM public.question_options qo
+          WHERE qo.question_id = v_question.id
+            AND qo.is_correct = TRUE
+            AND (qo.id::text = v_answer_value OR qo.value = v_answer_value)
+        ) INTO v_correct;
+      ELSIF lower(v_question.type) = 'short-answer' THEN
+        SELECT EXISTS (
+          SELECT 1
+          FROM public.question_options qo
+          WHERE qo.question_id = v_question.id
+            AND qo.is_correct = TRUE
+            AND lower(trim(qo.value)) = lower(trim(v_answer_value))
+        ) INTO v_correct;
+      ELSIF lower(v_question.type) IN ('essay', 'long-answer')
+        AND coalesce(v_question.config -> 'ai_assessment' ->> 'enabled', 'false') = 'true'
+        AND coalesce(v_question.config ->> 'answer_key', '') <> ''
+        AND EXISTS (
+          SELECT 1
+          FROM public.plan_entitlements pe
+          WHERE pe.plan_code = v_plan
+            AND pe.capability = 'essay_ai_assessment'
+            AND coalesce(pe.limit_value, 0) > 0
+        ) THEN
+        v_similarity := public.calculate_essay_similarity(
+          v_question.config ->> 'answer_key',
+          v_answer_value
+        );
+        v_item_score := round(coalesce(v_question.points, 0) * v_similarity / 100, 2);
+        INSERT INTO public.grading_items(attempt_id, question_id, score, feedback)
+        VALUES (
+          p_attempt_id,
+          v_question.id,
+          v_item_score,
+          'AI Similarity Grade: ' || to_char(v_similarity, 'FM990D00') || '%'
+        );
+        v_score := v_score + v_item_score;
+        CONTINUE;
+      END IF;
+
+      IF v_correct THEN
+        v_item_score := coalesce(v_question.points, 0);
+      END IF;
+    END IF;
+
+    v_score := v_score + v_item_score;
+    INSERT INTO public.grading_items(attempt_id, question_id, score, feedback)
+    VALUES (
+      p_attempt_id,
+      v_question.id,
+      v_item_score,
+      CASE WHEN v_correct THEN 'Benar' ELSE 'Belum mendapatkan poin' END
+    );
+  END LOOP;
+
+  UPDATE public.attempts
+  SET score = v_score,
+      status = 'FINALIZED',
+      finalized_at = now(),
+      updated_at = now()
+  WHERE id = p_attempt_id
+  RETURNING * INTO v_attempt;
+
+  SELECT id INTO v_season
+  FROM public.academic_seasons
+  WHERE is_active = TRUE
+  ORDER BY start_at DESC
+  LIMIT 1;
+
+  IF v_season IS NOT NULL AND v_score > 0 THEN
+    INSERT INTO public.xp_ledger(user_id, season_id, event_type, event_id, amount, reason)
+    SELECT
+      v_attempt.participant_id,
+      v_season,
+      'COMPETITION_SCORE',
+      v_attempt.id,
+      v_score,
+      'Nilai kompetisi'
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM public.xp_ledger x
+      WHERE x.user_id = v_attempt.participant_id
+        AND x.event_type = 'COMPETITION_SCORE'
+        AND x.event_id = v_attempt.id::text
+    );
+  END IF;
+
+  RETURN v_attempt;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.grade_essay_similarity(
+  p_attempt_id uuid,
+  p_question_id uuid
+)
+RETURNS numeric
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_attempt public.attempts%rowtype;
+  v_comp public.competitions%rowtype;
+  v_plan_code text;
+  v_answer_key text;
+  v_answer text;
+  v_question_points numeric;
+  v_ai_enabled boolean := FALSE;
+  v_similarity numeric;
+  v_score numeric;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  -- Verify organizer/Admin scope without taking a row lock first.
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id;
+  IF NOT FOUND OR v_attempt.is_preview THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+  IF NOT FOUND OR NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+  IF v_attempt.status::text NOT IN ('SUBMITTED', 'GRADING') THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  -- Serialize AI grading with manual grading and attempt finalization.
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = p_attempt_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_attempt.is_preview THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+  IF NOT FOUND OR NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_can_edit_competition(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+  IF v_attempt.status::text NOT IN ('SUBMITTED', 'GRADING') THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  SELECT op.plan_code INTO v_plan_code
+  FROM public.organizer_plans op
+  WHERE op.organizer_id = v_comp.organizer_id
+    AND op.is_active = TRUE
+    AND op.starts_at <= clock_timestamp()
+    AND (op.ends_at IS NULL OR op.ends_at > clock_timestamp())
+  ORDER BY op.starts_at DESC, op.created_at DESC
+  LIMIT 1;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.plan_entitlements pe
+    WHERE pe.plan_code = v_plan_code
+      AND pe.capability = 'essay_ai_assessment'
+      AND coalesce(pe.limit_value, 0) > 0
+  ) THEN
+    RAISE EXCEPTION 'PREMIUM_REQUIRED';
+  END IF;
+
+  SELECT
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce(eq.answer_key_snapshot ->> 'answer_key', '')
+      ELSE coalesce(q.config ->> 'answer_key', '')
+    END,
+    coalesce(a.answer_json ->> 'value', a.answer_json ->> 'answer', ''),
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce(eq.points_snapshot, (eq.question_snapshot ->> 'points')::numeric, 0)
+      ELSE coalesce(q.points, 0)
+    END,
+    CASE
+      WHEN eq.question_snapshot IS NOT NULL
+        THEN coalesce((eq.answer_key_snapshot ->> 'ai_assessment_enabled')::boolean, FALSE)
+      ELSE coalesce((q.config -> 'ai_assessment' ->> 'enabled')::boolean, FALSE)
+    END
+  INTO v_answer_key, v_answer, v_question_points, v_ai_enabled
+  FROM public.questions q
+  LEFT JOIN public.exam_attempt_questions eq
+    ON eq.attempt_id = v_attempt.id
+   AND eq.question_id = q.id
+  LEFT JOIN public.answers a
+    ON a.question_id = q.id
+   AND a.attempt_id = v_attempt.id
+  WHERE q.id = p_question_id
+    AND lower(replace(coalesce(eq.question_snapshot ->> 'type', q.type::text), '-', '_'))
+      IN ('essay', 'long_answer')
+    AND (
+      eq.attempt_id = v_attempt.id
+      OR (
+        NOT EXISTS (
+          SELECT 1
+          FROM public.exam_attempt_runtime runtime
+          WHERE runtime.attempt_id = v_attempt.id
+        )
+        AND (
+          q.competition_id = v_attempt.competition_id
+          OR (
+            q.question_bank_id = v_comp.question_bank_id
+            AND q.competition_id IS NULL
+          )
+        )
+      )
+    );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ESSAY_QUESTION_NOT_FOUND';
+  END IF;
+  IF NOT v_ai_enabled THEN
+    RAISE EXCEPTION 'AI_ASSESSMENT_DISABLED';
+  END IF;
+  IF v_answer_key = '' THEN
+    RETURN 0;
+  END IF;
+
+  v_similarity := public.calculate_text_similarity(v_answer_key, v_answer);
+  v_score := round(
+    coalesce(v_question_points, 0)
+      * greatest(0, least(100, coalesce(v_similarity, 0))) / 100,
+    2
+  );
+
+  INSERT INTO public.grading_items(
+    attempt_id, question_id, score, feedback, grader_id
+  )
+  VALUES (
+    v_attempt.id,
+    p_question_id,
+    v_score,
+    'AI Similarity: ' || to_char(v_similarity, 'FM990.00') || '%',
+    v_uid
+  )
+  ON CONFLICT (attempt_id, question_id)
+  DO UPDATE SET
+    score = EXCLUDED.score,
+    feedback = EXCLUDED.feedback,
+    grader_id = EXCLUDED.grader_id,
+    updated_at = clock_timestamp();
+
+  RETURN v_similarity;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.save_manual_grading_item(
+  p_grading_item_id uuid,
+  p_score numeric,
+  p_feedback text DEFAULT NULL::text
+)
+RETURNS grading_items
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_row public.grading_items%rowtype;
+  v_q public.questions%rowtype;
+  v_attempt public.attempts%rowtype;
+  v_comp public.competitions%rowtype;
+  v_attempt_id uuid;
+  v_snapshot_max numeric;
+  v_max numeric;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTH_REQUIRED';
+  END IF;
+
+  -- Hide foreign grading-item IDs during the non-locking ownership preflight.
+  -- Once scoped, retain the established attempt -> grading-item lock order.
+  SELECT gi.attempt_id
+  INTO v_attempt_id
+  FROM public.grading_items gi
+  JOIN public.attempts a ON a.id = gi.attempt_id
+  JOIN public.competitions c ON c.id = a.competition_id
+  WHERE gi.id = p_grading_item_id
+    AND (
+      private.current_user_is_admin()
+      OR (
+        c.organizer_id IS NOT NULL
+        AND private.current_user_is_organizer_for(c.organizer_id)
+      )
+    );
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'GRADING_ITEM_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.attempts
+  WHERE id = v_attempt_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_FOUND';
+  END IF;
+  IF v_attempt.is_preview THEN
+    RAISE EXCEPTION 'PREVIEW_ATTEMPT_NOT_GRADABLE';
+  END IF;
+  IF v_attempt.status::text NOT IN ('SUBMITTED', 'GRADING') THEN
+    RAISE EXCEPTION 'ATTEMPT_NOT_GRADABLE';
+  END IF;
+
+  SELECT * INTO v_row
+  FROM public.grading_items
+  WHERE id = p_grading_item_id
+    AND attempt_id = v_attempt_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'GRADING_ITEM_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_attempt.competition_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT (
+    private.current_user_is_admin()
+    OR (
+      v_comp.organizer_id IS NOT NULL
+      AND private.current_user_is_organizer_for(v_comp.organizer_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  PERFORM private.require_organizer_entitlement(
+    v_comp.organizer_id, 'manual_grading'
+  );
+
+  SELECT eq.points_snapshot
+  INTO v_snapshot_max
+  FROM public.exam_attempt_questions eq
+  WHERE eq.attempt_id = v_attempt.id
+    AND eq.question_id = v_row.question_id
+  LIMIT 1;
+
+  IF FOUND THEN
+    v_max := coalesce(v_snapshot_max, 0);
+  ELSE
+    SELECT * INTO v_q
+    FROM public.questions
+    WHERE id = v_row.question_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'GRADING_QUESTION_NOT_FOUND';
+    END IF;
+    v_max := coalesce(v_q.points, 0);
+  END IF;
+
+  IF p_score IS NULL OR p_score < 0 OR p_score > v_max THEN
+    RAISE EXCEPTION 'SCORE_OUT_OF_RANGE';
+  END IF;
+
+  UPDATE public.grading_items
+  SET grader_id = v_uid,
+      score = p_score,
+      feedback = p_feedback,
+      updated_at = clock_timestamp()
+  WHERE id = p_grading_item_id
+  RETURNING * INTO v_row;
+
+  INSERT INTO public.audit_logs(
+    actor_user_id, action, entity_type, entity_id, reason, after_data
+  )
+  VALUES (
+    v_uid, 'MANUAL_GRADING', 'grading_item',
+    p_grading_item_id::text, p_feedback, to_jsonb(v_row)
+  );
+
+  RETURN v_row;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.start_organizer_exam_preview(p_competition_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_comp public.competitions%rowtype;
+  v_attempt public.attempts%rowtype;
+BEGIN
+  IF NOT private.current_user_is_better_auth() THEN
+    RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
+  END IF;
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'AUTHORIZATION_REQUIRED';
+  END IF;
+
+  -- Authorize before contending on the per-user/per-competition advisory lock.
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = p_competition_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT private.current_user_is_admin() AND (
+    v_comp.organizer_id IS NULL
+    OR coalesce(private.current_user_organizer_role(v_comp.organizer_id), '') NOT IN ('owner', 'editor')
+  ) THEN
+    RAISE EXCEPTION 'NOT_AUTHORIZED';
+  END IF;
+  IF v_comp.status <> 'DRAFT' THEN
+    RAISE EXCEPTION 'PREVIEW_REQUIRES_DRAFT_COMPETITION';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(v_uid::text || ':' || p_competition_id::text, 0)
+  );
+
+  -- Revalidate after the lock to account for competition ownership/status changes.
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = p_competition_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'COMPETITION_NOT_FOUND';
+  END IF;
+  IF NOT private.current_user_is_admin() AND (
+    v_comp.organizer_id IS NULL
+    OR coalesce(private.current_user_organizer_role(v_comp.organizer_id), '') NOT IN ('owner', 'editor')
+  ) THEN
+    RAISE EXCEPTION 'NOT_AUTHORIZED';
+  END IF;
+  IF v_comp.status <> 'DRAFT' THEN
+    RAISE EXCEPTION 'PREVIEW_REQUIRES_DRAFT_COMPETITION';
+  END IF;
+
+  DELETE FROM public.attempts
+  WHERE competition_id = p_competition_id
+    AND preview_owner_id = v_uid
+    AND is_preview = TRUE;
+
+  INSERT INTO public.attempts (
+    competition_id, participant_id, registration_id, collective_participant_id,
+    canonical_participant_id, attempt_number, status, started_at,
+    is_preview, preview_owner_id
+  )
+  VALUES (
+    p_competition_id, NULL, NULL, NULL, NULL, 1, 'IN_PROGRESS',
+    clock_timestamp(), TRUE, v_uid
+  )
+  RETURNING * INTO v_attempt;
+
+  PERFORM private.prepare_linear_exam_runtime(v_attempt.id);
+  RETURN private.build_linear_exam_state(v_attempt.id);
+END;
+$function$;
