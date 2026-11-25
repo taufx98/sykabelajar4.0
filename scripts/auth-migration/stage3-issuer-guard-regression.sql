@@ -4348,6 +4348,5 @@ BEGIN
 END;
 $stage7_tranche15_access_code_hash_only$;
 
-SET LOCAL ROLE authenticated;
 RESET ROLE;
 ROLLBACK;
