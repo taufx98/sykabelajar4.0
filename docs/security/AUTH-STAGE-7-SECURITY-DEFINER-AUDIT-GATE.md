@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking, updated 25 November 2026; no Production DB2 changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 25 November 2026; 73/202 exact signatures individually reviewed (129 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -64,6 +64,16 @@ The rollback-only regression covers legacy-issuer denial/empty currency-log proj
 Protected Auth Production Schema Baseline [#45527720909](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720909) passed **68/68 steps** on commit `e7b0b20b853fc83682cabb8894499922428e2a6d`. Supabase Local Auth Claims [#45527720794](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720794) and Auth Worker CI [#45527720824](https://github.com/taufx98/sykabelajar4.0/actions/runs/45527720824) also passed on the same commit.
 
 **Cumulative manual review: 68/202 exact signatures; 134 remain.** This adds five accepted signatures to the previous 63/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; Production DB2 remains **NO-GO**. No Production DDL/DML, row/data changes, role/grant/policy edits, Worker deployment, DNS change or secret change was made.
+
+## Accepted manual review — 25 November 2026 (Tranche 14)
+
+[Tranche 14 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-14-2026-11-25.md) adds five exam-flow RPCs: \`get_linear_exam_activity(uuid,integer,integer)\`, \`grade_competition_attempt(uuid)\`, \`grade_essay_similarity(uuid,uuid)\`, \`save_manual_grading_item(uuid,numeric,text)\`, and \`start_organizer_exam_preview(uuid)\`. The read-only Production catalog fingerprints, owner, SECURITY DEFINER attributes, search_path and existing grants matched the immutable 21 November triage snapshot. Each retains \`authenticated\` and \`service_role\` EXECUTE and has no \`anon\` or \`PUBLIC\` EXECUTE.
+
+PR [#282](https://github.com/taufx98/sykabelajar4.0/pull/282) added issuer-first checks before protected reads, Admin/organizer scope before row/advisory locks, post-lock scope rechecks, exact Production fingerprint/ACL preflight, and rollback-only issuer/owner/Admin/IDOR regression. The disposable ACL reconstruction was expanded from 43 to 48 function signatures; user-scoped issuer metadata grew from 19 to 24 entries.
+
+Protected Auth Production Schema Baseline [#45578016932](https://github.com/taufx98/sykabelajar4.0/actions/runs/45578016932) passed **68/68 steps** on merge commit \`051d4d300edc40179cf7218115019d8faafc8609\`. Its Stage 3 trusted-issuer regression step executed the full rollback-only regression, including all five Tranche 14 functions. The run also confirmed zero imported Auth/profile rows, completed all prior Stage 7/Stage 5 disposable checks, and removed the disposable database/export artifacts. Supabase Local Auth Claims [#45578017158](https://github.com/taufx98/sykabelajar4.0/actions/runs/45578017158) passed on the same commit.
+
+**Cumulative accepted manual review: 73/202 exact signatures; 129 remain.** The canonical activation manifest remains \`status: blocked\` with \`reviewedAuthenticatedFunctionCount: 0\`; Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change or secret change was performed.
 
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
