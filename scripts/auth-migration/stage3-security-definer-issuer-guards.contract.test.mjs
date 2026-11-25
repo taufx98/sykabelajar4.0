@@ -1067,4 +1067,78 @@ for (const marker of [
 assert.match(regression, /INSERT INTO public\.grading_items[\s\S]*?Stage 7 tranche 14 rollback-only authorization fixture/);
 assert.match(regression, /88888888-8888-4888-8888-888888888893/);
 
+
+const tranche15Preflight = draft.match(
+  /DO \$stage7_tranche15_fingerprint_preflight\$[\s\S]*?\$stage7_tranche15_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche15Preflight, "missing tranche 15 Production fingerprint/ACL preflight");
+for (const hash of [
+  "aa8f5302840e39728b006496ad817275",
+  "ee68f31dacc8cee624c80e7a42867c56",
+  "1f6215cccdc383120bbb6787e96c0f2b",
+  "f2303a11f19903297554639acbd87f06",
+  "860b70d16e5d204cebad55924ab8c66d",
+  "c994079fbd7e5a56913ca1fdb8dc9666",
+  "79bb70032b67655f0e84d60a853fe548",
+]) assert.ok(tranche15Preflight.includes(hash), "missing tranche 15 source/helper fingerprint " + hash);
+assert.match(tranche15Preflight, /acl\.grantee = 0/);
+assert.match(tranche15Preflight, /has_function_privilege\('anon'/);
+assert.match(tranche15Preflight, /has_function_privilege\('authenticated'/);
+assert.match(tranche15Preflight, /has_function_privilege\('service_role'/);
+
+const betterAuthRoleHelper = draft.match(
+  /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(betterAuthRoleHelper, "missing Stage 3 issuer-gated Admin role helper");
+assert.ok(
+  betterAuthRoleHelper.indexOf("private.current_user_is_better_auth()") <
+    betterAuthRoleHelper.indexOf("FROM public.user_roles"),
+  "Admin role helper must prove Better Auth identity before reading user_roles",
+);
+assert.match(betterAuthRoleHelper, /ur\.identity_origin|private\.current_user_is_better_auth/);
+
+for (const item of [
+  {name:"admin_adjust_user_currency", signature:"admin_adjust_user_currency(uuid,text,bigint,text)"},
+  {name:"admin_bulk_adjust_currency", signature:"admin_bulk_adjust_currency(uuid[],text,bigint,text)"},
+]) {
+  const fn = draft.match(new RegExp(
+    "CREATE OR REPLACE FUNCTION public[.]" + item.name + "\\([\\s\\S]*?\\$function\\$;",
+    "i",
+  ))?.[0] ?? "";
+  assert.ok(fn, "missing Stage 3 Admin currency replacement: " + item.name);
+  const guardIndex = fn.indexOf("private.current_user_is_admin()");
+  const protectedReadIndex = fn.indexOf("EXECUTE format(");
+  assert.ok(guardIndex >= 0 && protectedReadIndex > guardIndex,
+    "Admin currency authorization must precede protected dynamic SQL: " + item.name);
+  assert.doesNotMatch(fn, /FROM\s+user_roles/i,
+    "Admin currency RPC must not authorize directly from legacy user_roles: " + item.name);
+  assert.ok(regression.includes("public." + item.name + "("),
+    "missing tranche 15 runtime call: " + item.name);
+}
+for (const name of [
+  "admin_assign_organizer_plan",
+  "admin_change_username",
+  "admin_create_organizer",
+]) assert.ok(regression.includes("public." + name + "("), "missing tranche 15 runtime call: " + name);
+
+for (const marker of [
+  "STAGE7_TRANCHE15_LEGACY_CURRENCY_ADJUST_ALLOWED",
+  "STAGE7_TRANCHE15_LEGACY_BULK_CURRENCY_ALLOWED",
+  "STAGE7_TRANCHE15_LEGACY_PLAN_ASSIGN_ALLOWED",
+  "STAGE7_TRANCHE15_LEGACY_USERNAME_CHANGE_ALLOWED",
+  "STAGE7_TRANCHE15_LEGACY_ORGANIZER_CREATE_ALLOWED",
+  "STAGE7_TRANCHE15_FOREIGN_CURRENCY_ADJUST_ALLOWED",
+  "STAGE7_TRANCHE15_FOREIGN_BULK_CURRENCY_ALLOWED",
+  "STAGE7_TRANCHE15_FOREIGN_PLAN_ASSIGN_ALLOWED",
+  "STAGE7_TRANCHE15_FOREIGN_USERNAME_CHANGE_ALLOWED",
+  "STAGE7_TRANCHE15_FOREIGN_ORGANIZER_CREATE_ALLOWED",
+  "STAGE7_TRANCHE15_ADMIN_CURRENCY_ADJUST_FAILED",
+  "STAGE7_TRANCHE15_ADMIN_BULK_CURRENCY_FAILED",
+  "STAGE7_TRANCHE15_ADMIN_USERNAME_CHANGE_FAILED",
+  "STAGE7_TRANCHE15_ADMIN_ORGANIZER_CREATE_FAILED",
+  "STAGE7_TRANCHE15_ADMIN_PLAN_ASSIGN_FAILED",
+  "STAGE7_TRANCHE15_ACCESS_CODE_NOT_HASH_ONLY",
+]) assert.ok(regression.includes(marker), "missing tranche 15 regression assertion: " + marker);
+
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
