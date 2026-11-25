@@ -12,6 +12,39 @@
 
 BEGIN;
 
+DO $stage7_tranche15_role_helper_fingerprint_preflight$
+DECLARE
+  v_oid regprocedure;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_config text[];
+BEGIN
+  v_oid := pg_catalog.to_regprocedure(
+    'private.current_user_has_role(public.app_role)'
+  );
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ROLE_HELPER_MISSING';
+  END IF;
+
+  SELECT md5(p.prosrc),
+         pg_catalog.pg_get_userbyid(p.proowner),
+         p.prosecdef,
+         p.proconfig
+    INTO v_hash, v_owner, v_security_definer, v_config
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid = v_oid;
+
+  IF v_hash IS DISTINCT FROM 'c994079fbd7e5a56913ca1fdb8dc9666'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_config IS DISTINCT FROM ARRAY['search_path=public, private']::text[] THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE15_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT';
+  END IF;
+END;
+$stage7_tranche15_role_helper_fingerprint_preflight$;
+
+
 DO $stage3_issuer_guard$
 DECLARE
   v_table record;
