@@ -52,6 +52,9 @@ jobs:
       - name: Verify all Better Auth user-bound SECURITY DEFINER RPC guards
         run: node scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs
 
+      - name: Verify Admin organizer pgcrypto search_path migration contract
+        run: node scripts/auth-migration/admin-create-organizer-search-path.contract.test.mjs
+
       - name: Verify Stage 3 identity, issuer, RLS, and rollback contracts
         run: |
           node scripts/auth-migration/stage3-production-schema-regression.contract.test.mjs
