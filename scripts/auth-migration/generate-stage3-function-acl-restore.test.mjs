@@ -101,8 +101,8 @@ assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uu
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.archive_my_order_history\(uuid\) TO "service_role";/);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO PUBLIC;'), false);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.archive_my_order_history(uuid) TO "anon";'), false);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.start_linear_exam_attempt\\(uuid\\) TO "authenticated";/);
-assert.match(sql,/GRANT EXECUTE ON FUNCTION public\\.start_linear_exam_attempt\\(uuid\\) TO "service_role";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.start_linear_exam_attempt\(uuid\) TO "authenticated";/);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.start_linear_exam_attempt\(uuid\) TO "service_role";/);
 assert.equal(sql.includes('GRANT EXECUTE ON FUNCTION public.start_linear_exam_attempt(uuid) TO "anon";'), false);
 assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.create_ad_banner_payment_order\(uuid,uuid,text,text,integer,integer,text,text,integer\) TO "authenticated";/);
 assert.ok(sql.includes('GRANT EXECUTE ON FUNCTION public.provision_collective_registration(uuid) TO "authenticated";'));
