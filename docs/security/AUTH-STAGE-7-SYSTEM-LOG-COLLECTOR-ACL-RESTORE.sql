@@ -46,7 +46,7 @@ BEGIN
      OR v_search_path IS DISTINCT FROM 'search_path=public, extensions, pg_catalog'
      OR v_source_md5 IS DISTINCT FROM '5d0e79655d70a9019040ab9f4d529c88'
      OR v_return_type IS DISTINCT FROM 'void'::regtype
-     OR v_argument_types IS DISTINCT FROM ARRAY[]::oid[] THEN
+     OR v_argument_types IS NULL OR pg_catalog.cardinality(v_argument_types) <> 0 THEN
     RAISE EXCEPTION 'STAGE7_SYSTEM_LOG_COLLECTOR_SOURCE_OR_METADATA_DRIFT';
   END IF;
 END;

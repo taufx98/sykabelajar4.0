@@ -102,6 +102,9 @@ assert.match(systemLogAclRestore, /search_path=public, extensions, pg_catalog/);
 assert.match(systemLogAclRestore, /REVOKE ALL PRIVILEGES ON FUNCTION public\.fetch_and_save_supabase_logs\(\)/);
 assert.match(systemLogAclRestore, /GRANT EXECUTE ON FUNCTION public\.fetch_and_save_supabase_logs\(\)\s+TO service_role/);
 assert.match(systemLogAclRestore, /STAGE7_SYSTEM_LOG_COLLECTOR_ACL_RESTORE_FAILED/);
+assert.match(systemLogAclRestore, /v_argument_types IS NULL OR pg_catalog\.cardinality\(v_argument_types\) <> 0/);
+assert.doesNotMatch(systemLogAclRestore, /v_argument_types IS DISTINCT FROM ARRAY\[\]::oid\[\]/);
+
 assert.doesNotMatch(systemLogAclRestore, /ALTER TABLE|INSERT INTO|UPDATE public[.]|DELETE FROM|TRUNCATE/i);
 for (const marker of [
   "STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_FUNCTION_CALLER",
