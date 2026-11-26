@@ -4764,5 +4764,92 @@ BEGIN
 END;
 $stage7_tranche16_admin_positive$;
 
+DO $stage7_transition_competition_caller_acceptance$
+DECLARE
+  v_comp public.competitions;
+  v_error text;
+BEGIN
+  -- The established synthetic organizer owner may perform an allowed
+  -- transition on their own competition under the exact Better Auth issuer.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
+  SELECT * INTO v_comp
+  FROM public.transition_competition(
+    '44444444-4444-4444-8444-444444444441'::uuid,
+    'SUSPENDED'::public.competition_status,
+    'Stage 7 owner transition authorization probe'
+  );
+  IF v_comp.id IS DISTINCT FROM '44444444-4444-4444-8444-444444444441'::uuid
+     OR v_comp.status IS DISTINCT FROM 'SUSPENDED'::public.competition_status THEN
+    RAISE EXCEPTION 'STAGE7_TRANSITION_COMPETITION_OWNER_FAILED:%',row_to_json(v_comp);
+  END IF;
+
+  -- A different Better Auth student has no membership and must not restore
+  -- or otherwise transition the organizer's competition.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
+  v_error := NULL;
+  BEGIN
+    PERFORM public.transition_competition(
+      '44444444-4444-4444-8444-444444444441'::uuid,
+      'RESULT_PUBLISHED'::public.competition_status,
+      'Stage 7 outsider transition must be denied'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANSITION_COMPETITION_OUTSIDER_NOT_DENIED:%',coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  -- The same real organizer owner UUID is not trusted when the token issuer
+  -- is Supabase Auth rather than the configured Better Auth issuer.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
+  v_error := NULL;
+  BEGIN
+    PERFORM public.transition_competition(
+      '44444444-4444-4444-8444-444444444441'::uuid,
+      'RESULT_PUBLISHED'::public.competition_status,
+      'Stage 7 legacy issuer transition must be denied'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANSITION_COMPETITION_LEGACY_ISSUER_NOT_DENIED:%',coalesce(v_error,'NO_ERROR');
+  END IF;
+
+  -- An active Admin using Better Auth retains the documented override path.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+  SELECT * INTO v_comp
+  FROM public.transition_competition(
+    '44444444-4444-4444-8444-444444444441'::uuid,
+    'RESULT_PUBLISHED'::public.competition_status,
+    'Stage 7 Admin transition authorization probe'
+  );
+  IF v_comp.status IS DISTINCT FROM 'RESULT_PUBLISHED'::public.competition_status THEN
+    RAISE EXCEPTION 'STAGE7_TRANSITION_COMPETITION_ADMIN_FAILED:%',row_to_json(v_comp);
+  END IF;
+END;
+$stage7_transition_competition_caller_acceptance$;
+
 RESET ROLE;
 ROLLBACK;

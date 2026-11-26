@@ -1399,4 +1399,13 @@ assert.ok(regression.includes("public.get_public_competition_results('stage3-pub
 assert.ok(regression.includes("public.get_public_competition_results('stage3-unpublished-result-probe', 100, 0)"));
 assert.ok(regression.includes("public.get_public_competition_results('stage7-tranche12-collective-result-probe', 100, 0)"));
 
+for (const marker of [
+  "STAGE7_TRANSITION_COMPETITION_OWNER_FAILED",
+  "STAGE7_TRANSITION_COMPETITION_OUTSIDER_NOT_DENIED",
+  "STAGE7_TRANSITION_COMPETITION_LEGACY_ISSUER_NOT_DENIED",
+  "STAGE7_TRANSITION_COMPETITION_ADMIN_FAILED",
+]) assert.ok(regression.includes(marker), "missing transition_competition authorization assertion: " + marker);
+assert.ok(regression.includes("public.transition_competition("));
+assert.ok(regression.includes("'44444444-4444-4444-8444-444444444441'::uuid"));
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
