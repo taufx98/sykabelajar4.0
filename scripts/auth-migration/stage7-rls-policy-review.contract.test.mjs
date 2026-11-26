@@ -318,7 +318,7 @@ for (const marker of [
 }
 assert.ok(issuerRestrictionDraft.includes("STAGE7_TRANCHE15_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT"));
 assert.ok(referralSettingsMigration.includes("IF NOT private.current_user_is_admin()"));
-assert.match(referralContract, /REVOKE ALL ON TABLE private\.referral_program_settings/);
+assert.ok(referralContract.includes("REVOKE ALL ON TABLE private\\.referral_program_settings"));
 
 const referralAwards = privateTables.find((table) => table.table === "referral_tier_awards");
 assert.deepEqual(referralAwards.authorization_path_review.permitted_callers, [
