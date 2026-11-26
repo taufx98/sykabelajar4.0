@@ -234,6 +234,10 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-owner-scoped-payment-issuer-guards.contract.test.mjs
 
+      - name: Test Stage 7 post-Stage-3 user RPC issuer guard contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.contract.test.mjs
+
       - name: Test Stage 7 admin organizer pgcrypto search_path migration contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/admin-create-organizer-search-path.contract.test.mjs
@@ -781,6 +785,32 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage7-owner-scoped-payment-issuer-guards.sql
           echo "- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 7 post-Stage-3 user RPC issuer guards to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql:/baseline/stage7-post-stage3-user-rpc-issuer-guards.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-post-stage3-user-rpc-issuer-guards.sql
+          echo "- Added issuer-first Better Auth guards to eight post-Stage-3 payment/voucher RPCs and removed default PUBLIC EXECUTE from the private voucher trigger helper on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Stage 7 post-Stage-3 user RPC issuer acceptance on disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.regression.sql:/baseline/stage7-post-stage3-user-rpc-issuer-guards.regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-post-stage3-user-rpc-issuer-guards.regression.sql
+          echo "- Verified legacy Supabase issuer rejection and Better Auth user-scope behavior for eight payment/voucher RPCs; trigger remains enabled and its helper is not browser/service callable; rolled back all fixtures" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Admin organizer pgcrypto search_path fix to disposable restore only
         if: steps.credentials.outputs.available == 'true'
