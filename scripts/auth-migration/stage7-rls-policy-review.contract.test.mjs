@@ -257,7 +257,7 @@ assert.ok(organizerDefinition);
 for (const marker of [
   "https://auth-prod.sykabelajar.my.id/api/auth",
   "BETTER_AUTH_ISSUER_REQUIRED",
-  /FROM\\s+private\\.app_users\\s+au/i,
+  /FROM\s+private\.app_users\s+au/i,
   "identity_origin",
   "BETTER_AUTH_IDENTITY_REQUIRED",
   "EMAIL_VERIFICATION_REQUIRED",
