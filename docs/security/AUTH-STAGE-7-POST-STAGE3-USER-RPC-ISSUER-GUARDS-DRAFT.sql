@@ -317,7 +317,7 @@ BEGIN
     END IF;
 
     v_after_begin := pg_catalog.regexp_replace(
-      pg_catalog.substring(v_expected.auth_anchor FROM v_begin_position + 5),
+      pg_catalog.substr(v_expected.auth_anchor, v_begin_position + 5),
       '^[[:space:]]+',
       ''
     );
