@@ -792,6 +792,26 @@ VALUES (
 
 -- Tranche 16 organizer registration fixture. It reuses the fresh synthetic
 -- owner/competition created above and one unrelated synthetic student profile.
+-- This row exists only to test review_registration authorization against a
+-- private, already-published competition. It is not a normal registration
+-- acceptance test, so bypass only the normal INSERT validation trigger while
+-- inserting this privileged rollback fixture; keep all other table triggers,
+-- constraints and the production registration trigger intact afterward.
+DO $stage3_registration_fixture_trigger_preflight$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid = 'public.registrations'::regclass
+      AND t.tgname = 'trg_validate_registration_insert'
+      AND NOT t.tgisinternal
+      AND t.tgenabled <> 'D'
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_REGISTRATION_FIXTURE_VALIDATION_TRIGGER_MISSING';
+  END IF;
+END;
+$stage3_registration_fixture_trigger_preflight$;
+
+ALTER TABLE public.registrations DISABLE TRIGGER trg_validate_registration_insert;
 INSERT INTO public.registrations (
   id, competition_id, user_id, status, metadata
 )
@@ -802,6 +822,7 @@ VALUES (
   'PENDING'::public.registration_status,
   jsonb_build_object('fixture', 'stage7-tranche16')
 );
+ALTER TABLE public.registrations ENABLE TRIGGER trg_validate_registration_insert;
 
 SELECT set_config('request.jwt.claims', '{}', TRUE);
 SELECT set_config('request.jwt.claim.sub', '', TRUE);
