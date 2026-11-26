@@ -16,6 +16,10 @@ const regression = readFileSync(
   path.join(here, "./stage3-issuer-guard-regression.sql"),
   "utf8",
 );
+const userRpcDraft = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"),
+  "utf8",
+);
 const issuer = "https://auth-prod.sykabelajar.my.id/api/auth";
 
 assert.doesNotMatch(regression, /legacy_reference/,
@@ -1093,6 +1097,27 @@ for (const item of tranche14Functions) {
   );
 }
 
+const previewReport = userRpcDraft.match(
+  /CREATE OR REPLACE FUNCTION public\\.get_organizer_exam_preview_report\\([\\s\\S]*?\\$function\\$;/i,
+)?.[0] ?? "";
+assert.ok(previewReport, "missing Better Auth issuer-guarded organizer preview report replacement");
+const previewIssuerAt = previewReport.indexOf("private.current_user_is_better_auth()");
+const previewAttemptReadAt = previewReport.indexOf("from public.attempts");
+assert.ok(previewIssuerAt >= 0 && previewAttemptReadAt > previewIssuerAt,
+  "preview report must verify Better Auth before reading the preview attempt");
+assert.match(previewReport, /where id = p_attempt_id and is_preview = true and preview_owner_id = v_uid/i);
+assert.match(previewReport, /PREVIEW_NOT_FOUND/);
+assert.match(previewReport, /v_runtime.phase <> 'COMPLETED'/);
+assert.match(previewReport, /'answer_key', q.answer_key_snapshot/i);
+assert.match(previewReport, /REVOKE ALL ON FUNCTION public\\.get_organizer_exam_preview_report\\(uuid\\) FROM PUBLIC, anon/i);
+assert.match(previewReport, /GRANT EXECUTE ON FUNCTION public\\.get_organizer_exam_preview_report\\(uuid\\) TO authenticated/i);
+for (const marker of [
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED",
+  "STAGE3_ANON_PARTICIPANT_DETAIL_QUESTION_SNAPSHOT_LEAKED",
+]) assert.ok(regression.includes(marker), "missing owner-only preview/public snapshot runtime assertion: " + marker);
+
 const tranche14Preflight = draft.match(
   /DO \$stage7_tranche14_fingerprint_preflight\$[\s\S]*?\$stage7_tranche14_fingerprint_preflight\$;/i,
 )?.[0] ?? "";
@@ -1126,6 +1151,9 @@ for (const marker of [
   "STAGE7_TRANCHE14_FOREIGN_AI_GRADE_ALLOWED",
   "STAGE7_TRANCHE14_FOREIGN_MANUAL_GRADE_ALLOWED",
   "STAGE7_TRANCHE14_FOREIGN_PREVIEW_ALLOWED",
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED",
 ]) assert.ok(regression.includes(marker), "missing tranche 14 runtime assertion: " + marker);
 
 assert.match(regression, /INSERT INTO public\.grading_items[\s\S]*?Stage 7 tranche 14 rollback-only authorization fixture/);
