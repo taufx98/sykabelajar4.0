@@ -44,7 +44,7 @@ assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(draft, /v_price := public\.get_collective_certificate_price\(\)/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_METADATA_OR_ACL_MUTATED/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_EXECUTE_BOUNDARY_MUTATED/);
-assert.doesNotMatch(draft, /ALTER TABLE|TRUNCATE|DELETE FROM|INSERT INTO|UPDATE public\\./i,
+assert.doesNotMatch(draft, /ALTER TABLE|TRUNCATE|DELETE FROM|INSERT INTO|UPDATE public[.]/i,
   "This RPC draft must not mutate tables or application data.");
 const aclStatements = draft.match(/^(?:REVOKE ALL PRIVILEGES ON FUNCTION|GRANT EXECUTE ON FUNCTION).*$/gm) ?? [];
 assert.equal(aclStatements.length, 4, "Only the two reviewed function ACLs may be reconstructed.");
