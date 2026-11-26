@@ -235,14 +235,30 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: service_role retained; chat UI/REST RPC/Realtime path retired"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: PUBLIC/anon/authenticated EXECUTE and table privileges revoked"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_retired_browser_access",
+      "authorization_path_review": {
+        "boundary": "retired_chat_browser_access",
+        "browser_rpc_execute": "revoked_for_public_anon_authenticated",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "chat_realtime": "removed_from_supabase_realtime",
+        "row_retention": "tables_and_rows_retained",
+        "retirement_source": {
+          "repository": "taufx98/sykabelajar4.0",
+          "ref": "main",
+          "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+          "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+        },
+        "exceptional_non_chat_callers": []
+      }
     },
     {
       "schema": "public",
@@ -274,14 +290,30 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: service_role retained; chat UI/REST RPC/Realtime path retired"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: PUBLIC/anon/authenticated EXECUTE and table privileges revoked"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_retired_browser_access",
+      "authorization_path_review": {
+        "boundary": "retired_chat_browser_access",
+        "browser_rpc_execute": "revoked_for_public_anon_authenticated",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "chat_realtime": "removed_from_supabase_realtime",
+        "row_retention": "tables_and_rows_retained",
+        "retirement_source": {
+          "repository": "taufx98/sykabelajar4.0",
+          "ref": "main",
+          "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+          "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+        },
+        "exceptional_non_chat_callers": []
+      }
     },
     {
       "schema": "public",
@@ -418,14 +450,30 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: service_role retained; chat UI/REST RPC/Realtime path retired"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: PUBLIC/anon/authenticated EXECUTE and table privileges revoked"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_retired_browser_access",
+      "authorization_path_review": {
+        "boundary": "retired_chat_browser_access",
+        "browser_rpc_execute": "revoked_for_public_anon_authenticated",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "chat_realtime": "removed_from_supabase_realtime",
+        "row_retention": "tables_and_rows_retained",
+        "retirement_source": {
+          "repository": "taufx98/sykabelajar4.0",
+          "ref": "main",
+          "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+          "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+        },
+        "exceptional_non_chat_callers": []
+      }
     },
     {
       "schema": "public",
@@ -464,14 +512,30 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: service_role retained; chat UI/REST RPC/Realtime path retired"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: PUBLIC/anon/authenticated EXECUTE and table privileges revoked"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_retired_browser_access",
+      "authorization_path_review": {
+        "boundary": "retired_chat_browser_access",
+        "browser_rpc_execute": "revoked_for_public_anon_authenticated",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "chat_realtime": "removed_from_supabase_realtime",
+        "row_retention": "tables_and_rows_retained",
+        "retirement_source": {
+          "repository": "taufx98/sykabelajar4.0",
+          "ref": "main",
+          "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+          "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+        },
+        "exceptional_non_chat_callers": []
+      }
     },
     {
       "schema": "public",
@@ -573,14 +637,39 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: service_role retained; chat UI/REST RPC/Realtime path retired"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "main:supabase/migrations/20261105053729_retire_chat_system.sql @ 4628824aad895fa8419e49cf9b6774ab764f5592: PUBLIC/anon/authenticated EXECUTE and table privileges revoked"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_retired_browser_access",
+      "authorization_path_review": {
+        "boundary": "retired_chat_browser_access",
+        "browser_rpc_execute": "revoked_for_public_anon_authenticated",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "chat_realtime": "removed_from_supabase_realtime",
+        "row_retention": "tables_and_rows_retained",
+        "retirement_source": {
+          "repository": "taufx98/sykabelajar4.0",
+          "ref": "main",
+          "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+          "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+        },
+        "exceptional_non_chat_callers": [
+          {
+            "signature": "public.admin_force_delete_competition(p_competition_id uuid, p_reason text)",
+            "boundary": "better_auth_admin_only",
+            "tests": [
+              "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_force_delete_competition",
+              "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_force_delete_competition"
+            ]
+          }
+        ]
+      }
     },
     {
       "schema": "public",
@@ -1926,6 +2015,22 @@
       "This acceptance covers direct table RLS/ACL boundaries on the disposable schema restore only.",
       "It does not complete the separate SECURITY DEFINER caller/issuer/token audit, which remains a Production cutover blocker.",
       "It does not apply any grants, policies, DDL, or DML to Production."
+    ]
+  },
+  "authorization_path_audit_summary": {
+    "reviewed_at": "2026-11-26",
+    "verified_tables": 5,
+    "pending_tables": 18,
+    "retirement_source": {
+      "repository": "taufx98/sykabelajar4.0",
+      "ref": "main",
+      "path": "supabase/migrations/20261105053729_retire_chat_system.sql",
+      "blob_sha": "4628824aad895fa8419e49cf9b6774ab764f5592"
+    },
+    "notes": [
+      "The five chat_group tables retain RLS enabled, zero policies, and no direct browser table privileges.",
+      "The retirement migration revokes PUBLIC/anon/authenticated table privileges, revokes EXECUTE on public/private chat RPCs, removes chat-named Realtime tables, and retains table rows for controlled archival.",
+      "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately."
     ]
   }
 }
