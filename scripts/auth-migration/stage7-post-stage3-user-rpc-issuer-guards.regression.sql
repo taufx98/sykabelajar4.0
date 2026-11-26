@@ -30,6 +30,12 @@ DECLARE
   v_index integer := 0;
   v_seen integer;
 BEGIN
+  -- The preceding Stage 3 regression rolls its own fixtures back. Seed a
+  -- minimal Better Auth identity inside this independent rollback transaction.
+  INSERT INTO private.app_users (id, identity_origin)
+  VALUES ('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid, 'better_auth')
+  ON CONFLICT (id) DO NOTHING;
+
   PERFORM set_config(
     'request.jwt.claims',
     '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',

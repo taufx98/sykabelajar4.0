@@ -191,9 +191,13 @@ DO $stage7_post_stage3_user_rpc_patch$
 DECLARE
   v_expected record;
   v_definition text;
+  v_begin_position integer;
+  v_after_begin text;
+  v_replacement text;
+  v_oid oid;
   v_guard text := E'IF NOT private.current_user_is_better_auth() THEN\n'
     || E'    RAISE EXCEPTION ''BETTER_AUTH_ISSUER_REQUIRED'';\n'
-    || E'  END IF;\n  ';
+    || E'  END IF;';
 BEGIN
   FOR v_expected IN
     SELECT * FROM (VALUES
@@ -207,20 +211,32 @@ BEGIN
       ('mark_my_shop_vouchers_seen()', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;')
     ) AS expected(signature, auth_anchor)
   LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
     SELECT pg_catalog.pg_get_functiondef(v_oid)
     INTO v_definition
     FROM pg_catalog.pg_proc p
-    WHERE p.oid = pg_catalog.to_regprocedure(v_expected.signature);
+    WHERE p.oid = v_oid;
 
     IF v_definition IS NULL
        OR pg_catalog.strpos(v_definition, v_expected.auth_anchor) = 0 THEN
       RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_AUTH_ANCHOR_DRIFT:%', v_expected.signature;
     END IF;
 
+    v_begin_position := pg_catalog.strpos(v_expected.auth_anchor, 'begin');
+    IF v_begin_position <> 1 THEN
+      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_BEGIN_ANCHOR_DRIFT:%', v_expected.signature;
+    END IF;
+
+    v_after_begin := pg_catalog.ltrim(
+      pg_catalog.substring(v_expected.auth_anchor FROM v_begin_position + 5),
+      E' \\t\\n'
+    );
+    v_replacement := 'begin' || E'\\n  ' || v_guard || E'\\n  ' || v_after_begin;
+
     v_definition := pg_catalog.replace(
       v_definition,
       v_expected.auth_anchor,
-      v_guard || v_expected.auth_anchor
+      v_replacement
     );
 
     IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') = 0
