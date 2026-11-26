@@ -57,7 +57,9 @@ for (const table of review.tables) {
         ? "verified_private_better_auth_boundary"
         : isPublicPromoBannerTable
           ? "verified_public_promo_banner_boundary"
-          : "pending_security_definer_audit";
+          : table.table === "competition_status_history"
+            ? "verified_competition_status_history_boundary"
+            : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
     expectedAuthorizationStatus,
@@ -77,13 +79,14 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 13);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 10);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
   private_better_auth_boundary: 3,
   public_promo_banner_boundary: 2,
+  competition_status_history_boundary: 1,
 });
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
@@ -139,8 +142,8 @@ for (const marker of [
 
 const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
 assert.equal(portalTables.length, 3);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 13);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 10);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.public_promo_banner_boundary, 2);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
@@ -493,6 +496,77 @@ for (const marker of [
 assert.match(shopBannerRegression, /SET LOCAL ROLE anon[\s\S]*?list_active_shop_promo_banners[\s\S]*?record_shop_promo_banner_event/);
 assert.match(shopBannerRegression, /ROLLBACK;/);
 assert.ok(shopBannerContract.includes("Stage 7 public shop-promo banner RPC contract passed"));
+
+const competitionStatusHistory = review.tables.find(
+  (table) => table.schema === "public" && table.table === "competition_status_history",
+);
+assert.ok(competitionStatusHistory, "missing competition_status_history RLS review");
+assert.equal(competitionStatusHistory.authorization_path_review_status, "verified_competition_status_history_boundary");
+assert.equal(competitionStatusHistory.rls_enabled, true);
+assert.equal(competitionStatusHistory.policy_count, 0);
+assert.equal(competitionStatusHistory.owner, "postgres");
+assert.deepEqual(competitionStatusHistory.direct_browser_privileges_after_stage5_expected, []);
+assert.deepEqual(competitionStatusHistory.service_role_privileges, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+const historyAudit = competitionStatusHistory.authorization_path_review;
+assert.equal(historyAudit.boundary, "better_auth_owner_admin_transition_and_public_published_result_projection");
+assert.equal(historyAudit.direct_table_access, "revoked_for_public_anon_authenticated");
+assert.deepEqual(competitionStatusHistory.source_callers.map((caller) => caller.signature).sort(), [
+  "private.monthly_organizer_competition_quota(p_organizer_id uuid)",
+  "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+  "public.get_public_competition_results(p_slug text, p_limit integer, p_offset integer)",
+  "public.track_competition_status()",
+  "public.transition_competition(p_competition_id uuid, p_to_status competition_status, p_reason text)",
+].sort());
+const historyTransition = read("supabase/migrations/20261102074500_monthly_competition_publication_quota.sql")
+  .match(/create or replace function public\.transition_competition\([\s\S]*?\$function\$;/i)?.[0] ?? "";
+assert.ok(historyTransition);
+assert.match(historyTransition, /SECURITY DEFINER/i);
+assert.match(historyTransition, /private\.current_user_is_admin\(\)/i);
+assert.match(historyTransition, /private\.current_user_can_edit_competition\(v_organizer_id\)/i);
+assert.match(historyTransition, /FOR UPDATE/i);
+assert.match(historyTransition, /INSERT INTO public\.competition_status_history/i);
+const historyDashboard = read("supabase/migrations/20261101100000_stage_6_admin_monitoring_investigations.sql")
+  .match(/CREATE OR REPLACE FUNCTION public\.admin_get_monitoring_dashboard\([\s\S]*?\$function\$;/i)?.[0] ?? "";
+assert.ok(historyDashboard);
+assert.match(historyDashboard, /private\.current_user_is_admin\(\)/i);
+assert.match(historyDashboard, /ADMIN_REQUIRED/i);
+assert.match(historyDashboard, /FROM public\.competition_status_history h/i);
+const historyPublicResults = read("supabase/migrations/20261102013000_competition_public_roster_and_participant_detail.sql")
+  .match(/create or replace function public\.get_public_competition_results\([\s\S]*?\$function\$;/i)?.[0] ?? "";
+assert.ok(historyPublicResults);
+assert.match(historyPublicResults, /visibility = 'PUBLIC'/i);
+assert.match(historyPublicResults, /status::text in \('RESULT_PUBLISHED', 'ARCHIVED'\)/i);
+assert.match(historyPublicResults, /FROM public\.competition_status_history h/i);
+assert.match(historyPublicResults, /'published_at'/i);
+const historyTrigger = read("supabase/migrations/20261101034352_event_driven_referrals_trigger_optimization.sql");
+assert.match(historyTrigger, /CREATE TRIGGER trg_competition_status_history[\s\S]*?WHEN \(OLD\.status IS DISTINCT FROM NEW\.status\)[\s\S]*?EXECUTE FUNCTION public\.track_competition_status\(\)/i);
+const historyTriggerAcl = read("supabase/migrations/20260906075800_phase_13_lock_trigger_and_backend_rpcs.sql");
+assert.match(historyTriggerAcl, /revoke execute on function public\.track_competition_status\(\) from public, anon, authenticated/i);
+const historyIssuer = read("docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql")
+  .match(/CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)[\s\S]*?\$function\$;/i)?.[0] ?? "";
+assert.ok(historyIssuer);
+for (const marker of [
+  "https://auth-prod.sykabelajar.my.id/api/auth",
+  "identity_origin = 'better_auth'",
+  "ur.role = p_role",
+  "ur.is_active = TRUE",
+]) assert.ok(historyIssuer.includes(marker), "Better Auth Admin role helper missing " + marker);
+const historyStage3Regression = read("scripts/auth-migration/stage3-issuer-guard-regression.sql");
+for (const marker of [
+  "STAGE7_TRANSITION_COMPETITION_OWNER_FAILED",
+  "STAGE7_TRANSITION_COMPETITION_OUTSIDER_NOT_DENIED",
+  "STAGE7_TRANSITION_COMPETITION_LEGACY_ISSUER_NOT_DENIED",
+  "STAGE7_TRANSITION_COMPETITION_ADMIN_FAILED",
+  "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_get_monitoring_dashboard",
+  "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_monitoring_dashboard",
+  "STAGE3_ANON_PUBLIC_RESULTS_READ_FAILED",
+  "STAGE3_ANON_PUBLIC_RESULTS_PRIVATE_FIELDS_LEAKED",
+  "STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED",
+  "STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED",
+]) assert.ok(historyStage3Regression.includes(marker), "missing competition status history caller test: " + marker);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.competition_status_history_boundary, 1);
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {

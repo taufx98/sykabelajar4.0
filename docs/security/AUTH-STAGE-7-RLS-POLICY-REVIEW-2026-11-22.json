@@ -1271,14 +1271,77 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation",
+        "Baseline #347: Better Auth owner and Admin status transitions succeeded; public published-result projection and Admin monitoring caller acceptance passed on the schema-only disposable restore"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Baseline #347: unrelated Better Auth user and legacy Supabase Auth issuer were denied from transition_competition; unpublished and PRIVATE result lookups were rejected; public result payload omitted sensitive fields"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_competition_status_history_boundary",
+      "authorization_path_review": {
+        "boundary": "better_auth_owner_admin_transition_and_public_published_result_projection",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "direct_table_privilege_boundary": "service_role_crud_only",
+        "authenticated_entrypoints": [
+          "public.transition_competition(p_competition_id uuid, p_to_status competition_status, p_reason text)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "anon_entrypoints": [
+          "public.get_public_competition_results(p_slug text, p_limit integer, p_offset integer)"
+        ],
+        "internal_callers": [
+          "private.monthly_organizer_competition_quota(p_organizer_id uuid)",
+          "public.track_competition_status() trigger on public.competitions"
+        ],
+        "guard_requirements": [
+          "transition_competition permits an active Better Auth Admin or an organizer/member with edit permission for the target competition; it locks the competition row, validates the state machine, inserts the transition record and writes an audit log",
+          "transition_competition owner/Admin, unrelated Better Auth user and matching legacy Supabase Auth UUID are exercised separately",
+          "admin_get_monitoring_dashboard requires auth.uid() and private.current_user_is_admin(); the shared Admin role helper binds the exact Better Auth issuer and private.app_users.identity_origin",
+          "get_public_competition_results returns only visibility=PUBLIC competitions in RESULT_PUBLISHED or ARCHIVED status; unpublished and PRIVATE competitions return COMPETITION_RESULTS_NOT_FOUND",
+          "public result projection contains published competition and result fields only; answer keys, answers, social-proof URLs and registration metadata are excluded",
+          "track_competition_status runs only from the competitions status-change trigger; direct EXECUTE is revoked from PUBLIC, anon and authenticated",
+          "RLS remains enabled with zero policies; anon/authenticated have no direct table privileges and service_role retains only the reviewed direct CRUD boundary"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql",
+          "supabase/migrations/20261102074500_monthly_competition_publication_quota.sql",
+          "supabase/migrations/20261101100000_stage_6_admin_monitoring_investigations.sql",
+          "supabase/migrations/20261102013000_competition_public_roster_and_participant_detail.sql",
+          "supabase/migrations/20261101034352_event_driven_referrals_trigger_optimization.sql",
+          "supabase/migrations/20260906075800_phase_13_lock_trigger_and_backend_rpcs.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45743951910,
+          "commit": "7a3039d84b15812cc9196863b174d566e477a4b6",
+          "successful_steps": [
+            43,
+            45,
+            57
+          ],
+          "transition_caller_tests": [
+            "STAGE7_TRANSITION_COMPETITION_OWNER_FAILED",
+            "STAGE7_TRANSITION_COMPETITION_OUTSIDER_NOT_DENIED",
+            "STAGE7_TRANSITION_COMPETITION_LEGACY_ISSUER_NOT_DENIED",
+            "STAGE7_TRANSITION_COMPETITION_ADMIN_FAILED"
+          ],
+          "public_result_tests": [
+            "STAGE3_ANON_PUBLIC_RESULTS_READ_FAILED",
+            "STAGE3_ANON_PUBLIC_RESULTS_PRIVATE_FIELDS_LEAKED",
+            "STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED",
+            "STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED"
+          ],
+          "admin_dashboard_tests": [
+            "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_get_monitoring_dashboard",
+            "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_monitoring_dashboard"
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2379,8 +2442,8 @@
   },
   "authorization_path_audit_summary": {
     "reviewed_at": "2026-11-26",
-    "verified_tables": 13,
-    "pending_tables": 10,
+    "verified_tables": 14,
+    "pending_tables": 9,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2392,13 +2455,15 @@
       "The retirement migration revokes PUBLIC/anon/authenticated table privileges, revokes EXECUTE on public/private chat RPCs, removes chat-named Realtime tables, and retains table rows for controlled archival.",
       "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately.",
       "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft.",
-      "The two public Shop promo banner tables remain RLS-enabled with zero policies and no direct anon/authenticated table grants. Anonymous storefront access is limited to active-banner listing and a validated, deduplicated VIEW/CLICK RPC; raw banner/event rows stay service_role-only. Banner Admin CRUD is exposed only through authenticated Admin SECURITY DEFINER RPCs, whose shared role helper verifies the exact Better Auth issuer and private.app_users identity_origin."
+      "The two public Shop promo banner tables remain RLS-enabled with zero policies and no direct anon/authenticated table grants. Anonymous storefront access is limited to active-banner listing and a validated, deduplicated VIEW/CLICK RPC; raw banner/event rows stay service_role-only. Banner Admin CRUD is exposed only through authenticated Admin SECURITY DEFINER RPCs, whose shared role helper verifies the exact Better Auth issuer and private.app_users identity_origin.",
+      "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
       "participant_portal_token_boundary": 3,
       "private_better_auth_boundary": 3,
-      "public_promo_banner_boundary": 2
+      "public_promo_banner_boundary": 2,
+      "competition_status_history_boundary": 1
     }
   }
 }
