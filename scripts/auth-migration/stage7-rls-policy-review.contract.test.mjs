@@ -121,6 +121,29 @@ assert.ok(applySystemLogAcl > applyStage5NoPolicy && verify23 > applySystemLogAc
 
 assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
 assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+const notificationDeliveries = review.tables.find(
+  (table) => table.schema === "public" && table.table === "notification_deliveries",
+);
+assert.ok(notificationDeliveries, "notification_deliveries must remain in the explicit Stage 7 matrix.");
+assert.deepEqual(notificationDeliveries.source_callers, [],
+  "No database SECURITY DEFINER caller was found for notification_deliveries.");
+assert.equal(notificationDeliveries.authorization_path_review_status, "pending_security_definer_audit",
+  "Do not close notification_deliveries before the complete disposable baseline accepts its caller boundary.");
+
+const systemLogs = review.tables.find(
+  (table) => table.schema === "public" && table.table === "supabase_system_logs",
+);
+assert.ok(systemLogs, "supabase_system_logs must remain in the explicit Stage 7 matrix.");
+assert.deepEqual(systemLogs.source_callers.map((caller) => caller.signature), [
+  "public.fetch_and_save_supabase_logs()",
+]);
+assert.equal(systemLogs.source_callers[0].security_definer, true);
+assert.equal(systemLogs.source_callers[0].anon_execute, false);
+assert.equal(systemLogs.source_callers[0].authenticated_execute, false);
+assert.equal(systemLogs.source_callers[0].service_role_execute, true);
+assert.equal(systemLogs.authorization_path_review_status, "pending_security_definer_audit",
+  "Do not close system log caller review before disposable restore ACL postconditions pass.");
+
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
