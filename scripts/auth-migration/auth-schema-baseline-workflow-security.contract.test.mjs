@@ -49,6 +49,15 @@ assert.match(workflow, /^permissions:\n  contents: read$/m,
   "The schema-only baseline must keep read-only repository permissions.");
 assert.doesNotMatch(workflow, /pull_request_target|workflow_run:/,
   "No privileged PR-target or workflow-run event may be added to the secret-bearing workflow.");
+for (const requiredPath of [
+  "docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql",
+  "docs/security/AUTH-STAGE-7-SYSTEM-LOG-COLLECTOR-ACL-RESTORE.sql",
+  "scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.contract.test.mjs",
+  "scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.regression.sql",
+]) {
+  assert.ok(push.includes(requiredPath),
+    "A Stage 7 security baseline input must trigger the read-only Production schema baseline: " + requiredPath);
+}
 
 assert.match(prWorkflow, /^on:\n  pull_request:/m,
   "PR contract checks must remain available on pull requests.");
