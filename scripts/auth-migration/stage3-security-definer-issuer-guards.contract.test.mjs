@@ -1233,6 +1233,15 @@ for (const marker of [
   "STAGE7_TRANCHE16_EFFECTIVE_EXECUTE_DRIFT",
 ]) assert.ok(tranche16Preflight.includes(marker), "missing fail-closed Tranche 16 metadata diagnostic: " + marker);
 
+const tranche16MetadataPostflight = draft.match(
+  /DO \$stage7_tranche16_metadata_postflight\$[\s\S]*?\$stage7_tranche16_metadata_postflight\$;/i,
+)?.[0] ?? "";
+assert.ok(tranche16MetadataPostflight, "missing Tranche 16 metadata postflight");
+assert.match(tranche16MetadataPostflight, /AS expected\(signature, return_type, settings, language\)/);
+assert.match(tranche16MetadataPostflight, /v_language IS DISTINCT FROM v_expected\.language/);
+assert.doesNotMatch(tranche16MetadataPostflight, /v_expected\.lang\b/,
+  "Tranche 16 language postflight must read the exact VALUES alias, not the earlier tranche's lang field");
+
 const tranche16Overview = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_organizer_competition_result_overview\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";

@@ -6818,7 +6818,7 @@ BEGIN
        OR v_settings IS DISTINCT FROM v_expected.settings
        OR v_acl IS DISTINCT FROM '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'
        OR v_return_type IS DISTINCT FROM v_expected.return_type
-       OR v_language IS DISTINCT FROM v_expected.lang THEN
+       OR v_language IS DISTINCT FROM v_expected.language THEN
       RAISE EXCEPTION 'STAGE7_TRANCHE16_METADATA_OR_ACL_POSTFLIGHT_FAILED:%', v_expected.signature;
     END IF;
     IF has_function_privilege('anon', v_oid, 'EXECUTE')
