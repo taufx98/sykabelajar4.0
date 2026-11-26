@@ -699,7 +699,7 @@ assert.deepEqual(examQuestions.authorization_path_review.public_projection_entry
 const examRuntime = examTables.find((table) => table.table === "exam_attempt_runtime");
 assert.deepEqual(examRuntime.authorization_path_review.public_projection_entrypoints, []);
 for (const signature of examAdminFunctions) {
-  const name = signature.match(/^public\\.([a-z_][a-z0-9_]*)\\(/)?.[1];
+  const name = signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1];
   assert.ok(name);
   const start = adminMonitoringMigration.indexOf("CREATE OR REPLACE FUNCTION public." + name + "(");
   const end = adminMonitoringMigration.indexOf("$function$;", start);
