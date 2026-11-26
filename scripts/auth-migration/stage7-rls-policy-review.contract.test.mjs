@@ -28,7 +28,18 @@ assert.match(review.direct_table_boundary_acceptance.limitations.join(" "), /SEC
 
 for (const table of review.tables) {
   assert.equal(table.review_status, "direct_table_acl_boundary_passed_disposable");
-  assert.equal(table.authorization_path_review_status, "pending_security_definer_audit");
+  const isRetiredChatTable = [
+    "chat_group_collective_reads",
+    "chat_group_invites",
+    "chat_group_members",
+    "chat_group_reads",
+    "chat_groups",
+  ].includes(table.table);
+  assert.equal(
+    table.authorization_path_review_status,
+    isRetiredChatTable ? "verified_retired_browser_access" : "pending_security_definer_audit",
+    "authorization path state must match the reviewed table boundary: " + table.schema + "." + table.table,
+  );
   assert.equal(table.owner, "postgres", table.schema + "." + table.table + " owner drift");
   assert.equal(table.rls_enabled, true, table.schema + "." + table.table + " must retain RLS");
   assert.equal(table.policy_count, 0, table.schema + "." + table.table + " must remain policy-free");
