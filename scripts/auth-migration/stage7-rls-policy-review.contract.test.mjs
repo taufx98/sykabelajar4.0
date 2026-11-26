@@ -585,7 +585,7 @@ assert.equal(examTables.length, 3);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.server_authoritative_exam_storage, 3);
 const examRegression = read("scripts/auth-migration/stage3-issuer-guard-regression.sql");
 const portalExamRegression = read("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql");
-const userRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
+const examUserRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const adminMonitoringMigration = read("supabase/migrations/20261101100000_stage_6_admin_monitoring_investigations.sql");
 const publicParticipantMigration = read("supabase/migrations/20261102013000_competition_public_roster_and_participant_detail.sql");
 const examAdminFunctions = [
@@ -671,7 +671,7 @@ for (const table of examTables) {
     assert.equal(caller.anon_execute, false);
     assert.equal(caller.authenticated_execute, true);
     assert.equal(caller.security_definer, true);
-    assert.ok(userRpcDraft.includes("'" + signature + "'"), "missing Better Auth guarded exam RPC: " + signature);
+    assert.ok(examUserRpcDraft.includes("'" + signature + "'"), "missing Better Auth guarded exam RPC: " + signature);
   }
   for (const signature of examPortalFunctions) {
     if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
