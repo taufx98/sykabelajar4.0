@@ -234,6 +234,7 @@ const referralAwardsMigration = read("supabase/migrations/20261101090004_referra
 const referralContract = read("scripts/referral-attribution-contract.test.mjs");
 const userIssuerDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const earlierIssuerDraft = read("docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql");
+const issuerRestrictionDraft = read("docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql");
 const userIssuerContract = read("scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs");
 for (const table of privateTables) {
   assert.equal(table.authorization_path_review_status, "verified_private_better_auth_boundary");
@@ -299,10 +300,23 @@ const registrationDefinition = earlierIssuerDraft.match(
 )?.[0] ?? "";
 assert.ok(registrationDefinition.includes("private.current_user_is_better_auth()"));
 assert.ok(registrationDefinition.includes("BETTER_AUTH_ISSUER_REQUIRED"));
-const adminHelper = earlierIssuerDraft.match(
-  /CREATE OR REPLACE FUNCTION private\.current_user_is_admin\(\)[\s\S]*?\$function\$;/i,
+const sharedRoleHelper = issuerRestrictionDraft.match(
+  /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
-assert.ok(adminHelper.includes("private.current_user_is_better_auth()"));
+assert.ok(sharedRoleHelper, "missing shared role helper issuer replacement");
+for (const marker of [
+  "https://auth-prod.sykabelajar.my.id/api/auth",
+  "identity_origin = 'better_auth'",
+  "ur.role = p_role",
+  "ur.is_active = TRUE",
+  "STAGE3_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT",
+]) {
+  assert.ok(
+    issuerRestrictionDraft.includes(marker) || sharedRoleHelper.includes(marker),
+    "shared Admin/role helper must enforce Better Auth identity: " + marker,
+  );
+}
+assert.ok(issuerRestrictionDraft.includes("STAGE7_TRANCHE15_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT"));
 assert.ok(referralSettingsMigration.includes("IF NOT private.current_user_is_admin()"));
 assert.ok(referralContract.includes("REVOKE ALL ON TABLE private.referral_program_settings"));
 
