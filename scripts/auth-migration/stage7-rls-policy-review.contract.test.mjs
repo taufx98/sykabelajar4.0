@@ -35,9 +35,19 @@ for (const table of review.tables) {
     "chat_group_reads",
     "chat_groups",
   ].includes(table.table);
+  const isParticipantPortalTable = [
+    "collective_portal_credentials",
+    "collective_portal_identities",
+    "collective_portal_sessions",
+  ].includes(table.table);
+  const expectedAuthorizationStatus = isRetiredChatTable
+    ? "verified_retired_browser_access"
+    : isParticipantPortalTable
+      ? "verified_participant_portal_token_boundary"
+      : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
-    isRetiredChatTable ? "verified_retired_browser_access" : "pending_security_definer_audit",
+    expectedAuthorizationStatus,
     "authorization path state must match the reviewed table boundary: " + table.schema + "." + table.table,
   );
   assert.equal(table.owner, "postgres", table.schema + "." + table.table + " owner drift");
@@ -54,8 +64,12 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 5);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 18);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 8);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 15);
+assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
+  retired_chat_browser_access: 5,
+  participant_portal_token_boundary: 3,
+});
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
   repository: "taufx98/sykabelajar4.0",
@@ -107,6 +121,96 @@ for (const marker of [
   "STAGE7_RLS_REVIEW_ANON_PRIVATE_SCHEMA_CREATE_REMAINS",
   "STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_CREATE_REMAINS",
 ]) assert.ok(regression.includes(marker), "missing private-schema runtime assertion: " + marker);
+
+const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
+assert.equal(portalTables.length, 3);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 8);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 15);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
+const portalInvalidRegression = read("scripts/auth-migration/stage7-collective-portal-token-regression.sql");
+const portalValidRegression = read("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql");
+const portalPasswordRegression = read("scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql");
+const portalParentContract = read("scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs");
+const portalPasswordContract = read("scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs");
+const userRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
+const expectedPortalFunctions = [
+  "public.verify_collective_portal_password(p_password text)",
+  "public.list_collective_portal_competitions(p_portal_token text)",
+  "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)",
+  "public.revoke_collective_portal_session(p_portal_token text)",
+];
+const expectedManagementFunctions = [
+  "public.provision_collective_registration(p_registration_id uuid)",
+  "public.regenerate_collective_participant_password(p_participant_id uuid)",
+];
+for (const table of portalTables) {
+  const audit = table.authorization_path_review;
+  assert.equal(table.authorization_path_review_status, "verified_participant_portal_token_boundary");
+  assert.equal(audit.boundary, "anonymous_participant_portal_token");
+  assert.equal(audit.direct_table_access, "revoked_for_public_anon_authenticated");
+  assert.equal(audit.table_data_boundary, "service_role_only");
+  assert.equal(table.rls_enabled, true);
+  assert.equal(table.policy_count, 0);
+  assert.deepEqual(table.direct_browser_privileges_after_stage5_expected, []);
+  assert.deepEqual(table.service_role_privileges, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+  for (const signature of expectedPortalFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, true, "portal bearer/password RPC must retain intended anon entry: " + signature);
+    assert.equal(caller.authenticated_execute, true, "portal bearer/password RPC auth compatibility changed: " + signature);
+    assert.equal(caller.security_definer, true, "portal entrypoint must remain SECURITY DEFINER: " + signature);
+    assert.ok(audit.anon_entrypoints.includes(signature), "missing documented anon portal entrypoint: " + signature);
+  }
+  for (const signature of expectedManagementFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, false, "credential management must not be anonymous: " + signature);
+    assert.equal(caller.authenticated_execute, true, "Better Auth management caller missing: " + signature);
+    assert.equal(caller.security_definer, true, "credential management must retain its guarded SECURITY DEFINER wrapper: " + signature);
+    assert.ok(audit.better_auth_management_entrypoints.includes(signature), "missing Better Auth management entrypoint: " + signature);
+    const managementFunctionName = signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1];
+    assert.ok(managementFunctionName, "invalid management RPC signature: " + signature);
+    const managementDefinition = userRpcDraft.match(new RegExp(
+      "CREATE OR REPLACE FUNCTION public\\." + managementFunctionName + "\\([\\s\\S]*?\\$function\\$;",
+      "i",
+    ))?.[0] ?? "";
+    assert.ok(managementDefinition, "missing guarded Stage 3 management function definition: " + signature);
+    assert.ok(managementDefinition.includes("private.current_user_is_better_auth()"), "management RPC must require the Better Auth issuer: " + signature);
+    assert.ok(managementDefinition.includes("BETTER_AUTH_ISSUER_REQUIRED"), "management RPC must fail closed for a legacy issuer: " + signature);
+  }
+  assert.ok(audit.private_helpers_require_private_schema_usage.includes("anon"));
+  assert.ok(audit.private_helpers_require_private_schema_usage.includes("authenticated"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-collective-portal-token-regression.sql"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs"));
+}
+for (const marker of [
+  "STAGE7_PORTAL_INVALID_PASSWORD_ACCEPTED",
+  "STAGE7_PORTAL_INVALID_SESSION_OPENED",
+  "STAGE7_PORTAL_INVALID_TOKEN_START_EXAM_NOT_DENIED",
+  "STAGE7_PORTAL_INVALID_TOKEN_ANSWER_NOT_DENIED",
+]) assert.ok(portalInvalidRegression.includes(marker), "missing invalid-token denial assertion: " + marker);
+for (const marker of [
+  "STAGE7_VALID_PORTAL_TOKEN_CANNOT_LIST_OWN_PRIVATE_COMPETITION",
+  "STAGE7_PORTAL_TOKEN_LISTED_OTHER_PARTICIPANT",
+  "STAGE7_CROSS_PARTICIPANT_EXAM_STATE_READ",
+  "STAGE7_REVOKED_ACCESS_TOKEN_NOT_REJECTED",
+  "STAGE7_PARENT_REVOCATION_DID_NOT_REVOKE_CHILD",
+  "STAGE7_DISABLED_PORTAL_CREDENTIAL_CHILD_TOKEN_ALLOWED",
+  "STAGE7_ROTATED_PORTAL_CREDENTIAL_CHILD_TOKEN_ALLOWED",
+  "STAGE7_SUSPENDED_PORTAL_IDENTITY_CHILD_TOKEN_ALLOWED",
+  "STAGE7_EXPIRED_PARENT_SESSION_CHILD_TOKEN_ALLOWED",
+]) assert.ok(portalValidRegression.includes(marker), "missing valid-token isolation/revocation assertion: " + marker);
+assert.ok(portalParentContract.includes("STAGE7_PARENT_REVOCATION_DID_NOT_REVOKE_CHILD"));
+for (const marker of [
+  "STAGE7_PORTAL_LOOKUP_5000_PASSWORD_SCALE_PROBE_FAILED",
+  "STAGE7_PORTAL_LOOKUP_SAME_PREFIX_VALID_PASSWORDS_FAILED",
+  "STAGE7_PORTAL_LOOKUP_WRONG_SUFFIX_NOT_COUNTED",
+  "STAGE7_PORTAL_LOOKUP_ONE_ACCOUNT_LOCKOUT_AFFECTED_OTHER",
+]) assert.ok(portalPasswordRegression.includes(marker), "missing password-selector/lockout assertion: " + marker);
+assert.ok(portalPasswordContract.includes("64-bit account selector"));
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {

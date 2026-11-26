@@ -737,15 +737,71 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending",
+        "Stage7 disposable baseline: valid participant portal password/token, private competition listing/opening, two-participant IDOR isolation, child/parent revocation and credential lifecycle acceptance passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement",
+        "Stage7 disposable baseline: all 14 portal RPCs reject invalid anonymous tokens; expired/revoked/rotated/suspended parent sessions and cross-participant access denied"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_participant_portal_token_boundary",
+      "authorization_path_review": {
+        "boundary": "anonymous_participant_portal_token",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "anon_entrypoints": [
+          "public.verify_collective_portal_password(p_password text)",
+          "public.list_collective_portal_competitions(p_portal_token text)",
+          "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)"
+        ],
+        "better_auth_management_entrypoints": [
+          "public.provision_collective_registration(p_registration_id uuid)",
+          "public.regenerate_collective_participant_password(p_participant_id uuid)"
+        ],
+        "private_helpers": [
+          "private.sync_collective_portal_credential(p_participant_id uuid, p_plaintext_password text, p_password_version integer)"
+        ],
+        "private_helpers_require_private_schema_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "token_invariants": [
+          "portal/access tokens are 256-bit random opaque hex values; database stores token hashes",
+          "portal identity and credential must remain ACTIVE/enabled with matching credential version",
+          "child exam access token is bound to an active parent portal session and cannot outlive it",
+          "participant status, roster identity, owner and competition must match the token session",
+          "cross-participant reads and writes return not-found/invalid-session results",
+          "credential rotation/disable, identity suspension, expiry, or parent revocation invalidates descendants"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45733378703,
+          "commit": "5be1d4fa1b152220af5639b6b16dd8b877335c36",
+          "successful_steps": [
+            46,
+            47,
+            48,
+            49,
+            51,
+            52,
+            55,
+            56,
+            57,
+            58
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -820,15 +876,72 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending",
+        "Stage7 disposable baseline: valid participant portal password/token, private competition listing/opening, two-participant IDOR isolation, child/parent revocation and credential lifecycle acceptance passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement",
+        "Stage7 disposable baseline: all 14 portal RPCs reject invalid anonymous tokens; expired/revoked/rotated/suspended parent sessions and cross-participant access denied"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_participant_portal_token_boundary",
+      "authorization_path_review": {
+        "boundary": "anonymous_participant_portal_token",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "anon_entrypoints": [
+          "public.verify_collective_portal_password(p_password text)",
+          "public.list_collective_portal_competitions(p_portal_token text)",
+          "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)"
+        ],
+        "better_auth_management_entrypoints": [
+          "public.provision_collective_registration(p_registration_id uuid)",
+          "public.regenerate_collective_participant_password(p_participant_id uuid)"
+        ],
+        "private_helpers": [
+          "private.sync_collective_portal_credential(p_participant_id uuid, p_plaintext_password text, p_password_version integer)",
+          "private.provision_collective_registration(p_registration_id uuid)"
+        ],
+        "private_helpers_require_private_schema_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "token_invariants": [
+          "portal/access tokens are 256-bit random opaque hex values; database stores token hashes",
+          "portal identity and credential must remain ACTIVE/enabled with matching credential version",
+          "child exam access token is bound to an active parent portal session and cannot outlive it",
+          "participant status, roster identity, owner and competition must match the token session",
+          "cross-participant reads and writes return not-found/invalid-session results",
+          "credential rotation/disable, identity suspension, expiry, or parent revocation invalidates descendants"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45733378703,
+          "commit": "5be1d4fa1b152220af5639b6b16dd8b877335c36",
+          "successful_steps": [
+            46,
+            47,
+            48,
+            49,
+            51,
+            52,
+            55,
+            56,
+            57,
+            58
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -903,15 +1016,72 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending"
+        "Portal password/token RPC remains the only anon entrypoint; dedicated runtime IDOR acceptance is still pending",
+        "Stage7 disposable baseline: valid participant portal password/token, private competition listing/opening, two-participant IDOR isolation, child/parent revocation and credential lifecycle acceptance passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement"
+        "Invalid, expired, revoked, and cross-participant portal token negative cases remain a separate runtime acceptance requirement",
+        "Stage7 disposable baseline: all 14 portal RPCs reject invalid anonymous tokens; expired/revoked/rotated/suspended parent sessions and cross-participant access denied"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_participant_portal_token_boundary",
+      "authorization_path_review": {
+        "boundary": "anonymous_participant_portal_token",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "anon_entrypoints": [
+          "public.verify_collective_portal_password(p_password text)",
+          "public.list_collective_portal_competitions(p_portal_token text)",
+          "public.open_collective_competition_session(p_portal_token text, p_competition_id uuid, p_participant_code text)",
+          "public.revoke_collective_portal_session(p_portal_token text)"
+        ],
+        "better_auth_management_entrypoints": [
+          "public.provision_collective_registration(p_registration_id uuid)",
+          "public.regenerate_collective_participant_password(p_participant_id uuid)"
+        ],
+        "private_helpers": [
+          "private.collective_portal_identity(p_token text)"
+        ],
+        "private_helpers_require_private_schema_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "token_invariants": [
+          "portal/access tokens are 256-bit random opaque hex values; database stores token hashes",
+          "portal identity and credential must remain ACTIVE/enabled with matching credential version",
+          "child exam access token is bound to an active parent portal session and cannot outlive it",
+          "participant status, roster identity, owner and competition must match the token session",
+          "cross-participant reads and writes return not-found/invalid-session results",
+          "credential rotation/disable, identity suspension, expiry, or parent revocation invalidates descendants"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45733378703,
+          "commit": "5be1d4fa1b152220af5639b6b16dd8b877335c36",
+          "successful_steps": [
+            46,
+            47,
+            48,
+            49,
+            51,
+            52,
+            55,
+            56,
+            57,
+            58
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2019,8 +2189,8 @@
   },
   "authorization_path_audit_summary": {
     "reviewed_at": "2026-11-26",
-    "verified_tables": 5,
-    "pending_tables": 18,
+    "verified_tables": 8,
+    "pending_tables": 15,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2031,6 +2201,10 @@
       "The five chat_group tables retain RLS enabled, zero policies, and no direct browser table privileges.",
       "The retirement migration revokes PUBLIC/anon/authenticated table privileges, revokes EXECUTE on public/private chat RPCs, removes chat-named Realtime tables, and retains table rows for controlled archival.",
       "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately."
-    ]
+    ],
+    "verified_boundaries": {
+      "retired_chat_browser_access": 5,
+      "participant_portal_token_boundary": 3
+    }
   }
 }
