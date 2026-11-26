@@ -246,9 +246,10 @@ for (const table of privateTables) {
   assert.ok(table.authorization_path_review.tests.length > 0);
 }
 const organizerClaims = privateTables.find((table) => table.table === "organizer_free_identity_claims");
-assert.deepEqual(organizerClaims.authorization_path_review.callers, [
+assert.equal(
+  organizerClaims.authorization_path_review.caller,
   "public.create_organizer(p_name text, p_slug text)",
-]);
+);
 const organizerDefinition = identityRoot.match(
   /CREATE OR REPLACE FUNCTION public\.create_organizer\(p_name text, p_slug text\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
