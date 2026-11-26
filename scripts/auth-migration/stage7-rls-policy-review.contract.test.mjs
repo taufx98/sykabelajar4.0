@@ -64,8 +64,12 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 5);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 18);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 8);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 15);
+assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
+  retired_chat_browser_access: 5,
+  participant_portal_token_boundary: 3,
+});
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
   repository: "taufx98/sykabelajar4.0",
