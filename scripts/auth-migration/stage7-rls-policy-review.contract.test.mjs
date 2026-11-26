@@ -132,8 +132,8 @@ for (const marker of [
 
 const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
 assert.equal(portalTables.length, 3);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 8);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 15);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 11);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 12);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
 const portalInvalidRegression = read("scripts/auth-migration/stage7-collective-portal-token-regression.sql");
@@ -274,7 +274,7 @@ for (const signature of [
   "public.get_referral_program_settings_v2()",
   "public.register_for_competition(",
   "public.better_auth_provision_user(",
-]) assert.ok(referralSettings.authorization_path_review.callers.includes(signature));
+]) assert.ok(referralSettings.authorization_path_review.permitted_callers.includes(signature));
 assert.match(referralSettingsMigration, /REVOKE ALL ON TABLE private\.referral_program_settings FROM PUBLIC, anon, authenticated, service_role/);
 for (const signature of [
   "public.get_referral_program_settings()",
@@ -300,9 +300,12 @@ assert.ok(referralSettingsMigration.includes("IF NOT private.current_user_is_adm
 assert.ok(referralContract.includes("REVOKE ALL ON TABLE private.referral_program_settings"));
 
 const referralAwards = privateTables.find((table) => table.table === "referral_tier_awards");
-assert.deepEqual(referralAwards.authorization_path_review.callers, [
-  "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+assert.deepEqual(referralAwards.authorization_path_review.permitted_callers, [
   "public.get_my_referral_tier_awards()",
+]);
+assert.deepEqual(referralAwards.authorization_path_review.internal_callers, [
+  "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+  "private.capture_referral_milestone_reward() trigger on public.edu_coin_ledger",
 ]);
 assert.match(referralAwardsMigration, /REVOKE ALL ON TABLE private\.referral_tier_awards FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(referralAwardsMigration, /REVOKE ALL ON FUNCTION private\.apply_referral_milestone_rewards\(uuid\) FROM PUBLIC, anon, authenticated, service_role/);
