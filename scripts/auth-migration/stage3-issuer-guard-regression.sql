@@ -40,6 +40,13 @@ BEGIN
        OR slug = 'stage7-organizer-scope-probe'
   ) OR EXISTS (
     SELECT 1 FROM public.competitions
+    WHERE id = '44444444-4444-4444-8444-444444444442'::uuid
+       OR slug = 'stage7-owner-preview-report-probe'
+  ) OR EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id = '77777777-7777-4777-8777-777777777783'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.competitions
     WHERE id IN (
       '33333333-3333-4333-8333-333333333334'::uuid,
       '33333333-3333-4333-8333-333333333335'::uuid
@@ -734,6 +741,23 @@ VALUES (
   '77777777-7777-4777-8777-777777777791'::uuid
 );
 
+-- A distinct DRAFT competition is used only to seed the owner-only preview report.
+INSERT INTO public.competitions (
+  id, slug, title, category, status, visibility,
+  participant_mode, config, organizer_id
+)
+VALUES (
+  '44444444-4444-4444-8444-444444444442',
+  'stage7-owner-preview-report-probe',
+  'Stage 7 Owner Preview Report Probe',
+  'Stage 7 Test',
+  'DRAFT'::public.competition_status,
+  'PRIVATE',
+  'INDIVIDUAL',
+  '{}'::jsonb,
+  '77777777-7777-4777-8777-777777777791'::uuid
+);
+
 INSERT INTO public.participants (
   id, competition_id, user_id, participant_type, full_name
 )
@@ -778,6 +802,56 @@ VALUES
     now(),
     FALSE
   );
+
+-- The completed preview intentionally contains a recognizable answer key.
+-- Only preview_owner_id may retrieve this report, including its answer_key field.
+INSERT INTO public.attempts (
+  id, competition_id, attempt_number, status, started_at, submitted_at,
+  score, is_preview, preview_owner_id
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777783',
+  '44444444-4444-4444-8444-444444444442',
+  1,
+  'SUBMITTED'::public.attempt_status,
+  now() - interval '2 minutes',
+  now(),
+  1,
+  TRUE,
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+);
+
+INSERT INTO public.exam_attempt_runtime (
+  attempt_id, current_position, question_count, duration_seconds, phase, global_deadline
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777783',
+  1, 1, 60, 'COMPLETED', now() + interval '1 minute'
+);
+
+INSERT INTO public.exam_attempt_questions (
+  attempt_id, position, question_id, question_snapshot, answer_key_snapshot,
+  points_snapshot, base_seconds, state, opened_at, closed_at, elapsed_seconds, transition_reason
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777783',
+  1,
+  '77777777-7777-4777-8777-777777777797',
+  jsonb_build_object(
+    'id', '77777777-7777-4777-8777-777777777797',
+    'prompt', 'Stage 7 owner-only preview question',
+    'type', 'multiple-choice',
+    'points', 1,
+    'display_order', 1,
+    'options', jsonb_build_array(jsonb_build_object('id', 'preview-correct-option', 'label', 'Preview option'))
+  ),
+  jsonb_build_object(
+    'correct_option_ids', jsonb_build_array('preview-correct-option'),
+    'accepted_answers', '[]'::jsonb,
+    'answer_key', 'preview-answer-key-secret'
+  ),
+  1, 60, 'SKIPPED', now() - interval '1 minute', now(), 0, 'SKIPPED'
+);
 
 INSERT INTO public.grading_items (
   id, attempt_id, question_id, score, feedback
@@ -864,6 +938,15 @@ BEGIN
   IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 0 THEN
     RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_RESULT_BADGES_ALLOWED';
   END IF;
+  IF coalesce(v_detail ? 'answers', false)
+     OR coalesce(v_detail ? 'answer', false)
+     OR coalesce(v_detail ? 'question_snapshot', false)
+     OR coalesce(v_detail ? 'answer_key', false)
+     OR coalesce(v_detail ? 'answer_key_snapshot', false)
+     OR coalesce(v_detail::text ILIKE '%correct_option_ids%', false)
+     OR coalesce(v_detail::text ILIKE '%accepted_answers%', false) THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PARTICIPANT_DETAIL_QUESTION_SNAPSHOT_LEAKED:%', v_detail;
+  END IF;
 
   -- Public results are available only after publication on a PUBLIC competition.
   v_detail := public.get_public_competition_results('stage3-public-result-probe', 100, 0);
@@ -874,8 +957,12 @@ BEGIN
   END IF;
   IF (v_detail->'results'->0) ? 'answers'
      OR (v_detail->'results'->0) ? 'answer_key'
+     OR (v_detail->'results'->0) ? 'question_snapshot'
+     OR (v_detail->'results'->0) ? 'answer_key_snapshot'
      OR (v_detail->'results'->0) ? 'social_proof_url'
-     OR (v_detail->'results'->0) ? 'registration_metadata' THEN
+     OR (v_detail->'results'->0) ? 'registration_metadata'
+     OR coalesce((v_detail->'results'->0)::text ILIKE '%correct_option_ids%', false)
+     OR coalesce((v_detail->'results'->0)::text ILIKE '%accepted_answers%', false) THEN
     RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_RESULTS_PRIVATE_FIELDS_LEAKED:%', v_detail;
   END IF;
 
@@ -3953,6 +4040,7 @@ DECLARE
   v_activity jsonb;
   v_attempt public.attempts%rowtype;
   v_error text;
+  v_preview_report jsonb;
 BEGIN
   v_activity := public.get_linear_exam_activity(
     '44444444-4444-4444-8444-444444444441'::uuid, 100, 0
@@ -4011,6 +4099,18 @@ BEGIN
   IF v_error IS DISTINCT FROM 'PREVIEW_REQUIRES_DRAFT_COMPETITION' THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_PREVIEW_SCOPE_FAILED:%',
       coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_preview_report := public.get_organizer_exam_preview_report(
+    '77777777-7777-4777-8777-777777777783'::uuid
+  );
+  IF v_preview_report->>'attempt_id' IS DISTINCT FROM '77777777-7777-4777-8777-777777777783'
+     OR jsonb_array_length(coalesce(v_preview_report->'questions', '[]'::jsonb)) <> 1
+     OR v_preview_report->'questions'->0->'answer_key'->'correct_option_ids'->>0
+          IS DISTINCT FROM 'preview-correct-option'
+     OR v_preview_report->'questions'->0->'answer_key'->>'answer_key'
+          IS DISTINCT FROM 'preview-answer-key-secret' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED:%', v_preview_report;
   END IF;
 END;
 $stage7_tranche14_organizer_owner$;
@@ -4087,6 +4187,19 @@ BEGIN
   END;
   IF v_error IS DISTINCT FROM 'PREVIEW_REQUIRES_DRAFT_COMPETITION' THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_PREVIEW_FAILED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_organizer_exam_preview_report(
+      '77777777-7777-4777-8777-777777777783'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED:%',
       coalesce(v_error, 'NO_ERROR');
   END IF;
 END;
@@ -4174,6 +4287,19 @@ BEGIN
   END;
   IF v_error IS DISTINCT FROM 'NOT_AUTHORIZED' THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_PREVIEW_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.get_organizer_exam_preview_report(
+      '77777777-7777-4777-8777-777777777783'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PREVIEW_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED:%',
       coalesce(v_error, 'NO_ERROR');
   END IF;
 END;
