@@ -918,6 +918,23 @@ END;
 $profile_anon$;
 
 RESET ROLE;
+DO $stage3_exam_start_active_attempt_fixture_preflight$
+BEGIN
+  -- Check the active attempt while this rollback-only regression is still
+  -- running with the privileged session role. The later legacy JWT must not
+  -- be able to read this fixture through the restrictive issuer RLS policy.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id = '77777777-7777-4777-8777-777777777775'::uuid
+      AND competition_id = '33333333-3333-4333-8333-333333333334'::uuid
+      AND participant_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+      AND status = 'IN_PROGRESS'::public.attempt_status
+  ) THEN
+    RAISE EXCEPTION 'STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING';
+  END IF;
+END;
+$stage3_exam_start_active_attempt_fixture_preflight$;
+
 SET LOCAL ROLE authenticated;
 
 -- Supabase Auth is not a trusted application login after this cutover.
@@ -933,18 +950,9 @@ DECLARE
   v_rpc_source text;
   v_count integer := 0;
 BEGIN
-  -- This subject owns an active synthetic attempt. The legacy issuer must
-  -- be rejected before the start/resume RPC can read or initialize that row.
-  IF NOT EXISTS (
-    SELECT 1 FROM public.attempts
-    WHERE id = '77777777-7777-4777-8777-777777777775'::uuid
-      AND competition_id = '33333333-3333-4333-8333-333333333334'::uuid
-      AND participant_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
-      AND status = 'IN_PROGRESS'::public.attempt_status
-  ) THEN
-    RAISE EXCEPTION 'STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING';
-  END IF;
-
+  -- This subject owns the active synthetic attempt verified by the privileged
+  -- fixture preflight above. The legacy issuer must be rejected before the
+  -- start/resume RPC can read or initialize that row.
   v_error := NULL;
   BEGIN
     PERFORM public.start_linear_exam_attempt(
