@@ -111,10 +111,57 @@ BEGIN
       AND coalesce(array_to_string(p.proconfig, ', '), '') = 'search_path=""'
       AND p.prorettype = 'trigger'::regtype
       AND p.proargtypes::oid[] = ARRAY[]::oid[]
-      AND p.proacl IS NULL
-      AND pg_catalog.has_function_privilege(p.oid, 'EXECUTE')
+      -- The schema-only dump may preserve the Production default PUBLIC ACL
+      -- (PUBLIC + owner) or restore an explicit owner-only ACL. Both are safe
+      -- inputs here because this helper is private-schema-only and is revoked
+      -- below before any user/runtime acceptance; reject every other grantee.
+      AND (
+        SELECT count(*)
+        FROM pg_catalog.aclexplode(
+          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        )
+      ) IN (1, 2)
+      AND EXISTS (
+        SELECT 1
+        FROM pg_catalog.aclexplode(
+          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        ) acl
+        JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+        JOIN pg_catalog.pg_roles grantor ON grantor.oid = acl.grantor
+        WHERE grantee.rolname = 'postgres'
+          AND grantor.rolname = 'postgres'
+          AND acl.privilege_type = 'EXECUTE'
+          AND NOT acl.is_grantable
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.aclexplode(
+          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        ) acl
+        LEFT JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+        LEFT JOIN pg_catalog.pg_roles grantor ON grantor.oid = acl.grantor
+        WHERE NOT (
+          (acl.grantee = 0
+            AND grantor.rolname = 'postgres'
+            AND acl.privilege_type = 'EXECUTE'
+            AND NOT acl.is_grantable)
+          OR
+          (grantee.rolname = 'postgres'
+            AND grantor.rolname = 'postgres'
+            AND acl.privilege_type = 'EXECUTE'
+            AND NOT acl.is_grantable)
+        )
+      )
   ) THEN
-    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT';
+    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT:expected_md5=%:actual_md5=%:owner=%:security_definer=%:search_path=%:return_type=%:raw_acl=%:effective_acl_count=%',
+      '70302d030b5cae3af7f978afdae3cea3',
+      (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT pg_catalog.pg_get_userbyid(p.proowner) FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT p.prosecdef FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT coalesce(array_to_string(p.proconfig, ', '), '') FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT p.prorettype::regtype::text FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT p.proacl::text FROM pg_catalog.pg_proc p WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before)),
+      (SELECT count(*) FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f',p.proowner))) acl WHERE p.oid = (SELECT oid FROM stage7_voucher_trigger_before));
   END IF;
 
   IF (
