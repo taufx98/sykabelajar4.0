@@ -40,11 +40,18 @@ for (const table of review.tables) {
     "collective_portal_identities",
     "collective_portal_sessions",
   ].includes(table.table);
+  const isPrivateBetterAuthTable = [
+    "organizer_free_identity_claims",
+    "referral_program_settings",
+    "referral_tier_awards",
+  ].includes(table.table);
   const expectedAuthorizationStatus = isRetiredChatTable
     ? "verified_retired_browser_access"
     : isParticipantPortalTable
       ? "verified_participant_portal_token_boundary"
-      : "pending_security_definer_audit";
+      : isPrivateBetterAuthTable
+        ? "verified_private_better_auth_boundary"
+        : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
     expectedAuthorizationStatus,
@@ -64,11 +71,12 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 8);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 15);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 11);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 12);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
+  private_better_auth_boundary: 3,
 });
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
@@ -211,6 +219,111 @@ for (const marker of [
   "STAGE7_PORTAL_LOOKUP_ONE_ACCOUNT_LOCKOUT_AFFECTED_OTHER",
 ]) assert.ok(portalPasswordRegression.includes(marker), "missing password-selector/lockout assertion: " + marker);
 assert.ok(portalPasswordContract.includes("64-bit account selector"));
+
+const privateTables = review.tables.filter((table) => [
+  "organizer_free_identity_claims",
+  "referral_program_settings",
+  "referral_tier_awards",
+].includes(table.table));
+assert.equal(privateTables.length, 3);
+assert.equal(privateTables.every((table) => table.schema === "private"), true);
+const identityRoot = read("docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql");
+const provisioningRegression = read("scripts/auth-migration/stage3-better-auth-provisioning-regression.sql");
+const referralSettingsMigration = read("supabase/migrations/20261101052650_referral_campaign_reward_settings.sql");
+const referralAwardsMigration = read("supabase/migrations/20261101090004_referral_milestone_payouts_and_custom_promo.sql");
+const referralContract = read("scripts/referral-attribution-contract.test.mjs");
+const userIssuerDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
+const earlierIssuerDraft = read("docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql");
+const userIssuerContract = read("scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs");
+for (const table of privateTables) {
+  assert.equal(table.authorization_path_review_status, "verified_private_better_auth_boundary");
+  assert.equal(table.owner, "postgres");
+  assert.equal(table.rls_enabled, true);
+  assert.equal(table.policy_count, 0);
+  assert.deepEqual(table.direct_browser_privileges_after_stage5_expected, []);
+  assert.deepEqual(table.service_role_privileges, []);
+  assert.ok(table.authorization_path_review);
+  assert.ok(table.authorization_path_review.tests.length > 0);
+}
+const organizerClaims = privateTables.find((table) => table.table === "organizer_free_identity_claims");
+assert.deepEqual(organizerClaims.authorization_path_review.callers, [
+  "public.create_organizer(p_name text, p_slug text)",
+]);
+const organizerDefinition = identityRoot.match(
+  /CREATE OR REPLACE FUNCTION public\.create_organizer\(p_name text, p_slug text\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(organizerDefinition);
+for (const marker of [
+  "https://auth-prod.sykabelajar.my.id/api/auth",
+  "BETTER_AUTH_ISSUER_REQUIRED",
+  "FROM private.app_users au",
+  "identity_origin",
+  "BETTER_AUTH_IDENTITY_REQUIRED",
+  "EMAIL_VERIFICATION_REQUIRED",
+  "PHONE_VERIFICATION_REQUIRED",
+  "private.organizer_free_identity_claims",
+]) assert.ok(organizerDefinition.includes(marker), "create_organizer must enforce verified Better Auth identity claim: " + marker);
+assert.ok(provisioningRegression.includes("public.create_organizer('Better Auth Organizer One'"));
+assert.ok(provisioningRegression.includes("STAGE3_BETTER_AUTH_PHONE_REUSE_WAS_ALLOWED"));
+
+const referralSettings = privateTables.find((table) => table.table === "referral_program_settings");
+for (const signature of [
+  "public.admin_update_referral_program_settings(",
+  "public.admin_update_referral_program_settings_v2(",
+  "public.get_referral_program_settings()",
+  "public.get_referral_program_settings_v2()",
+  "public.register_for_competition(",
+  "public.better_auth_provision_user(",
+]) assert.ok(referralSettings.authorization_path_review.callers.includes(signature));
+assert.match(referralSettingsMigration, /REVOKE ALL ON TABLE private\.referral_program_settings FROM PUBLIC, anon, authenticated, service_role/);
+for (const signature of [
+  "public.get_referral_program_settings()",
+  "public.get_referral_program_settings_v2()",
+]) {
+  const definition = userIssuerDraft.match(new RegExp(
+    "CREATE OR REPLACE FUNCTION " + signature.replaceAll(".", "\\.") + "[\\s\\S]*?\\$function\\$;",
+    "i",
+  ))?.[0] ?? "";
+  assert.ok(definition && definition.includes("private.current_user_is_better_auth()"),
+    "referral settings read must require Better Auth issuer: " + signature);
+}
+const registrationDefinition = earlierIssuerDraft.match(
+  /CREATE OR REPLACE FUNCTION public\.register_for_competition\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(registrationDefinition.includes("private.current_user_is_better_auth()"));
+assert.ok(registrationDefinition.includes("BETTER_AUTH_ISSUER_REQUIRED"));
+const adminHelper = earlierIssuerDraft.match(
+  /CREATE OR REPLACE FUNCTION private\.current_user_is_admin\(\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(adminHelper.includes("private.current_user_is_better_auth()"));
+assert.ok(referralSettingsMigration.includes("IF NOT private.current_user_is_admin()"));
+assert.ok(referralContract.includes("REVOKE ALL ON TABLE private.referral_program_settings"));
+
+const referralAwards = privateTables.find((table) => table.table === "referral_tier_awards");
+assert.deepEqual(referralAwards.authorization_path_review.callers, [
+  "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+  "public.get_my_referral_tier_awards()",
+]);
+assert.match(referralAwardsMigration, /REVOKE ALL ON TABLE private\.referral_tier_awards FROM PUBLIC, anon, authenticated, service_role/);
+assert.match(referralAwardsMigration, /REVOKE ALL ON FUNCTION private\.apply_referral_milestone_rewards\(uuid\) FROM PUBLIC, anon, authenticated, service_role/);
+assert.match(referralAwardsMigration, /CREATE TRIGGER trg_capture_referral_milestone_reward[\s\S]*?EXECUTE FUNCTION private\.capture_referral_milestone_reward\(\)/);
+assert.ok(userIssuerContract.includes("get_my_referral_tier_awards"));
+assert.ok(userIssuerContract.includes("68 user-bound SECURITY DEFINER signatures"));
+for (const marker of [
+  "STAGE3_BETTER_AUTH_REFERRAL_PENDING_EVENT_MISSING",
+  "STAGE3_BETTER_AUTH_REFERRAL_PROVISION_RETRY_DUPLICATED_EVENT",
+  "STAGE3_BETTER_AUTH_REFERRAL_NOT_QUALIFIED_AFTER_EMAIL",
+  "STAGE3_BETTER_AUTH_REFERRAL_LEDGER_NOT_IDEMPOTENT",
+  "STAGE3_BETTER_AUTH_REFERRAL_DUPLICATE_REWARD",
+  "STAGE3_BETTER_AUTH_PHONE_PROJECTION_INVALID",
+]) assert.ok(provisioningRegression.includes(marker), "missing Better Auth referral/organizer runtime assertion: " + marker);
+assert.match(identityRoot, /DROP TRIGGER IF EXISTS trg_referral_signup_attribution ON auth\.users/);
+assert.match(identityRoot, /DROP TRIGGER IF EXISTS trg_referral_email_confirmed ON auth\.users/);
+assert.match(identityRoot, /REVOKE ALL ON FUNCTION private\.capture_signup_referral\(\)[\s\S]*?FROM PUBLIC, anon, authenticated, service_role/);
+for (const marker of [
+  "STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_USAGE_REMAINS",
+  "STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_CREATE_REMAINS",
+]) assert.ok(regression.includes(marker), "private service-role schema runtime check missing: " + marker);
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {
