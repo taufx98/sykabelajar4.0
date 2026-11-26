@@ -44,8 +44,16 @@ assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(draft, /v_price := public\.get_collective_certificate_price\(\)/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_METADATA_OR_ACL_MUTATED/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_EXECUTE_BOUNDARY_MUTATED/);
-assert.doesNotMatch(draft, /\b(?:ALTER TABLE|GRANT|REVOKE|TRUNCATE|DELETE FROM|INSERT INTO|UPDATE public\.)\b/i,
-  "This RPC-only draft must not mutate tables, data, or grants.");
+assert.doesNotMatch(draft, /ALTER TABLE|TRUNCATE|DELETE FROM|INSERT INTO|UPDATE public[.]/i,
+  "This RPC draft must not mutate tables or application data.");
+const aclStatements = draft.match(/^(?:REVOKE ALL PRIVILEGES ON FUNCTION|GRANT EXECUTE ON FUNCTION).*$/gm) ?? [];
+assert.equal(aclStatements.length, 4, "Only the two reviewed function ACLs may be reconstructed.");
+assert.equal(aclStatements.filter((line) => line.startsWith("REVOKE ALL PRIVILEGES ON FUNCTION")).length, 2);
+assert.equal(aclStatements.filter((line) => line.startsWith("GRANT EXECUTE ON FUNCTION")).length, 2);
+assert.ok(draft.includes("FROM PUBLIC, anon, authenticated, service_role;"));
+assert.match(draft, /TO authenticated, service_role;/);
+assert.match(draft, /STAGE7_PAYMENT_RPC_ACL_RESTORE_POSTCONDITION_FAILED/);
+assert.match(draft, /STAGE7_PAYMENT_RPC_ACL_ENTRY_DRIFT/);
 
 for (const marker of [
   "STAGE7_CERTIFICATE_OWNER_POSITIVE_FAILED",
@@ -66,4 +74,4 @@ assert.match(workflow, /Run Stage 3 trusted-issuer RLS acceptance on disposable 
 assert.match(workflow, /--file=\/baseline\/stage7-owner-scoped-payment-issuer-guards\.sql/);
 assert.match(workflow, /echo "- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes"/);
 
-console.log("Stage 7 owner-scoped payment issuer guard contract passed: exact Production fingerprints, preserved ACL/search_path/signatures, and rollback-only issuer/owner tests.");
+console.log("Stage 7 owner-scoped payment issuer guard contract passed: exact Production fingerprints, reconstructed exact disposable ACL, preserved function metadata, and rollback-only issuer/owner tests.");
