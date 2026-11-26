@@ -1097,20 +1097,43 @@ for (const item of tranche14Functions) {
   );
 }
 
-const previewReport = userRpcDraft.match(
-  /CREATE OR REPLACE FUNCTION public\\.get_organizer_exam_preview_report\\([\\s\\S]*?\\$function\\$;/i,
-)?.[0] ?? "";
+const previewReportStart = userRpcDraft.indexOf(
+  "CREATE OR REPLACE FUNCTION public.get_organizer_exam_preview_report(",
+);
+const previewReportEnd = userRpcDraft.indexOf("$function$;", previewReportStart);
+const previewReport = previewReportStart >= 0 && previewReportEnd > previewReportStart
+  ? userRpcDraft.slice(previewReportStart, previewReportEnd + "$function$;".length)
+  : "";
 assert.ok(previewReport, "missing Better Auth issuer-guarded organizer preview report replacement");
+assert.ok(
+  userRpcDraft.includes("'public.get_organizer_exam_preview_report(uuid)'"),
+  "preview report must remain inside the exact user-scoped issuer-guard set",
+);
 const previewIssuerAt = previewReport.indexOf("private.current_user_is_better_auth()");
 const previewAttemptReadAt = previewReport.indexOf("from public.attempts");
 assert.ok(previewIssuerAt >= 0 && previewAttemptReadAt > previewIssuerAt,
   "preview report must verify Better Auth before reading the preview attempt");
 assert.match(previewReport, /where id = p_attempt_id and is_preview = true and preview_owner_id = v_uid/i);
-assert.match(previewReport, /PREVIEW_NOT_FOUND/);
-assert.match(previewReport, /v_runtime.phase <> 'COMPLETED'/);
-assert.match(previewReport, /'answer_key', q.answer_key_snapshot/i);
-assert.match(previewReport, /REVOKE ALL ON FUNCTION public\\.get_organizer_exam_preview_report\\(uuid\\) FROM PUBLIC, anon/i);
-assert.match(previewReport, /GRANT EXECUTE ON FUNCTION public\\.get_organizer_exam_preview_report\\(uuid\\) TO authenticated/i);
+assert.ok(previewReport.includes("PREVIEW_NOT_FOUND"));
+assert.ok(previewReport.includes("v_runtime.phase <> 'COMPLETED'"));
+assert.ok(previewReport.includes("'answer_key', q.answer_key_snapshot"));
+
+const securityDefinerTriage = JSON.parse(readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-TRIAGE-2026-11-21.json"),
+  "utf8",
+));
+const previewReportAcl = securityDefinerTriage.functions.find((item) =>
+  item.name === "get_organizer_exam_preview_report" && item.identityArguments === "p_attempt_id uuid"
+);
+assert.ok(previewReportAcl, "missing reviewed Production ACL snapshot for organizer preview report");
+assert.equal(previewReportAcl.owner, "postgres");
+assert.deepEqual(previewReportAcl.acl, [
+  "postgres=X/postgres",
+  "authenticated=X/postgres",
+  "service_role=X/postgres",
+]);
+assert.deepEqual(previewReportAcl.execute, { anon: false, authenticated: true, serviceRole: true });
+assert.deepEqual(previewReportAcl.searchPathConfig, ['search_path=""']);
 for (const marker of [
   "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
   "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
