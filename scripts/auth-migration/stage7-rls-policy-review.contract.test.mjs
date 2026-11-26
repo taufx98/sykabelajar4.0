@@ -133,7 +133,7 @@ const portalValidRegression = read("scripts/auth-migration/stage7-collective-por
 const portalPasswordRegression = read("scripts/auth-migration/stage7-collective-portal-password-lookup-regression.sql");
 const portalParentContract = read("scripts/auth-migration/stage7-collective-portal-parent-session-boundary.contract.test.mjs");
 const portalPasswordContract = read("scripts/auth-migration/stage7-collective-portal-password-lookup.contract.test.mjs");
-const userRpcContract = read("scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs");
+const userRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const expectedPortalFunctions = [
   "public.verify_collective_portal_password(p_password text)",
   "public.list_collective_portal_competitions(p_portal_token text)",
@@ -169,7 +169,15 @@ for (const table of portalTables) {
     assert.equal(caller.authenticated_execute, true, "Better Auth management caller missing: " + signature);
     assert.equal(caller.security_definer, true, "credential management must retain its guarded SECURITY DEFINER wrapper: " + signature);
     assert.ok(audit.better_auth_management_entrypoints.includes(signature), "missing Better Auth management entrypoint: " + signature);
-    assert.ok(userRpcContract.includes(signature.replace(/^public\./, "")), "missing Stage 3 issuer contract for management RPC: " + signature);
+    const managementFunctionName = signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1];
+    assert.ok(managementFunctionName, "invalid management RPC signature: " + signature);
+    const managementDefinition = userRpcDraft.match(new RegExp(
+      "CREATE OR REPLACE FUNCTION public\\." + managementFunctionName + "\\([\\s\\S]*?\\$function\\$;",
+      "i",
+    ))?.[0] ?? "";
+    assert.ok(managementDefinition, "missing guarded Stage 3 management function definition: " + signature);
+    assert.match(managementDefinition, /private\\.current_user_is_better_auth\\(\\)/);
+    assert.match(managementDefinition, /BETTER_AUTH_ISSUER_REQUIRED/);
   }
   assert.ok(audit.private_helpers_require_private_schema_usage.includes("anon"));
   assert.ok(audit.private_helpers_require_private_schema_usage.includes("authenticated"));
