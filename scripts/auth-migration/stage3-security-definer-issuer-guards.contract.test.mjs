@@ -1277,6 +1277,10 @@ const tranche16Review = draft.match(
   /CREATE OR REPLACE FUNCTION public\.review_registration\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 assert.ok(tranche16Review, "missing Tranche 16 registration-review replacement");
+assert.match(tranche16Review, /SELECT reg\.\* INTO r[\s\S]*?JOIN public\.competitions comp ON comp\.id = reg\.competition_id/,
+  "pre-lock organizer/Admin scope check must select only the registration row into its typed row variable");
+assert.doesNotMatch(tranche16Review, /SELECT reg,\s*comp INTO r,\s*c/,
+  "PL/pgSQL row variables must not be used in a multi-target INTO list");
 const tranche16IssuerAt = tranche16Review.indexOf("private.current_user_is_better_auth()");
 const tranche16PreflightReadAt = tranche16Review.indexOf("FROM public.registrations reg");
 const tranche16LockAt = tranche16Review.indexOf("FOR UPDATE");
