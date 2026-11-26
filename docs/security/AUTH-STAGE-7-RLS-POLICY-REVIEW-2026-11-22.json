@@ -1939,14 +1939,51 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Baseline #346: public active-banner listing and validated VIEW/CLICK event RPC acceptance passed on the schema-only disposable restore; duplicate event did not increment counters twice"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Baseline #346: inactive/missing banner, invalid event type and invalid visitor key rejected; direct browser table access denied; Admin banner operations reject legacy issuer and require Better Auth Admin"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_public_promo_banner_boundary",
+      "authorization_path_review": {
+        "boundary": "public_shop_promo_banner_access_and_event_telemetry",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "anon_entrypoints": [
+          "public.record_shop_promo_banner_event(p_banner_id uuid, p_event_type text, p_visitor_key text)"
+        ],
+        "admin_entrypoints": [],
+        "guard_requirements": [
+          "list_active_shop_promo_banners returns only is_active=true rows and never exposes banner-table direct SELECT",
+          "record_shop_promo_banner_event accepts only VIEW/CLICK and 16–80 character alphanumeric/underscore/hyphen visitor keys",
+          "event insert requires an existing active banner; unique (banner_id,event_type,visitor_key) makes replay idempotent",
+          "view/click counters increment only when a new ledger event is inserted",
+          "Admin list/save/delete RPCs require private.current_user_is_admin(); the shared current_user_has_role helper binds the Admin role to the exact Better Auth issuer and app_users.identity_origin='better_auth'",
+          "both tables retain RLS enabled, zero policies, no direct anon/authenticated grants, and service_role-only direct data access"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-public-shop-banner-rpc.contract.test.mjs",
+          "scripts/auth-migration/stage7-public-shop-banner-rpc-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45735027466,
+          "commit": "50d8e4f5636a836fa82ec821a6f57ccbd31dabd2",
+          "successful_steps": [
+            43,
+            46,
+            47,
+            57
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2005,15 +2042,57 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary"
+        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
+        "Baseline #346: public active-banner listing and validated VIEW/CLICK event RPC acceptance passed on the schema-only disposable restore; duplicate event did not increment counters twice"
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
+        "Baseline #346: inactive/missing banner, invalid event type and invalid visitor key rejected; direct browser table access denied; Admin banner operations reject legacy issuer and require Better Auth Admin"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
       "intended_boundary": "Public storefront banner reads use the narrow active-banner RPC; Admin CRUD uses issuer-gated Admin RPCs; view/click telemetry uses the validated event RPC. The banner table itself has no direct browser grants.",
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_public_promo_banner_boundary",
+      "authorization_path_review": {
+        "boundary": "public_shop_promo_banner_access_and_event_telemetry",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "anon_entrypoints": [
+          "public.list_active_shop_promo_banners()",
+          "public.record_shop_promo_banner_event(p_banner_id uuid, p_event_type text, p_visitor_key text)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_list_shop_promo_banners()",
+          "public.admin_save_shop_promo_banner(p_id uuid, p_image_url text, p_target_url text, p_slide_duration_seconds integer, p_position integer, p_is_active boolean)",
+          "public.admin_delete_shop_promo_banner(p_id uuid)"
+        ],
+        "guard_requirements": [
+          "list_active_shop_promo_banners returns only is_active=true rows and never exposes banner-table direct SELECT",
+          "record_shop_promo_banner_event accepts only VIEW/CLICK and 16–80 character alphanumeric/underscore/hyphen visitor keys",
+          "event insert requires an existing active banner; unique (banner_id,event_type,visitor_key) makes replay idempotent",
+          "view/click counters increment only when a new ledger event is inserted",
+          "Admin list/save/delete RPCs require private.current_user_is_admin(); the shared current_user_has_role helper binds the Admin role to the exact Better Auth issuer and app_users.identity_origin='better_auth'",
+          "both tables retain RLS enabled, zero policies, no direct anon/authenticated grants, and service_role-only direct data access"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-public-shop-banner-rpc.contract.test.mjs",
+          "scripts/auth-migration/stage7-public-shop-banner-rpc-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45735027466,
+          "commit": "50d8e4f5636a836fa82ec821a6f57ccbd31dabd2",
+          "successful_steps": [
+            43,
+            46,
+            47,
+            57
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2300,8 +2379,8 @@
   },
   "authorization_path_audit_summary": {
     "reviewed_at": "2026-11-26",
-    "verified_tables": 11,
-    "pending_tables": 12,
+    "verified_tables": 13,
+    "pending_tables": 10,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2312,12 +2391,14 @@
       "The five chat_group tables retain RLS enabled, zero policies, and no direct browser table privileges.",
       "The retirement migration revokes PUBLIC/anon/authenticated table privileges, revokes EXECUTE on public/private chat RPCs, removes chat-named Realtime tables, and retains table rows for controlled archival.",
       "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately.",
-      "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft."
+      "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft.",
+      "The two public Shop promo banner tables remain RLS-enabled with zero policies and no direct anon/authenticated table grants. Anonymous storefront access is limited to active-banner listing and a validated, deduplicated VIEW/CLICK RPC; raw banner/event rows stay service_role-only. Banner Admin CRUD is exposed only through authenticated Admin SECURITY DEFINER RPCs, whose shared role helper verifies the exact Better Auth issuer and private.app_users identity_origin."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
       "participant_portal_token_boundary": 3,
-      "private_better_auth_boundary": 3
+      "private_better_auth_boundary": 3,
+      "public_promo_banner_boundary": 2
     }
   }
 }
