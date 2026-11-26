@@ -671,7 +671,16 @@ for (const table of examTables) {
     assert.equal(caller.anon_execute, false);
     assert.equal(caller.authenticated_execute, true);
     assert.equal(caller.security_definer, true);
-    assert.ok(examUserRpcDraft.includes("'" + signature + "'"), "missing Better Auth guarded exam RPC: " + signature);
+    const identityArguments = signature
+      .replace(/^public\.[^(]+\(/, "")
+      .replace(/\)$/, "")
+      .split(", ")
+      .map((argument) => argument.slice(argument.indexOf(" ") + 1))
+      .join(",");
+    const identitySignature = signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1] +
+      "(" + identityArguments + ")";
+    assert.ok(examUserRpcDraft.includes("'" + identitySignature + "'"),
+      "missing Better Auth guarded exam RPC identity signature: " + identitySignature);
   }
   for (const signature of examPortalFunctions) {
     if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
