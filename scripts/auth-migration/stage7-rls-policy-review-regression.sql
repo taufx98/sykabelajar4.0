@@ -176,4 +176,99 @@ BEGIN
 END;
 $stage7_rls_table_review$;
 
+DO $stage7_log_table_caller_boundary$
+DECLARE
+  v_oid oid;
+  v_acl_count integer;
+BEGIN
+  -- notification_deliveries is retained for compatibility, but the live
+  -- Production catalog/repository review found no database or realtime
+  -- entrypoint. The only supported table boundary is service_role after Stage 5.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    WHERE position('notification_deliveries' IN lower(p.prosrc)) > 0
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_FUNCTION_CALLER';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE NOT t.tgisinternal
+      AND t.tgrelid = 'public.notification_deliveries'::regclass
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_TRIGGER';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_depend d
+    JOIN pg_catalog.pg_rewrite r ON r.oid=d.objid
+    JOIN pg_catalog.pg_class dependent ON dependent.oid=r.ev_class
+    WHERE d.refobjid='public.notification_deliveries'::regclass
+      AND dependent.relkind IN ('v','m')
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_VIEW';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_publication_tables pt
+    WHERE pt.schemaname='public'
+      AND pt.tablename='notification_deliveries'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_NOTIFICATION_DELIVERIES_REALTIME_PUBLICATION_FOUND';
+  END IF;
+
+  -- supabase_system_logs has one trusted collector. It must remain callable
+  -- by service_role only; no browser or PUBLIC EXECUTE path is accepted.
+  v_oid := pg_catalog.to_regprocedure('public.fetch_and_save_supabase_logs()');
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_SYSTEM_LOG_COLLECTOR_FUNCTION_MISSING';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE p.oid=v_oid
+      AND n.nspname='public'
+      AND pg_catalog.pg_get_userbyid(p.proowner)='postgres'
+      AND p.prosecdef
+      AND coalesce(array_to_string(p.proconfig,', '),'')='search_path=public, extensions, pg_catalog'
+      AND md5(p.prosrc)='5d0e79655d70a9019040ab9f4d529c88'
+      AND p.prorettype='void'::regtype
+      AND p.proargtypes::oid[]=ARRAY[]::oid[]
+      AND NOT pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE')
+      AND NOT pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE')
+      AND pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE')
+      AND pg_catalog.has_function_privilege('postgres',p.oid,'EXECUTE')
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_SYSTEM_LOG_COLLECTOR_TRUSTED_CALLER_BOUNDARY_FAILED';
+  END IF;
+
+  SELECT count(*)
+  INTO v_acl_count
+  FROM pg_catalog.pg_proc p
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))
+  ) acl
+  WHERE p.oid=v_oid;
+
+  IF v_acl_count <> 2 THEN
+    RAISE EXCEPTION 'STAGE7_SYSTEM_LOG_COLLECTOR_ACL_COUNT_DRIFT';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE NOT t.tgisinternal
+      AND t.tgrelid='public.supabase_system_logs'::regclass
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_publication_tables pt
+    WHERE pt.schemaname='public'
+      AND pt.tablename='supabase_system_logs'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_SYSTEM_LOGS_UNREVIEWED_TRIGGER_OR_REALTIME_ENTRYPOINT';
+  END IF;
+END;
+$stage7_log_table_caller_boundary$;
+
 ROLLBACK;

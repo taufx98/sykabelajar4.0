@@ -892,6 +892,20 @@ jobs:
               --file=/baseline/stage5-no-policy-table-acl-draft.sql
           echo "- Tested targeted anon/authenticated table-grant revocation for three RLS-enabled/no-policy tables on the disposable restore only; service_role and postgres access remained intact" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Apply Stage 7 system-log collector ACL to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-7-SYSTEM-LOG-COLLECTOR-ACL-RESTORE.sql:/baseline/stage7-system-log-collector-acl-restore.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-system-log-collector-acl-restore.sql
+          echo "- Restored the exact postgres/service_role EXECUTE ACL for the system-log collector on the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- No Production function ACL or table data was changed" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Apply Stage 7 portal parent-session hardening to disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
