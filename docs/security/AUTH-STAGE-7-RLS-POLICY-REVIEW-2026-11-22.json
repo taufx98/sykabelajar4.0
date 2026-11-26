@@ -1402,15 +1402,81 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending",
+        "Baseline #351: Better Auth owner/Admin exam activity, grading and preview access accepted; Admin investigation works on official attempt; collective participant valid-token exam flow passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending",
+        "Baseline #351: legacy issuer rejected; unrelated users/participants denied; non-Admin investigation/monitoring denied; Admin cannot inspect previews; answer-key preview is owner-only; anonymous participant projection strips private answer/question snapshots"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [],
+        "public_projection_entrypoints": [],
+        "private_helpers": [
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.log_linear_exam_event(p_attempt_id uuid, p_position integer, p_question_id uuid, p_event_type text, p_actor_kind text, p_metadata jsonb, p_occurred_at timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS stays enabled with zero policies",
+          "Individual exam mutations and organizer operations require a verified Better Auth issuer and owning participant/organizer scope",
+          "Admin investigation and monitoring require Better Auth Admin and exclude preview attempts",
+          "Collective exam actions use opaque participant access tokens bound to the active portal parent session and participant identity",
+          "Public participant detail returns a stripped projection without answers, answer_key, answer_key_snapshot, question_snapshot, accepted answers or correct option IDs",
+          "Organizer preview report exposes answer_key_snapshot only to the owning Better Auth organizer after completion; Admin and other users receive PREVIEW_NOT_FOUND",
+          "Internal exam helpers and triggers are not executable through browser roles and remain inaccessible via private schema USAGE"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45770807334,
+          "commit": "9f2acad381fb6d1f4548e29a7ed0d556574e86fd",
+          "successful_steps": [
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            45,
+            48,
+            49,
+            50,
+            51,
+            57,
+            58,
+            59,
+            60,
+            67,
+            69
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -1604,15 +1670,104 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending",
+        "Baseline #351: Better Auth owner/Admin exam activity, grading and preview access accepted; Admin investigation works on official attempt; collective participant valid-token exam flow passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending",
+        "Baseline #351: legacy issuer rejected; unrelated users/participants denied; non-Admin investigation/monitoring denied; Admin cannot inspect previews; answer-key preview is owner-only; anonymous participant projection strips private answer/question snapshots"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [
+          "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)",
+          "public.skip_linear_exam_question(p_attempt_id uuid)"
+        ],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [
+          "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)"
+        ],
+        "public_projection_entrypoints": [
+          "public.get_competition_participant_detail(p_slug text, p_participant_id uuid)"
+        ],
+        "private_helpers": [
+          "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "private.prevent_option_mutation_during_exam()",
+          "private.prevent_question_mutation_during_exam()",
+          "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS stays enabled with zero policies",
+          "Individual exam mutations and organizer operations require a verified Better Auth issuer and owning participant/organizer scope",
+          "Admin investigation and monitoring require Better Auth Admin and exclude preview attempts",
+          "Collective exam actions use opaque participant access tokens bound to the active portal parent session and participant identity",
+          "Public participant detail returns a stripped projection without answers, answer_key, answer_key_snapshot, question_snapshot, accepted answers or correct option IDs",
+          "Organizer preview report exposes answer_key_snapshot only to the owning Better Auth organizer after completion; Admin and other users receive PREVIEW_NOT_FOUND",
+          "Internal exam helpers and triggers are not executable through browser roles and remain inaccessible via private schema USAGE"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45770807334,
+          "commit": "9f2acad381fb6d1f4548e29a7ed0d556574e86fd",
+          "successful_steps": [
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            45,
+            48,
+            49,
+            50,
+            51,
+            57,
+            58,
+            59,
+            60,
+            67,
+            69
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -1799,15 +1954,101 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending",
+        "Baseline #351: Better Auth owner/Admin exam activity, grading and preview access accepted; Admin investigation works on official attempt; collective participant valid-token exam flow passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending",
+        "Baseline #351: legacy issuer rejected; unrelated users/participants denied; non-Admin investigation/monitoring denied; Admin cannot inspect previews; answer-key preview is owner-only; anonymous participant projection strips private answer/question snapshots"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [
+          "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_linear_exam_question(p_attempt_id uuid)",
+          "public.start_linear_exam_attempt(p_competition_id uuid)"
+        ],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [
+          "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)",
+          "public.start_collective_linear_exam_attempt(p_competition_id uuid, p_access_token text)"
+        ],
+        "public_projection_entrypoints": [],
+        "private_helpers": [
+          "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.capture_automatic_grading_score()",
+          "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [
+          "anon",
+          "authenticated"
+        ],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS stays enabled with zero policies",
+          "Individual exam mutations and organizer operations require a verified Better Auth issuer and owning participant/organizer scope",
+          "Admin investigation and monitoring require Better Auth Admin and exclude preview attempts",
+          "Collective exam actions use opaque participant access tokens bound to the active portal parent session and participant identity",
+          "Public participant detail returns a stripped projection without answers, answer_key, answer_key_snapshot, question_snapshot, accepted answers or correct option IDs",
+          "Organizer preview report exposes answer_key_snapshot only to the owning Better Auth organizer after completion; Admin and other users receive PREVIEW_NOT_FOUND",
+          "Internal exam helpers and triggers are not executable through browser roles and remain inaccessible via private schema USAGE"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45770807334,
+          "commit": "9f2acad381fb6d1f4548e29a7ed0d556574e86fd",
+          "successful_steps": [
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            45,
+            48,
+            49,
+            50,
+            51,
+            57,
+            58,
+            59,
+            60,
+            67,
+            69
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2442,8 +2683,8 @@
   },
   "authorization_path_audit_summary": {
     "reviewed_at": "2026-11-26",
-    "verified_tables": 14,
-    "pending_tables": 9,
+    "verified_tables": 17,
+    "pending_tables": 6,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2456,14 +2697,16 @@
       "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately.",
       "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft.",
       "The two public Shop promo banner tables remain RLS-enabled with zero policies and no direct anon/authenticated table grants. Anonymous storefront access is limited to active-banner listing and a validated, deduplicated VIEW/CLICK RPC; raw banner/event rows stay service_role-only. Banner Admin CRUD is exposed only through authenticated Admin SECURITY DEFINER RPCs, whose shared role helper verifies the exact Better Auth issuer and private.app_users identity_origin.",
-      "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles."
+      "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles.",
+      "The three exam_attempt_* tables remain service_role-only at the direct table layer (RLS enabled, zero policies, no anon/authenticated grants). Internal state/timeout helpers and trigger functions are private-schema-only; Better Auth user RPCs are issuer-guarded and owner-scoped; Admin investigation/monitoring requires Better Auth Admin and excludes preview attempts; participant collective exam RPCs require a valid parent-bound portal token; public participant detail returns a stripped projection without answer/question snapshots or answer keys; organizer preview answer keys are returned only to the owning Better Auth organizer after completion."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
       "participant_portal_token_boundary": 3,
       "private_better_auth_boundary": 3,
       "public_promo_banner_boundary": 2,
-      "competition_status_history_boundary": 1
+      "competition_status_history_boundary": 1,
+      "server_authoritative_exam_storage": 3
     }
   }
 }
