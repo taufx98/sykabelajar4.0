@@ -55,9 +55,9 @@ assert.ok(runtime.includes("INSERT INTO private.app_users (id, identity_origin)"
 assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.equal((draft.match(/'BETTER_AUTH_ISSUER_REQUIRED'/g) ?? []).length, 1);
 assert.match(draft, /REVOKE ALL PRIVILEGES ON FUNCTION private\.sync_shop_voucher_order_status\(\)/);
-assert.equal((draft.match(/^REVOKE ALL PRIVILEGES ON FUNCTION public\\./gm) ?? []).length, 8,
+assert.equal(draft.split("\\n").filter((line) => line.startsWith("REVOKE ALL PRIVILEGES ON FUNCTION public.")).length, 8,
   "Reconstruct only eight reviewed user RPC ACLs in the disposable restore.");
-assert.equal((draft.match(/^GRANT EXECUTE ON FUNCTION public\\./gm) ?? []).length, 8);
+assert.equal(draft.split("\\n").filter((line) => line.startsWith("GRANT EXECUTE ON FUNCTION public.")).length, 8);
 assert.ok(draft.includes("FROM PUBLIC, anon, authenticated, service_role;"));
 assert.ok(draft.includes("TO authenticated, service_role;"));
 assert.ok(draft.includes("STAGE7_POST_STAGE3_RPC_ACL_RESTORE_POSTCONDITION_FAILED"));
