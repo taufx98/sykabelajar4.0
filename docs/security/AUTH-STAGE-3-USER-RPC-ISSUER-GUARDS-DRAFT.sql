@@ -1358,12 +1358,14 @@ declare
   v_cert public.collective_certificates%rowtype;
   v_cp public.collective_participants%rowtype;
   v_order public.orders%rowtype;
-  v_price numeric := public.get_collective_certificate_price();
+  v_price numeric;
   v_gateway_method public.organizer_payment_methods%rowtype;
 begin
   IF NOT private.current_user_is_better_auth() THEN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;
+
+  v_price := public.get_collective_certificate_price();
 
   if v_uid is null then raise exception 'AUTH_REQUIRED'; end if;
   if v_price <= 0 then raise exception 'CERTIFICATE_PRICE_NOT_CONFIGURED'; end if;
