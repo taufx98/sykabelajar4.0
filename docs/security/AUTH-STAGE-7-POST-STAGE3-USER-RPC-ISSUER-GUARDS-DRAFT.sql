@@ -50,14 +50,8 @@ DECLARE
   v_oid oid;
   v_owner text;
   v_security_definer boolean;
-  v_search_path text[];
+  v_search_path text;
   v_source_md5 text;
-  v_acl_count integer;
-  v_public_execute boolean;
-  v_anon_execute boolean;
-  v_authenticated_execute boolean;
-  v_service_role_execute boolean;
-  v_postgres_execute boolean;
 BEGIN
   IF (SELECT count(*) FROM stage7_post_stage3_user_rpc_before) <> 8 THEN
     RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_COUNT_MISMATCH';
@@ -84,35 +78,8 @@ BEGIN
       pg_catalog.pg_get_userbyid(p.proowner),
       p.prosecdef,
       coalesce(array_to_string(p.proconfig, ', '), ''),
-      md5(p.prosrc),
-      (
-        SELECT count(*)
-        FROM pg_catalog.aclexplode(
-          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
-        )
-      ),
-      EXISTS (
-        SELECT 1
-        FROM pg_catalog.aclexplode(
-          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
-        ) acl
-        WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
-      ),
-      pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE'),
-      pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE'),
-      pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE'),
-      pg_catalog.has_function_privilege('postgres', p.oid, 'EXECUTE')
-    INTO
-      v_owner,
-      v_security_definer,
-      v_search_path,
-      v_source_md5,
-      v_acl_count,
-      v_public_execute,
-      v_anon_execute,
-      v_authenticated_execute,
-      v_service_role_execute,
-      v_postgres_execute
+      md5(p.prosrc)
+    INTO v_owner, v_security_definer, v_search_path, v_source_md5
     FROM pg_catalog.pg_proc p
     WHERE p.oid = v_oid;
 
@@ -123,33 +90,6 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_SOURCE_OR_METADATA_DRIFT:%', v_expected.signature;
     END IF;
 
-    IF v_acl_count <> 3
-       OR v_public_execute
-       OR v_anon_execute
-       OR NOT v_authenticated_execute
-       OR NOT v_service_role_execute
-       OR NOT v_postgres_execute THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_ACL_DRIFT:%', v_expected.signature;
-    END IF;
-
-    IF EXISTS (
-      SELECT 1
-      FROM pg_catalog.pg_proc p
-      CROSS JOIN LATERAL pg_catalog.aclexplode(
-        coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
-      ) acl
-      LEFT JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
-      LEFT JOIN pg_catalog.pg_roles grantor ON grantor.oid = acl.grantor
-      WHERE p.oid = v_oid
-        AND (
-          grantee.rolname NOT IN ('postgres','authenticated','service_role')
-          OR grantor.rolname IS DISTINCT FROM 'postgres'
-          OR acl.privilege_type IS DISTINCT FROM 'EXECUTE'
-          OR acl.is_grantable
-        )
-    ) THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_ACL_ENTRY_DRIFT:%', v_expected.signature;
-    END IF;
   END LOOP;
 
   IF (SELECT count(*) FROM stage7_voucher_trigger_before) <> 1 THEN
@@ -186,6 +126,100 @@ BEGIN
   END IF;
 END;
 $stage7_post_stage3_user_rpc_preflight$;
+
+-- Schema-only export omits grants for these functions because they are
+-- outside the original Stage 3 ACL allowlist. A read-only Production catalog
+-- check verified: postgres owner + EXECUTE for authenticated/service_role;
+-- no PUBLIC or anon EXECUTE. Rebuild that exact boundary on disposable restore.
+REVOKE ALL PRIVILEGES ON FUNCTION public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.list_my_shop_vouchers()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.list_my_shop_vouchers()
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.list_shop_checkout_vouchers(uuid,integer,numeric,numeric)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.list_shop_checkout_vouchers(uuid,integer,numeric,numeric)
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.mark_my_shop_vouchers_seen()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.mark_my_shop_vouchers_seen()
+  TO authenticated, service_role;
+
+UPDATE stage7_post_stage3_user_rpc_before b
+SET proacl = p.proacl
+FROM pg_catalog.pg_proc p
+WHERE p.oid = b.oid;
+
+DO $stage7_post_stage3_user_rpc_acl_postflight$
+DECLARE
+  v_expected record;
+  v_acl_count integer;
+  v_public_execute boolean;
+  v_anon_execute boolean;
+  v_authenticated_execute boolean;
+  v_service_role_execute boolean;
+  v_postgres_execute boolean;
+BEGIN
+  FOR v_expected IN SELECT oid, signature FROM stage7_post_stage3_user_rpc_before
+  LOOP
+    SELECT
+      (SELECT count(*) FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f',p.proowner)))),
+      EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'),
+      pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE'),
+      pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE'),
+      pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE'),
+      pg_catalog.has_function_privilege('postgres',p.oid,'EXECUTE')
+    INTO v_acl_count,v_public_execute,v_anon_execute,v_authenticated_execute,v_service_role_execute,v_postgres_execute
+    FROM pg_catalog.pg_proc p WHERE p.oid=v_expected.oid;
+
+    IF v_acl_count <> 3 OR v_public_execute OR v_anon_execute
+       OR NOT v_authenticated_execute OR NOT v_service_role_execute OR NOT v_postgres_execute THEN
+      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_ACL_RESTORE_POSTCONDITION_FAILED:%',v_expected.signature;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_proc p
+      CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl
+      LEFT JOIN pg_catalog.pg_roles grantee ON grantee.oid=acl.grantee
+      LEFT JOIN pg_catalog.pg_roles grantor ON grantor.oid=acl.grantor
+      WHERE p.oid=v_expected.oid
+        AND (grantee.rolname NOT IN ('postgres','authenticated','service_role')
+          OR grantor.rolname IS DISTINCT FROM 'postgres'
+          OR acl.privilege_type IS DISTINCT FROM 'EXECUTE'
+          OR acl.is_grantable)
+    ) THEN
+      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_ACL_GRANTEE_SET_DRIFT:%',v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_post_stage3_user_rpc_acl_postflight$;
 
 DO $stage7_post_stage3_user_rpc_patch$
 DECLARE

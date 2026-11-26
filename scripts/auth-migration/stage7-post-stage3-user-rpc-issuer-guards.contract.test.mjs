@@ -32,7 +32,8 @@ for (const target of targets) {
 for (const marker of [
   "STAGE7_POST_STAGE3_RPC_COUNT_MISMATCH",
   "STAGE7_POST_STAGE3_RPC_SOURCE_OR_METADATA_DRIFT",
-  "STAGE7_POST_STAGE3_RPC_ACL_DRIFT",
+  "STAGE7_POST_STAGE3_RPC_ACL_RESTORE_POSTCONDITION_FAILED",
+  "STAGE7_POST_STAGE3_RPC_ACL_GRANTEE_SET_DRIFT",
   "STAGE7_POST_STAGE3_RPC_AUTH_ANCHOR_DRIFT",
   "STAGE7_POST_STAGE3_RPC_ISSUER_GUARD_POSTCONDITION_FAILED",
   "STAGE7_POST_STAGE3_RPC_METADATA_OR_ACL_MUTATED",
@@ -54,6 +55,12 @@ assert.ok(runtime.includes("INSERT INTO private.app_users (id, identity_origin)"
 assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.equal((draft.match(/'BETTER_AUTH_ISSUER_REQUIRED'/g) ?? []).length, 1);
 assert.match(draft, /REVOKE ALL PRIVILEGES ON FUNCTION private\.sync_shop_voucher_order_status\(\)/);
+assert.equal((draft.match(/^REVOKE ALL PRIVILEGES ON FUNCTION public\\./gm) ?? []).length, 8,
+  "Reconstruct only eight reviewed user RPC ACLs in the disposable restore.");
+assert.equal((draft.match(/^GRANT EXECUTE ON FUNCTION public\\./gm) ?? []).length, 8);
+assert.ok(draft.includes("FROM PUBLIC, anon, authenticated, service_role;"));
+assert.ok(draft.includes("TO authenticated, service_role;"));
+assert.ok(draft.includes("STAGE7_POST_STAGE3_RPC_ACL_RESTORE_POSTCONDITION_FAILED"));
 assert.doesNotMatch(draft, /ALTER TABLE|TRUNCATE|DELETE FROM|INSERT INTO|UPDATE public[.]/i,
   "Draft may not mutate application tables or data.");
 
