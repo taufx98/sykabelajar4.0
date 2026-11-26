@@ -309,7 +309,7 @@ for (const marker of [
   "identity_origin = 'better_auth'",
   "ur.role = p_role",
   "ur.is_active = TRUE",
-  "STAGE3_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT",
+  "STAGE7_TRANCHE15_ROLE_HELPER_FINGERPRINT_OR_OWNER_DRIFT",
 ]) {
   assert.ok(
     issuerRestrictionDraft.includes(marker) || sharedRoleHelper.includes(marker),
