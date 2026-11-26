@@ -176,6 +176,37 @@ assert.match(examStartPreflight, /has_function_privilege\('anon'/);
 assert.match(examStartPreflight, /has_function_privilege\('authenticated'/);
 assert.match(examStartPreflight, /has_function_privilege\('service_role'/);
 
+const activeAttemptFixtureStart = regression.indexOf(
+  "DO $stage3_exam_start_active_attempt_fixture_preflight$",
+);
+const activeAttemptFixtureEnd = regression.indexOf(
+  "$stage3_exam_start_active_attempt_fixture_preflight$;",
+  activeAttemptFixtureStart,
+);
+const activeAttemptFixture = activeAttemptFixtureStart >= 0 && activeAttemptFixtureEnd > activeAttemptFixtureStart
+  ? regression.slice(activeAttemptFixtureStart, activeAttemptFixtureEnd)
+  : "";
+assert.ok(activeAttemptFixture, "missing privileged active individual-exam fixture preflight");
+for (const marker of [
+  "77777777-7777-4777-8777-777777777775",
+  "33333333-3333-4333-8333-333333333334",
+  "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "'IN_PROGRESS'::public.attempt_status",
+  "STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING",
+]) assert.ok(activeAttemptFixture.includes(marker), "privileged active-attempt fixture preflight is incomplete: " + marker);
+const legacyIssuerComment = regression.indexOf("-- Supabase Auth is not a trusted application login after this cutover.");
+const legacyIssuerRoleSwitch = regression.indexOf("SET LOCAL ROLE authenticated;", legacyIssuerComment);
+assert.ok(activeAttemptFixtureStart >= 0 && legacyIssuerComment > activeAttemptFixtureEnd &&
+  legacyIssuerRoleSwitch > activeAttemptFixtureEnd,
+  "active-attempt fixture must be verified before switching to the legacy authenticated JWT");
+const legacyIssuerBlockStart = regression.indexOf("DO $all_user_rpc_legacy_issuer$");
+const legacyIssuerBlockEnd = regression.indexOf("$all_user_rpc_legacy_issuer$;", legacyIssuerBlockStart);
+const legacyIssuerBlock = legacyIssuerBlockStart >= 0 && legacyIssuerBlockEnd > legacyIssuerBlockStart
+  ? regression.slice(legacyIssuerBlockStart, legacyIssuerBlockEnd)
+  : "";
+assert.ok(legacyIssuerBlock && !legacyIssuerBlock.includes("STAGE3_EXAM_START_ACTIVE_ATTEMPT_FIXTURE_MISSING"),
+  "legacy JWT tests must not assert fixture visibility through the restrictive issuer RLS policy");
+
 const examStart = draft.match(
   /CREATE OR REPLACE FUNCTION public\.start_linear_exam_attempt\(p_competition_id uuid\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
