@@ -32,6 +32,8 @@ on:
       - "docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"
       - "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs"
+      - "docs/security/AUTH-STAGE-7-OWNER-SCOPED-PAYMENT-ISSUER-GUARDS-DRAFT.sql"
+      - "scripts/auth-migration/stage7-owner-scoped-payment-issuer-guards.contract.test.mjs"
       - "scripts/auth-migration/admin-create-organizer-search-path.contract.test.mjs"
       - "supabase/migrations/20261125103000_fix_admin_create_organizer_pgcrypto_search_path.sql"
       - "scripts/auth-migration/stage5-no-policy-table-acl-draft.contract.test.mjs"
@@ -227,6 +229,10 @@ jobs:
       - name: Test all 68 user-bound SECURITY DEFINER RPC issuer guards
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs
+
+      - name: Test Stage 7 owner-scoped payment RPC issuer guard contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-owner-scoped-payment-issuer-guards.contract.test.mjs
 
       - name: Test Stage 7 admin organizer pgcrypto search_path migration contract
         if: steps.credentials.outputs.available == 'true'
@@ -762,6 +768,19 @@ jobs:
               -X -q --set=ON_ERROR_STOP=1 \
               --file=/baseline/stage3-user-rpc-issuer-guards.sql
           echo "- Added explicit Better Auth issuer + identity-origin guards to 65 additional user-bound SECURITY DEFINER RPCs; exact owner, ACL, search_path, return type and argument metadata preserved in the disposable restore only" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply Stage 7 owner-scoped payment issuer guards to disposable restore only
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/docs/security/AUTH-STAGE-7-OWNER-SCOPED-PAYMENT-ISSUER-GUARDS-DRAFT.sql:/baseline/stage7-owner-scoped-payment-issuer-guards.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-owner-scoped-payment-issuer-guards.sql
+          echo "- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply Admin organizer pgcrypto search_path fix to disposable restore only
         if: steps.credentials.outputs.available == 'true'
