@@ -46,7 +46,7 @@ for (const marker of [
 
 assert.match(draft, /private\.current_user_is_better_auth\(\)/);
 assert.ok(draft.includes("v_begin_position := pg_catalog.strpos(v_expected.auth_anchor, 'begin')"));
-assert.ok(draft.includes("v_replacement := 'begin' || E'\\\\n  ' || v_guard"),
+assert.ok(draft.includes("v_replacement := 'begin' || E'\\n  ' || v_guard"),
   "Issuer check must be injected inside BEGIN, before auth.uid and table access.");
 assert.ok(draft.includes("v_oid := pg_catalog.to_regprocedure(v_expected.signature);"));
 assert.match(runtime, /INSERT INTO private\\.app_users \\(id, identity_origin\\)/,

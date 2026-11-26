@@ -227,11 +227,12 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_BEGIN_ANCHOR_DRIFT:%', v_expected.signature;
     END IF;
 
-    v_after_begin := pg_catalog.ltrim(
+    v_after_begin := pg_catalog.regexp_replace(
       pg_catalog.substring(v_expected.auth_anchor FROM v_begin_position + 5),
-      E' \\t\\n'
+      '^[[:space:]]+',
+      ''
     );
-    v_replacement := 'begin' || E'\\n  ' || v_guard || E'\\n  ' || v_after_begin;
+    v_replacement := 'begin' || E'\n  ' || v_guard || E'\n  ' || v_after_begin;
 
     v_definition := pg_catalog.replace(
       v_definition,
