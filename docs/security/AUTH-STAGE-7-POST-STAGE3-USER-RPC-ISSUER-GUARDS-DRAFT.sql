@@ -1,5 +1,7 @@
 -- Stage 7 post-Stage-3 user-bound RPC issuer hardening.
--- Exact Production source fingerprints are read from the live catalog by CI.
+-- Stage 3's user-RPC issuer draft runs before this file and replaces these
+-- eight definitions. This preflight therefore pins each exact post-Stage-3
+-- body; the original Production body hashes remain in the contract test.
 -- This file is only mounted into the isolated PostgreSQL 17.6 schema restore.
 -- Never execute this draft against a Production database.
 
@@ -59,14 +61,14 @@ BEGIN
 
   FOR v_expected IN
     SELECT * FROM (VALUES
-      ('create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)', '8efe8ac377bf4eb71698eee52c61d03c', 'search_path=public, private, pg_catalog'),
-      ('create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)', '55e3959c23dfc492155807f230ed16e4', 'search_path=""'),
-      ('create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])', 'ed717139d1d9ec7053e25064b928bdf8', 'search_path=""'),
-      ('create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])', '01148b79df5aaa2556c80cbb63a71c68', 'search_path=""'),
-      ('create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])', 'b3ff32e6f6ba86b371221a987ec9015a', 'search_path=""'),
-      ('list_my_shop_vouchers()', '99e46c89ba9adf33447f2ba4bfc75cd5', 'search_path=""'),
-      ('list_shop_checkout_vouchers(uuid,integer,numeric,numeric)', '2486c9c78abd60ada2c21fecec57fa81', 'search_path=""'),
-      ('mark_my_shop_vouchers_seen()', '0761d56bbfee9ad3932ed5ba06e90dba', 'search_path=""')
+      ('create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)', '846e2104e70e2ac3cc4c39003f4dc5aa', 'search_path=public, private, pg_catalog'),
+      ('create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)', 'b6854e75a8f23404f42179ebfb99a412', 'search_path=""'),
+      ('create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])', 'b6f489a29525d0c893aca3f047ca2795', 'search_path=""'),
+      ('create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])', '65fc84c1ca725a2746a66dc67a6299e3', 'search_path=""'),
+      ('create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])', 'ea2fdde9078f369313a6a7a6928223f5', 'search_path=""'),
+      ('list_my_shop_vouchers()', '44f8d1c2a5765720dd5c68c69b26ed36', 'search_path=""'),
+      ('list_shop_checkout_vouchers(uuid,integer,numeric,numeric)', '9b9fa2aafc79cde0ea5e16b81cebce62', 'search_path=""'),
+      ('mark_my_shop_vouchers_seen()', 'c315de321fcd77bf43474254aa9509ee', 'search_path=""')
     ) AS expected(signature, source_md5, search_path_config)
   LOOP
     v_oid := pg_catalog.to_regprocedure(v_expected.signature);
@@ -87,7 +89,9 @@ BEGIN
        OR v_owner IS DISTINCT FROM 'postgres'
        OR v_security_definer IS DISTINCT FROM TRUE
        OR v_search_path IS DISTINCT FROM v_expected.search_path_config THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_SOURCE_OR_METADATA_DRIFT:%', v_expected.signature;
+      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_SOURCE_OR_METADATA_DRIFT:%:actual_md5=%:expected_md5=%:actual_owner=%:actual_security_definer=%:actual_search_path=%:expected_search_path=%',
+        v_expected.signature, v_source_md5, v_expected.source_md5,
+        v_owner, v_security_definer, v_search_path, v_expected.search_path_config;
     END IF;
 
   END LOOP;
