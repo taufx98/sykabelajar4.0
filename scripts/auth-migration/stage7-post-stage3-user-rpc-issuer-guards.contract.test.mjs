@@ -83,8 +83,10 @@ assert.ok(draft.includes("acl.grantee = 0"));
 assert.doesNotMatch(draft, /p\.proacl IS NULL/,
   "The schema-only restore may represent the same safe ACL as an explicit owner-only ACL.");
 assert.ok(draft.includes("STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT:expected_md5=%:actual_md5=%"));
-assert.ok(draft.includes("b.signature = 'private.sync_shop_voucher_order_status()'"),
-  "Private trigger signature snapshot must match pg_regprocedure's schema-qualified output.");
+assert.ok(draft.includes("n.nspname = 'private'"));
+assert.ok(draft.includes("p.proname = 'sync_shop_voucher_order_status'"));
+assert.doesNotMatch(draft, /b\.signature\s*=/,
+  "Trigger preflight must not depend on search_path-sensitive regprocedure display text.");
 
 
 assert.equal(draft.split("REVOKE ALL PRIVILEGES ON FUNCTION public.").length - 1, 8,
