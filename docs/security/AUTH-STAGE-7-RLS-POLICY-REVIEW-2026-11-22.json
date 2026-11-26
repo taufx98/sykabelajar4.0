@@ -67,15 +67,45 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior",
+        "Baseline #346: schema-only Stage 3 identity/referral provisioning and organizer tests passed; Better Auth issuer-bound user/Admin RPC gates passed; all 23 no-browser table ACL checks passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs",
+        "Baseline #346: anonymous/legacy Supabase Auth access denied for Better Auth-only organizer/referral paths; private table direct grants and private schema USAGE/CREATE denied for anon/authenticated/service_role"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_private_better_auth_boundary",
+      "authorization_path_review": {
+        "boundary": "better_auth_verified_phone_identity_claim",
+        "direct_table_access": "none_private_schema_only",
+        "service_role_table_access": "no_direct_privileges",
+        "caller": "public.create_organizer(p_name text, p_slug text)",
+        "guard_requirements": [
+          "exact Better Auth issuer https://auth-prod.sykabelajar.my.id/api/auth",
+          "private.app_users identity_origin must equal better_auth",
+          "verified email timestamp must be present",
+          "verified Telegram phone timestamp and normalized SHA-256 identity hash are required",
+          "unique phone identity claim prevents another organizer from reusing the same verified identity"
+        ],
+        "tests": [
+          "docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql",
+          "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45735027466,
+          "commit": "50d8e4f5636a836fa82ec821a6f57ccbd31dabd2",
+          "successful_steps": [
+            37,
+            43,
+            57
+          ]
+        }
+      }
     },
     {
       "schema": "private",
@@ -145,15 +175,60 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior",
+        "Baseline #346: schema-only Stage 3 identity/referral provisioning and organizer tests passed; Better Auth issuer-bound user/Admin RPC gates passed; all 23 no-browser table ACL checks passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs",
+        "Baseline #346: anonymous/legacy Supabase Auth access denied for Better Auth-only organizer/referral paths; private table direct grants and private schema USAGE/CREATE denied for anon/authenticated/service_role"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_private_better_auth_boundary",
+      "authorization_path_review": {
+        "boundary": "better_auth_referral_configuration_and_provisioning",
+        "direct_table_access": "none_private_schema_only",
+        "service_role_table_access": "no_direct_privileges",
+        "permitted_callers": [
+          "public.get_referral_program_settings()",
+          "public.get_referral_program_settings_v2()",
+          "public.register_for_competition(p_competition_id uuid, p_participation_key text, p_competition_level_id uuid, p_social_proof_url text, p_twibbon_completed boolean, p_social_platform text, p_social_username text, p_referral_code text)",
+          "public.admin_update_referral_program_settings(p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)",
+          "public.admin_update_referral_program_settings_v2(p_is_active boolean, p_base_reward_amount integer, p_event_reward_amount integer, p_event_name text, p_event_description text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_milestone_tiers jsonb, p_promo_is_enabled boolean, p_promo_title text, p_promo_description text, p_promo_badge text, p_promo_cta text)",
+          "public.better_auth_provision_user(p_user_id uuid, p_account_type text, p_full_name text, p_username text, p_referral_code text, p_email_verified boolean, p_birth_date date, p_phone_verified_at timestamp with time zone, p_verified_phone_identity_hash text, p_phone_verification_provider text)"
+        ],
+        "internal_or_retired_callers": [
+          "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+          "private.capture_signup_referral()"
+        ],
+        "guard_requirements": [
+          "personal settings and competition registration RPCs require exact Better Auth issuer",
+          "Admin settings mutations require the issuer-gated private.current_user_is_admin() helper",
+          "signup referral creation is now inside service_role-only Better Auth provisioning, idempotent per referred user",
+          "legacy auth.users signup/referral triggers are dropped and their trigger EXECUTE revoked",
+          "milestone reward helper is internal and EXECUTE is revoked from PUBLIC/anon/authenticated/service_role"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-better-auth-provisioning-regression.sql",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/referral-attribution-contract.test.mjs",
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45735027466,
+          "commit": "50d8e4f5636a836fa82ec821a6f57ccbd31dabd2",
+          "successful_steps": [
+            15,
+            37,
+            43,
+            57
+          ]
+        }
+      }
     },
     {
       "schema": "private",
@@ -188,15 +263,51 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior"
+        "stage3-issuer-guard-regression.sql: Better Auth versus legacy issuer behavior",
+        "Baseline #346: schema-only Stage 3 identity/referral provisioning and organizer tests passed; Better Auth issuer-bound user/Admin RPC gates passed; all 23 no-browser table ACL checks passed"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs"
+        "Stage 3 regression denies legacy Supabase issuer for BetterAuth-bound personal RPCs",
+        "Baseline #346: anonymous/legacy Supabase Auth access denied for Better Auth-only organizer/referral paths; private table direct grants and private schema USAGE/CREATE denied for anon/authenticated/service_role"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_private_better_auth_boundary",
+      "authorization_path_review": {
+        "boundary": "better_auth_user_owned_referral_milestone_history",
+        "direct_table_access": "none_private_schema_only",
+        "service_role_table_access": "no_direct_privileges",
+        "permitted_callers": [
+          "public.get_my_referral_tier_awards()"
+        ],
+        "internal_callers": [
+          "private.apply_referral_milestone_rewards(p_referrer_user_id uuid)",
+          "private.capture_referral_milestone_reward() trigger on public.edu_coin_ledger"
+        ],
+        "guard_requirements": [
+          "personal award history is filtered by referrer_user_id = auth.uid() and exact Better Auth issuer",
+          "milestone reward calculation is SECURITY DEFINER internal; its EXECUTE is revoked from browser and service roles",
+          "the ledger trigger is the only automatic reward-application path"
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "supabase/migrations/20261101090004_referral_milestone_payouts_and_custom_promo.sql",
+          "scripts/referral-attribution-contract.test.mjs",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45735027466,
+          "commit": "50d8e4f5636a836fa82ec821a6f57ccbd31dabd2",
+          "successful_steps": [
+            15,
+            37,
+            43,
+            57
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2189,8 +2300,8 @@
   },
   "authorization_path_audit_summary": {
     "reviewed_at": "2026-11-26",
-    "verified_tables": 8,
-    "pending_tables": 15,
+    "verified_tables": 11,
+    "pending_tables": 12,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2200,11 +2311,13 @@
     "notes": [
       "The five chat_group tables retain RLS enabled, zero policies, and no direct browser table privileges.",
       "The retirement migration revokes PUBLIC/anon/authenticated table privileges, revokes EXECUTE on public/private chat RPCs, removes chat-named Realtime tables, and retains table rows for controlled archival.",
-      "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately."
+      "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately.",
+      "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
-      "participant_portal_token_boundary": 3
+      "participant_portal_token_boundary": 3,
+      "private_better_auth_boundary": 3
     }
   }
 }
