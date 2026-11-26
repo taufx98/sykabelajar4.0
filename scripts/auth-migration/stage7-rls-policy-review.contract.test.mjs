@@ -176,8 +176,8 @@ for (const table of portalTables) {
       "i",
     ))?.[0] ?? "";
     assert.ok(managementDefinition, "missing guarded Stage 3 management function definition: " + signature);
-    assert.match(managementDefinition, /private\\.current_user_is_better_auth\\(\\)/);
-    assert.match(managementDefinition, /BETTER_AUTH_ISSUER_REQUIRED/);
+    assert.ok(managementDefinition.includes("private.current_user_is_better_auth()"), "management RPC must require the Better Auth issuer: " + signature);
+    assert.ok(managementDefinition.includes("BETTER_AUTH_ISSUER_REQUIRED"), "management RPC must fail closed for a legacy issuer: " + signature);
   }
   assert.ok(audit.private_helpers_require_private_schema_usage.includes("anon"));
   assert.ok(audit.private_helpers_require_private_schema_usage.includes("authenticated"));
