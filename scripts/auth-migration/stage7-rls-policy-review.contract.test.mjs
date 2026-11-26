@@ -257,13 +257,16 @@ assert.ok(organizerDefinition);
 for (const marker of [
   "https://auth-prod.sykabelajar.my.id/api/auth",
   "BETTER_AUTH_ISSUER_REQUIRED",
-  "FROM private.app_users au",
+  /FROM\\s+private\\.app_users\\s+au/i,
   "identity_origin",
   "BETTER_AUTH_IDENTITY_REQUIRED",
   "EMAIL_VERIFICATION_REQUIRED",
   "PHONE_VERIFICATION_REQUIRED",
   "private.organizer_free_identity_claims",
-]) assert.ok(organizerDefinition.includes(marker), "create_organizer must enforce verified Better Auth identity claim: " + marker);
+]) {
+  const found = marker instanceof RegExp ? marker.test(organizerDefinition) : organizerDefinition.includes(marker);
+  assert.ok(found, "create_organizer must enforce verified Better Auth identity claim: " + String(marker));
+}
 assert.ok(provisioningRegression.includes("public.create_organizer('Better Auth Organizer One'"));
 assert.ok(provisioningRegression.includes("STAGE3_BETTER_AUTH_PHONE_REUSE_WAS_ALLOWED"));
 
