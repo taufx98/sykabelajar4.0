@@ -2988,6 +2988,7 @@ DECLARE
   v_count integer;
   v_result jsonb;
   v_deleted boolean;
+  v_error text;
 BEGIN
   BEGIN
     PERFORM public.admin_delete_organizer_payment_method(
@@ -3067,6 +3068,31 @@ BEGIN
      OR jsonb_typeof(v_result -> 'attempts') IS DISTINCT FROM 'array'
      OR jsonb_typeof(v_result -> 'competitions') IS DISTINCT FROM 'array' THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_get_monitoring_dashboard';
+  END IF;
+  IF coalesce(v_result::text ILIKE '%77777777-7777-4777-8777-777777777783%', false) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_MONITORING_PREVIEW_LEAKED:%', v_result;
+  END IF;
+
+  v_result := public.admin_get_attempt_investigation(
+    '77777777-7777-4777-8777-777777777781'::uuid
+  );
+  IF v_result->>'attempt_id' IS DISTINCT FROM '77777777-7777-4777-8777-777777777781'
+     OR jsonb_typeof(v_result->'events') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(v_result->'audit_events') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_INVESTIGATION_READ_FAILED:%', v_result;
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_get_attempt_investigation(
+      '77777777-7777-4777-8777-777777777783'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ATTEMPT_NOT_FOUND' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_ADMIN_INVESTIGATION_PREVIEW_NOT_EXCLUDED:%',
+      coalesce(v_error, 'NO_ERROR');
   END IF;
 
   SELECT count(*) INTO v_count FROM public.admin_list_issued_shop_vouchers();
@@ -4232,6 +4258,32 @@ BEGIN
   END;
   IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE14_FOREIGN_ACTIVITY_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_get_attempt_investigation(
+      '77777777-7777-4777-8777-777777777781'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_NON_ADMIN_INVESTIGATION_ALLOWED:%',
+      coalesce(v_error, 'NO_ERROR');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_get_monitoring_dashboard(
+      NULL::uuid, NULL::text, NULL::text, 25, 0
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE14_NON_ADMIN_MONITORING_ALLOWED:%',
       coalesce(v_error, 'NO_ERROR');
   END IF;
 
