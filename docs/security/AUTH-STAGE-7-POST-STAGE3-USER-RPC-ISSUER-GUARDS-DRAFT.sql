@@ -104,7 +104,7 @@ BEGIN
     SELECT 1
     FROM stage7_voucher_trigger_before b
     JOIN pg_catalog.pg_proc p ON p.oid = b.oid
-    WHERE b.signature = 'sync_shop_voucher_order_status()'
+    WHERE b.signature = 'private.sync_shop_voucher_order_status()'
       AND b.source_md5 = '70302d030b5cae3af7f978afdae3cea3'
       AND pg_catalog.pg_get_userbyid(p.proowner) = 'postgres'
       AND p.prosecdef
