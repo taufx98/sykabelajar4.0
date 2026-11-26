@@ -442,7 +442,7 @@ for (const marker of [
   "INVALID_BANNER_EVENT",
   "INVALID_VISITOR_KEY",
   "on conflict (banner_id,event_type,visitor_key) do nothing",
-  "WHERE b.id=p_banner_id and b.is_active=true",
+  "where b.id=p_banner_id and b.is_active=true",
   "views_count=views_count+1",
   "clicks_count=clicks_count+1",
 ]) assert.ok(bannerEventDefinition.includes(marker), "banner event RPC boundary is incomplete: " + marker);
