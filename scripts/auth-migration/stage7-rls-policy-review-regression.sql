@@ -8,6 +8,25 @@
 \set ON_ERROR_STOP on
 BEGIN READ ONLY;
 
+DO $stage7_private_schema_api_boundary$
+BEGIN
+  -- Private helper EXECUTE catalog flags do not make these routines browser-callable:
+  -- anon/authenticated must not have schema USAGE or CREATE on the private namespace.
+  IF pg_catalog.has_schema_privilege('anon','private','USAGE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_ANON_PRIVATE_SCHEMA_USAGE_REMAINS';
+  END IF;
+  IF pg_catalog.has_schema_privilege('authenticated','private','USAGE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_USAGE_REMAINS';
+  END IF;
+  IF pg_catalog.has_schema_privilege('anon','private','CREATE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_ANON_PRIVATE_SCHEMA_CREATE_REMAINS';
+  END IF;
+  IF pg_catalog.has_schema_privilege('authenticated','private','CREATE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_CREATE_REMAINS';
+  END IF;
+END;
+$stage7_private_schema_api_boundary$;
+
 DO $stage7_rls_table_review$
 DECLARE
   v_item record;
