@@ -55,6 +55,9 @@ jobs:
       - name: Verify Stage 7 owner-scoped payment RPC issuer guards
         run: node scripts/auth-migration/stage7-owner-scoped-payment-issuer-guards.contract.test.mjs
 
+      - name: Verify Stage 7 post-Stage-3 user RPC issuer guards
+        run: node scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.contract.test.mjs
+
       - name: Verify Stage 3 SECURITY DEFINER issuer draft remains atomic
         run: node --test services/auth-worker/tests/stage7-user-scoped-rpc-issuer-guard-contract.test.mjs
 
