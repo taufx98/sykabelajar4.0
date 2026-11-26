@@ -16,6 +16,10 @@ const regression = readFileSync(
   path.join(here, "./stage3-issuer-guard-regression.sql"),
   "utf8",
 );
+const userRpcDraft = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"),
+  "utf8",
+);
 const issuer = "https://auth-prod.sykabelajar.my.id/api/auth";
 
 assert.doesNotMatch(regression, /legacy_reference/,
@@ -1093,6 +1097,50 @@ for (const item of tranche14Functions) {
   );
 }
 
+const previewReportStart = userRpcDraft.indexOf(
+  "CREATE OR REPLACE FUNCTION public.get_organizer_exam_preview_report(",
+);
+const previewReportEnd = userRpcDraft.indexOf("$function$;", previewReportStart);
+const previewReport = previewReportStart >= 0 && previewReportEnd > previewReportStart
+  ? userRpcDraft.slice(previewReportStart, previewReportEnd + "$function$;".length)
+  : "";
+assert.ok(previewReport, "missing Better Auth issuer-guarded organizer preview report replacement");
+assert.ok(
+  userRpcDraft.includes("'public.get_organizer_exam_preview_report(uuid)'"),
+  "preview report must remain inside the exact user-scoped issuer-guard set",
+);
+const previewIssuerAt = previewReport.indexOf("private.current_user_is_better_auth()");
+const previewAttemptReadAt = previewReport.indexOf("from public.attempts");
+assert.ok(previewIssuerAt >= 0 && previewAttemptReadAt > previewIssuerAt,
+  "preview report must verify Better Auth before reading the preview attempt");
+assert.match(previewReport, /where id = p_attempt_id and is_preview = true and preview_owner_id = v_uid/i);
+assert.ok(previewReport.includes("PREVIEW_NOT_FOUND"));
+assert.ok(previewReport.includes("v_runtime.phase <> 'COMPLETED'"));
+assert.ok(previewReport.includes("'answer_key', q.answer_key_snapshot"));
+
+const securityDefinerTriage = JSON.parse(readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-TRIAGE-2026-11-21.json"),
+  "utf8",
+));
+const previewReportAcl = securityDefinerTriage.functions.find((item) =>
+  item.name === "get_organizer_exam_preview_report" && item.identityArguments === "p_attempt_id uuid"
+);
+assert.ok(previewReportAcl, "missing reviewed Production ACL snapshot for organizer preview report");
+assert.equal(previewReportAcl.owner, "postgres");
+assert.deepEqual(previewReportAcl.acl, [
+  "postgres=X/postgres",
+  "authenticated=X/postgres",
+  "service_role=X/postgres",
+]);
+assert.deepEqual(previewReportAcl.execute, { anon: false, authenticated: true, serviceRole: true });
+assert.deepEqual(previewReportAcl.searchPathConfig, ['search_path=""']);
+for (const marker of [
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED",
+  "STAGE3_ANON_PARTICIPANT_DETAIL_QUESTION_SNAPSHOT_LEAKED",
+]) assert.ok(regression.includes(marker), "missing owner-only preview/public snapshot runtime assertion: " + marker);
+
 const tranche14Preflight = draft.match(
   /DO \$stage7_tranche14_fingerprint_preflight\$[\s\S]*?\$stage7_tranche14_fingerprint_preflight\$;/i,
 )?.[0] ?? "";
@@ -1126,6 +1174,9 @@ for (const marker of [
   "STAGE7_TRANCHE14_FOREIGN_AI_GRADE_ALLOWED",
   "STAGE7_TRANCHE14_FOREIGN_MANUAL_GRADE_ALLOWED",
   "STAGE7_TRANCHE14_FOREIGN_PREVIEW_ALLOWED",
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED",
 ]) assert.ok(regression.includes(marker), "missing tranche 14 runtime assertion: " + marker);
 
 assert.match(regression, /INSERT INTO public\.grading_items[\s\S]*?Stage 7 tranche 14 rollback-only authorization fixture/);
