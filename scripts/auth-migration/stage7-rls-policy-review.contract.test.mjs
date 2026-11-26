@@ -49,6 +49,11 @@ for (const table of review.tables) {
     "shop_promo_banner_events",
     "shop_promo_banners",
   ].includes(table.table);
+  const isServerAuthoritativeExamTable = [
+    "exam_attempt_events",
+    "exam_attempt_questions",
+    "exam_attempt_runtime",
+  ].includes(table.table);
   const expectedAuthorizationStatus = isRetiredChatTable
     ? "verified_retired_browser_access"
     : isParticipantPortalTable
@@ -59,7 +64,9 @@ for (const table of review.tables) {
           ? "verified_public_promo_banner_boundary"
           : table.table === "competition_status_history"
             ? "verified_competition_status_history_boundary"
-            : "pending_security_definer_audit";
+            : isServerAuthoritativeExamTable
+              ? "verified_server_authoritative_exam_storage"
+              : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
     expectedAuthorizationStatus,
@@ -79,14 +86,15 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 17);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 6);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
   private_better_auth_boundary: 3,
   public_promo_banner_boundary: 2,
   competition_status_history_boundary: 1,
+  server_authoritative_exam_storage: 3,
 });
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
@@ -142,8 +150,8 @@ for (const marker of [
 
 const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
 assert.equal(portalTables.length, 3);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 17);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 6);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.public_promo_banner_boundary, 2);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
@@ -564,9 +572,180 @@ for (const marker of [
   "STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED",
   "STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED",
 ]) assert.ok(historyStage3Regression.includes(marker), "missing competition status history caller test: " + marker);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 17);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 6);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.competition_status_history_boundary, 1);
+
+const examTables = review.tables.filter((table) => [
+  "exam_attempt_events",
+  "exam_attempt_questions",
+  "exam_attempt_runtime",
+].includes(table.table));
+assert.equal(examTables.length, 3);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.server_authoritative_exam_storage, 3);
+const examRegression = read("scripts/auth-migration/stage3-issuer-guard-regression.sql");
+const portalExamRegression = read("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql");
+const userRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
+const adminMonitoringMigration = read("supabase/migrations/20261101100000_stage_6_admin_monitoring_investigations.sql");
+const publicParticipantMigration = read("supabase/migrations/20261102013000_competition_public_roster_and_participant_detail.sql");
+const examAdminFunctions = [
+  "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+  "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)",
+];
+const examOwnerFunctions = [
+  "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+  "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+  "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+  "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)",
+];
+const examUserFunctions = [
+  "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+  "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+  "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+  "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+  "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+  "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)",
+  "public.skip_linear_exam_question(p_attempt_id uuid)",
+  "public.start_linear_exam_attempt(p_competition_id uuid)",
+];
+const examPortalFunctions = [
+  "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+  "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+  "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+  "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)",
+  "public.start_collective_linear_exam_attempt(p_competition_id uuid, p_access_token text)",
+];
+const examInternalFunctions = [
+  "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+  "private.build_linear_exam_state(p_attempt_id uuid)",
+  "private.capture_automatic_grading_score()",
+  "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+  "private.log_linear_exam_event(p_attempt_id uuid, p_position integer, p_question_id uuid, p_event_type text, p_actor_kind text, p_metadata jsonb, p_occurred_at timestamp with time zone)",
+  "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+  "private.prevent_option_mutation_during_exam()",
+  "private.prevent_question_mutation_during_exam()",
+  "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)",
+];
+const examEvidence = {
+  workflow: "Auth Production Schema Baseline",
+  run_id: 45770807334,
+  commit: "9f2acad381fb6d1f4548e29a7ed0d556574e86fd",
+  successful_steps: [38,39,40,41,42,43,45,48,49,50,51,57,58,59,60,67,69],
+};
+for (const table of examTables) {
+  const audit = table.authorization_path_review;
+  assert.equal(table.authorization_path_review_status, "verified_server_authoritative_exam_storage");
+  assert.equal(table.schema, "public");
+  assert.equal(table.owner, "postgres");
+  assert.equal(table.rls_enabled, true);
+  assert.equal(table.policy_count, 0);
+  assert.deepEqual(table.direct_browser_privileges_after_stage5_expected, []);
+  assert.deepEqual(table.service_role_privileges, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+  assert.equal(audit.boundary, "server_authoritative_exam_attempt_state");
+  assert.equal(audit.direct_table_access, "revoked_for_public_anon_authenticated");
+  assert.equal(audit.table_data_boundary, "service_role_only");
+  assert.deepEqual(audit.private_schema_browser_usage, ["anon", "authenticated"]);
+  assert.ok(audit.private_helpers.length > 0);
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage3-issuer-guard-regression.sql"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql"));
+  assert.deepEqual(audit.runtime_acceptance, examEvidence);
+  for (const signature of examAdminFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, false);
+    assert.equal(caller.authenticated_execute, true);
+    assert.equal(caller.security_definer, true);
+    assert.ok(audit.admin_entrypoints.includes(signature));
+  }
+  for (const signature of examOwnerFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, false);
+    assert.equal(caller.authenticated_execute, true);
+    assert.equal(caller.security_definer, true);
+    assert.ok(audit.better_auth_owner_entrypoints.includes(signature));
+  }
+  for (const signature of examUserFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, false);
+    assert.equal(caller.authenticated_execute, true);
+    assert.equal(caller.security_definer, true);
+    assert.ok(userRpcDraft.includes("'" + signature + "'"), "missing Better Auth guarded exam RPC: " + signature);
+  }
+  for (const signature of examPortalFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, true);
+    assert.equal(caller.authenticated_execute, true);
+    assert.equal(caller.security_definer, true);
+    assert.ok(audit.participant_portal_token_entrypoints.includes(signature));
+  }
+  for (const signature of examInternalFunctions) {
+    if (!table.source_callers.some((caller) => caller.signature === signature)) continue;
+    const caller = table.source_callers.find((candidate) => candidate.signature === signature);
+    assert.equal(caller.anon_execute, false);
+    assert.equal(caller.authenticated_execute, false);
+    assert.equal(caller.service_role_execute, false);
+    assert.ok(audit.private_helpers.includes(signature));
+  }
+}
+const examEvents = examTables.find((table) => table.table === "exam_attempt_events");
+assert.deepEqual(examEvents.authorization_path_review.public_projection_entrypoints, []);
+const examQuestions = examTables.find((table) => table.table === "exam_attempt_questions");
+assert.deepEqual(examQuestions.authorization_path_review.public_projection_entrypoints, [
+  "public.get_competition_participant_detail(p_slug text, p_participant_id uuid)",
+]);
+const examRuntime = examTables.find((table) => table.table === "exam_attempt_runtime");
+assert.deepEqual(examRuntime.authorization_path_review.public_projection_entrypoints, []);
+for (const signature of examAdminFunctions) {
+  const name = signature.match(/^public\\.([a-z_][a-z0-9_]*)\\(/)?.[1];
+  assert.ok(name);
+  const start = adminMonitoringMigration.indexOf("CREATE OR REPLACE FUNCTION public." + name + "(");
+  const end = adminMonitoringMigration.indexOf("$function$;", start);
+  const definition = start >= 0 && end > start ? adminMonitoringMigration.slice(start, end) : "";
+  assert.ok(definition.includes("private.current_user_is_admin()"));
+  assert.ok(definition.includes("ADMIN_REQUIRED"));
+}
+const publicProjectionStart = publicParticipantMigration.indexOf("create or replace function public.get_competition_participant_detail(");
+const publicProjectionEnd = publicParticipantMigration.indexOf("$function$;", publicProjectionStart);
+const publicProjectionDefinition = publicProjectionStart >= 0 && publicProjectionEnd > publicProjectionStart
+  ? publicParticipantMigration.slice(publicProjectionStart, publicProjectionEnd)
+  : "";
+assert.ok(publicProjectionDefinition);
+assert.ok(publicProjectionDefinition.includes("v_comp.visibility = 'PUBLIC'"));
+assert.ok(publicProjectionDefinition.includes("private.current_user_is_admin()"));
+assert.ok(publicProjectionDefinition.includes("private.current_user_can_edit_competition(v_comp.organizer_id)"));
+const publicProjectionResponse = publicProjectionDefinition.slice(
+  publicProjectionDefinition.lastIndexOf("return jsonb_build_object("),
+);
+for (const key of ["'participant'", "'result'", "'question_summary'", "'awards'", "'badges'", "'certificates'"]) {
+  assert.ok(publicProjectionResponse.includes(key), "public participant projection missing " + key);
+}
+for (const forbidden of ["'answer_key'", "'answer_key_snapshot'", "'question_snapshot'", "'accepted_answers'", "'correct_option_ids'", "'answers'"]) {
+  assert.ok(!publicProjectionResponse.includes(forbidden), "public participant projection must not expose " + forbidden);
+}
+for (const marker of [
+  "STAGE7_TRANCHE14_LEGACY_ISSUER_ALLOWED",
+  "STAGE7_TRANCHE14_OWNER_ACTIVITY_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_ACTIVITY_FAILED",
+  "STAGE7_TRANCHE14_FOREIGN_ACTIVITY_ALLOWED",
+  "STAGE7_TRANCHE14_OWNER_PREVIEW_REPORT_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_FOREIGN_PREVIEW_REPORT_ALLOWED",
+  "STAGE7_TRANCHE14_ADMIN_INVESTIGATION_READ_FAILED",
+  "STAGE7_TRANCHE14_ADMIN_INVESTIGATION_PREVIEW_NOT_EXCLUDED",
+  "STAGE7_TRANCHE14_ADMIN_MONITORING_PREVIEW_LEAKED",
+  "STAGE7_TRANCHE14_NON_ADMIN_INVESTIGATION_ALLOWED",
+  "STAGE7_TRANCHE14_NON_ADMIN_MONITORING_ALLOWED",
+  "STAGE3_ANON_PARTICIPANT_DETAIL_QUESTION_SNAPSHOT_LEAKED",
+]) assert.ok(examRegression.includes(marker), "missing exam caller authorization assertion: " + marker);
+for (const marker of [
+  "STAGE7_PORTAL_TOKEN_LISTED_OTHER_PARTICIPANT",
+  "STAGE7_CROSS_PARTICIPANT_EXAM_STATE_READ",
+  "STAGE7_VALID_PORTAL_TOKEN_CANNOT_LIST_OWN_PRIVATE_COMPETITION",
+  "STAGE7_REVOKED_ACCESS_TOKEN_NOT_REJECTED",
+]) assert.ok(portalExamRegression.includes(marker), "missing participant-token exam boundary assertion: " + marker);
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {
