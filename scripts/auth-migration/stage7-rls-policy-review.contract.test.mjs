@@ -45,13 +45,19 @@ for (const table of review.tables) {
     "referral_program_settings",
     "referral_tier_awards",
   ].includes(table.table);
+  const isPublicPromoBannerTable = [
+    "shop_promo_banner_events",
+    "shop_promo_banners",
+  ].includes(table.table);
   const expectedAuthorizationStatus = isRetiredChatTable
     ? "verified_retired_browser_access"
     : isParticipantPortalTable
       ? "verified_participant_portal_token_boundary"
       : isPrivateBetterAuthTable
         ? "verified_private_better_auth_boundary"
-        : "pending_security_definer_audit";
+        : isPublicPromoBannerTable
+          ? "verified_public_promo_banner_boundary"
+          : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
     expectedAuthorizationStatus,
@@ -71,12 +77,13 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 11);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 12);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 13);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 10);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
   private_better_auth_boundary: 3,
+  public_promo_banner_boundary: 2,
 });
 assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
@@ -132,9 +139,10 @@ for (const marker of [
 
 const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
 assert.equal(portalTables.length, 3);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 11);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 12);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 13);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 10);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.public_promo_banner_boundary, 2);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
 const portalInvalidRegression = read("scripts/auth-migration/stage7-collective-portal-token-regression.sql");
 const portalValidRegression = read("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql");
@@ -348,6 +356,143 @@ for (const marker of [
   "STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_USAGE_REMAINS",
   "STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_CREATE_REMAINS",
 ]) assert.ok(regression.includes(marker), "private service-role schema runtime check missing: " + marker);
+
+const publicPromoBannerTables = review.tables.filter((table) => [
+  "shop_promo_banner_events",
+  "shop_promo_banners",
+].includes(table.table));
+assert.equal(publicPromoBannerTables.length, 2);
+assert.equal(review.authorization_path_audit_summary.verified_boundaries.public_promo_banner_boundary, 2);
+const shopBannerMigration = read("supabase/migrations/20261103074001_shop_vouchers_and_carousel_banners.sql");
+const shopBannerRegression = read("scripts/auth-migration/stage7-public-shop-banner-rpc-regression.sql");
+const shopBannerContract = read("scripts/auth-migration/stage7-public-shop-banner-rpc.contract.test.mjs");
+const issuerRestriction = read("docs/security/AUTH-STAGE-3-ISSUER-RESTRICTION-DRAFT.sql");
+const publicBannerListSignature = "public.list_active_shop_promo_banners()";
+const publicBannerEventSignature = "public.record_shop_promo_banner_event(p_banner_id uuid, p_event_type text, p_visitor_key text)";
+const adminBannerSignatures = [
+  "public.admin_list_shop_promo_banners()",
+  "public.admin_save_shop_promo_banner(p_id uuid, p_image_url text, p_target_url text, p_slide_duration_seconds integer, p_position integer, p_is_active boolean)",
+  "public.admin_delete_shop_promo_banner(p_id uuid)",
+];
+const getShopBannerDefinition = (name) => {
+  const source = shopBannerMigration.toLowerCase();
+  const start = source.indexOf("create or replace function public." + name.toLowerCase() + "(");
+  if (start < 0) return "";
+  const bodyStart = source.indexOf("as $function$", start);
+  if (bodyStart < 0) return "";
+  const end = source.indexOf("$function$;", bodyStart);
+  return end < 0 ? "" : shopBannerMigration.slice(start, end + "$function$;".length);
+};
+for (const table of publicPromoBannerTables) {
+  const audit = table.authorization_path_review;
+  assert.equal(table.authorization_path_review_status, "verified_public_promo_banner_boundary");
+  assert.equal(table.schema, "public");
+  assert.equal(table.owner, "postgres");
+  assert.equal(table.rls_enabled, true);
+  assert.equal(table.policy_count, 0);
+  assert.deepEqual(table.direct_browser_privileges_after_stage5_expected, []);
+  assert.deepEqual(table.service_role_privileges, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+  assert.equal(audit.boundary, "public_shop_promo_banner_access_and_event_telemetry");
+  assert.equal(audit.direct_table_access, "revoked_for_public_anon_authenticated");
+  assert.equal(audit.table_data_boundary, "service_role_only");
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage7-public-shop-banner-rpc-regression.sql"));
+  assert.ok(audit.tests.includes("scripts/auth-migration/stage3-issuer-guard-regression.sql"));
+}
+const bannerEvents = publicPromoBannerTables.find((table) => table.table === "shop_promo_banner_events");
+assert.deepEqual(bannerEvents.source_callers.map((caller) => caller.signature), [publicBannerEventSignature]);
+assert.deepEqual(bannerEvents.authorization_path_review.anon_entrypoints, [publicBannerEventSignature]);
+assert.deepEqual(bannerEvents.authorization_path_review.admin_entrypoints, []);
+const bannerTable = publicPromoBannerTables.find((table) => table.table === "shop_promo_banners");
+assert.deepEqual(bannerTable.source_callers.map((caller) => caller.signature).sort(), [
+  "public.admin_delete_shop_promo_banner(p_id uuid)",
+  "public.admin_list_shop_promo_banners()",
+  "public.admin_save_shop_promo_banner(p_id uuid, p_image_url text, p_target_url text, p_slide_duration_seconds integer, p_position integer, p_is_active boolean)",
+  publicBannerEventSignature,
+  publicBannerListSignature,
+].sort());
+assert.deepEqual(bannerTable.authorization_path_review.anon_entrypoints, [
+  publicBannerListSignature,
+  publicBannerEventSignature,
+]);
+assert.deepEqual(bannerTable.authorization_path_review.admin_entrypoints, adminBannerSignatures);
+for (const table of publicPromoBannerTables) {
+  for (const caller of table.source_callers) {
+    assert.equal(caller.security_definer, true, "banner caller must remain SECURITY DEFINER: " + caller.signature);
+    if (caller.signature.startsWith("public.admin_")) {
+      assert.equal(caller.anon_execute, false, "banner Admin RPC must not be anonymous: " + caller.signature);
+      assert.equal(caller.authenticated_execute, true, "banner Admin RPC must retain authenticated EXECUTE: " + caller.signature);
+      assert.equal(caller.service_role_execute, true, "trusted service role must retain banner Admin EXECUTE: " + caller.signature);
+      continue;
+    }
+    assert.equal(caller.anon_execute, true, "public banner entrypoint must retain anon EXECUTE: " + caller.signature);
+    assert.equal(caller.authenticated_execute, true, "public banner entrypoint must retain authenticated EXECUTE: " + caller.signature);
+    assert.equal(caller.service_role_execute, true, "trusted service role must retain public banner EXECUTE: " + caller.signature);
+  }
+}
+const activeBannerDefinition = getShopBannerDefinition("list_active_shop_promo_banners");
+assert.ok(activeBannerDefinition);
+assert.match(activeBannerDefinition, /SECURITY DEFINER/i);
+assert.match(activeBannerDefinition, /SET search_path = ''/i);
+assert.match(activeBannerDefinition, /WHERE b\.is_active\s*=\s*true/i);
+const bannerEventDefinition = getShopBannerDefinition("record_shop_promo_banner_event");
+assert.ok(bannerEventDefinition);
+assert.match(bannerEventDefinition, /SECURITY DEFINER/i);
+assert.match(bannerEventDefinition, /SET search_path = ''/i);
+for (const marker of [
+  "INVALID_BANNER_EVENT",
+  "INVALID_VISITOR_KEY",
+  "ON CONFLICT (banner_id,event_type,visitor_key) DO NOTHING",
+  "WHERE b.id=p_banner_id and b.is_active=true",
+  "views_count=views_count+1",
+  "clicks_count=clicks_count+1",
+]) assert.ok(bannerEventDefinition.includes(marker), "banner event RPC boundary is incomplete: " + marker);
+for (const name of ["admin_list_shop_promo_banners","admin_save_shop_promo_banner","admin_delete_shop_promo_banner"]) {
+  const definition = getShopBannerDefinition(name);
+  assert.ok(definition, "missing banner Admin RPC definition: " + name);
+  assert.match(definition, /private\.current_user_is_admin\(\)/i);
+  assert.match(definition, /ADMIN_REQUIRED/i);
+}
+for (const signature of [
+  "public.list_active_shop_promo_banners()",
+  "public.record_shop_promo_banner_event(uuid,text,text)",
+  "public.admin_list_shop_promo_banners()",
+  "public.admin_save_shop_promo_banner(uuid,text,text,integer,integer,boolean)",
+  "public.admin_delete_shop_promo_banner(uuid)",
+]) {
+  assert.ok(shopBannerMigration.includes("revoke all on function " + signature.replace(/^public\./,"public.")) ||
+    shopBannerMigration.includes("revoke all on function " + signature), "missing browser ACL revocation for banner RPC: " + signature);
+}
+for (const name of ["admin_list_shop_promo_banners","admin_save_shop_promo_banner","admin_delete_shop_promo_banner"]) {
+  assert.ok(stage3Regression.includes("STAGE3_LEGACY_ADMIN_RPC_ALLOWED:" + name),
+    "missing legacy issuer denial for banner Admin RPC: " + name);
+  assert.ok(stage3Regression.includes("STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:" + name),
+    "missing Better Auth Admin identity assertion: " + name);
+}
+const sharedAdminRoleHelper = issuerRestriction.match(
+  /CREATE OR REPLACE FUNCTION private\.current_user_has_role\(p_role public\.app_role\)[\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(sharedAdminRoleHelper, "missing shared Better Auth Admin role helper");
+for (const marker of [
+  "https://auth-prod.sykabelajar.my.id/api/auth",
+  "identity_origin = 'better_auth'",
+  "ur.role = p_role",
+  "ur.is_active = TRUE",
+]) assert.ok(sharedAdminRoleHelper.includes(marker), "Admin RPC role boundary missing Better Auth identity marker: " + marker);
+for (const marker of [
+  "STAGE7_BANNER_DIRECT_BROWSER_TABLE_ACCESS_REMAINS",
+  "STAGE7_BANNER_ACTIVE_ONLY_LIST_FAILED",
+  "STAGE7_BANNER_VALID_VIEW_NOT_RECORDED",
+  "STAGE7_BANNER_DUPLICATE_VIEW_NOT_IDEMPOTENT",
+  "STAGE7_BANNER_VALID_CLICK_NOT_RECORDED",
+  "STAGE7_BANNER_INACTIVE_EVENT_ACCEPTED",
+  "STAGE7_BANNER_MISSING_EVENT_TARGET_ACCEPTED",
+  "STAGE7_BANNER_INVALID_EVENT_TYPE_ACCEPTED",
+  "STAGE7_BANNER_INVALID_VISITOR_KEY_ACCEPTED",
+  "STAGE7_BANNER_EVENT_LEDGER_OR_COUNTER_DRIFT",
+]) assert.ok(shopBannerRegression.includes(marker), "missing public banner runtime assertion: " + marker);
+assert.match(shopBannerRegression, /SET LOCAL ROLE anon[\s\S]*?list_active_shop_promo_banners[\s\S]*?record_shop_promo_banner_event/);
+assert.match(shopBannerRegression, /ROLLBACK;/);
+assert.ok(shopBannerContract.includes("Stage 7 public shop-promo banner RPC contract passed"));
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {
