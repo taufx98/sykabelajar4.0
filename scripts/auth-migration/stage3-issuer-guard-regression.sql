@@ -97,6 +97,20 @@ BEGIN
     WHERE organizer_id = '77777777-7777-4777-8777-777777777791'::uuid
       AND requester_user_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
       AND notes = 'Stage 7 Tranche 16 owner custom plan probe'
+  ) OR EXISTS (
+    SELECT 1 FROM public.commerce_products
+    WHERE id = '77777777-7777-4777-8777-777777777794'::uuid
+       OR code = 'STAGE7-PAYMENT-ISSUER-CERTIFICATE'
+       OR slug = 'stage7-payment-issuer-certificate'
+  ) OR EXISTS (
+    SELECT 1 FROM public.collective_certificates
+    WHERE id = '88888888-8888-4888-8888-888888888894'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.organizer_payment_methods
+    WHERE id = '77777777-7777-4777-8777-777777777798'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.platform_settings
+    WHERE key = 'collective_certificate_price'
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE10_FIXTURE_UUID_COLLISION';
   END IF;
@@ -488,6 +502,52 @@ SELECT
 FROM public.collective_participants cp
 JOIN public.participants p ON p.collective_participant_id = cp.id
 WHERE cp.id = '66666666-6666-4666-8666-666666666682'::uuid;
+
+-- Stage 7 payment issuer boundary fixtures. All rows are synthetic and the
+-- enclosing schema regression transaction rolls them back.
+INSERT INTO public.platform_settings (key, value)
+VALUES ('collective_certificate_price', '{"amount":10000}'::jsonb);
+
+INSERT INTO public.organizer_payment_methods (
+  id, name, payment_type, details, is_active, sort_order
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777798',
+  'Stage 7 payment issuer probe',
+  'BANK_TRANSFER',
+  '{}'::jsonb,
+  TRUE,
+  999
+);
+
+INSERT INTO public.commerce_products (
+  id, code, slug, name, product_type, audiences, price, currency,
+  is_active, is_featured, sort_order, metadata
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777794',
+  'STAGE7-PAYMENT-ISSUER-CERTIFICATE',
+  'stage7-payment-issuer-certificate',
+  'Stage 7 Payment Issuer Certificate',
+  'COLLECTIVE_CERTIFICATE',
+  ARRAY['teacher']::text[],
+  10000,
+  'IDR',
+  TRUE,
+  FALSE,
+  999,
+  '{}'::jsonb
+);
+
+INSERT INTO public.collective_certificates (
+  id, collective_participant_id, competition_id, status
+)
+VALUES (
+  '88888888-8888-4888-8888-888888888894',
+  '66666666-6666-4666-8666-666666666682',
+  '33333333-3333-4333-8333-333333333335',
+  'ELIGIBLE'
+);
 
 INSERT INTO public.badges (id, code, name, slug, status, award_type)
 VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
@@ -5028,6 +5088,204 @@ BEGIN
   END IF;
 END;
 $stage7_transition_competition_caller_acceptance$;
+
+DO $stage7_payment_issuer_owner_scope_acceptance$
+DECLARE
+  v_error text;
+  v_order public.orders;
+BEGIN
+  -- The manager of the private, published collective result can create their
+  -- own certificate order using the exact Better Auth issuer.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'ffffffff-ffff-4fff-8fff-fffffffffff6',
+    TRUE
+  );
+
+  BEGIN
+    SELECT * INTO v_order
+    FROM public.create_collective_certificate_order_with_proof(
+      '88888888-8888-4888-8888-888888888894'::uuid,
+      'BANK_TRANSFER',
+      'https://proof.invalid/stage7-owner-scope',
+      NULL, NULL, NULL, NULL, NULL, '081234567890'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_OWNER_POSITIVE_FAILED:%', SQLERRM;
+  END;
+
+  IF v_order.id IS NULL
+     OR v_order.user_id IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_OWNER_SCOPE_RESULT_MISMATCH:%', row_to_json(v_order);
+  END IF;
+
+  -- A different valid Better Auth identity reaches the owner check but cannot
+  -- adopt the certificate order created for the actual collective manager.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_collective_certificate_order_with_proof(
+      '88888888-8888-4888-8888-888888888894'::uuid,
+      'BANK_TRANSFER',
+      'https://proof.invalid/stage7-foreign-scope',
+      NULL, NULL, NULL, NULL, NULL, '081234567890'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'CERTIFICATE_ORDER_OWNED_BY_ANOTHER_USER' THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_OWNER_NOT_DENIED:%', coalesce(v_error,'<no error>');
+  END IF;
+
+  -- The actual manager UUID is still rejected when its issuer is legacy
+  -- Supabase Auth rather than the configured Better Auth issuer.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'ffffffff-ffff-4fff-8fff-fffffffffff6',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_collective_certificate_order_with_proof(
+      '88888888-8888-4888-8888-888888888894'::uuid,
+      'BANK_TRANSFER',
+      'https://proof.invalid/stage7-legacy-scope',
+      NULL, NULL, NULL, NULL, NULL, '081234567890'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_LEGACY_ISSUER_NOT_DENIED:%', coalesce(v_error,'<no error>');
+  END IF;
+
+  -- Organizer owner, foreign user, legacy issuer and Admin override all use
+  -- a deliberately absent plan code: PLAN_NOT_AVAILABLE proves the relevant
+  -- issuer/role/membership gate passed without inserting or activating an order.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_organizer_plan_order(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '__STAGE7_NO_SUCH_PLAN__',
+      'MONTHLY',
+      NULL, NULL, NULL, NULL, '{}'::jsonb,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PLAN_NOT_AVAILABLE' THEN
+    RAISE EXCEPTION 'STAGE7_ORGANIZER_OWNER_SCOPE_FAILED:%', coalesce(v_error,'<no error>');
+  END IF;
+
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_organizer_plan_order(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '__STAGE7_NO_SUCH_PLAN__',
+      'MONTHLY',
+      NULL, NULL, NULL, NULL, '{}'::jsonb,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ACCESS_DENIED' THEN
+    RAISE EXCEPTION 'STAGE7_ORGANIZER_FOREIGN_MEMBER_NOT_DENIED:%', coalesce(v_error,'<no error>');
+  END IF;
+
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_organizer_plan_order(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '__STAGE7_NO_SUCH_PLAN__',
+      'MONTHLY',
+      NULL, NULL, NULL, NULL, '{}'::jsonb,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'BETTER_AUTH_ISSUER_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_ORGANIZER_LEGACY_ISSUER_NOT_DENIED:%', coalesce(v_error,'<no error>');
+  END IF;
+
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config(
+    'request.jwt.claim.sub',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    TRUE
+  );
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_organizer_plan_order(
+      '77777777-7777-4777-8777-777777777791'::uuid,
+      '__STAGE7_NO_SUCH_PLAN__',
+      'MONTHLY',
+      NULL, NULL, NULL, NULL, '{}'::jsonb,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'PLAN_NOT_AVAILABLE' THEN
+    RAISE EXCEPTION 'STAGE7_ORGANIZER_ADMIN_OVERRIDE_FAILED:%', coalesce(v_error,'<no error>');
+  END IF;
+END;
+$stage7_payment_issuer_owner_scope_acceptance$;
 
 RESET ROLE;
 ROLLBACK;
