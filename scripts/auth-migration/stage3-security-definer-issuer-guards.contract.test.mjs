@@ -1282,6 +1282,35 @@ assert.ok(
   "custom plan request must validate the issuer before writes",
 );
 
+const tranche16FixtureStart = regression.indexOf("-- Tranche 16 organizer registration fixture.");
+const tranche16FixtureEnd = regression.indexOf(
+  "SELECT set_config('request.jwt.claims', '{}', TRUE);",
+  tranche16FixtureStart,
+);
+const tranche16RegistrationFixture = tranche16FixtureStart >= 0 && tranche16FixtureEnd > tranche16FixtureStart
+  ? regression.slice(tranche16FixtureStart, tranche16FixtureEnd)
+  : "";
+assert.ok(tranche16RegistrationFixture, "missing Tranche 16 rollback-only registration fixture");
+const fixtureTriggerDisable = tranche16RegistrationFixture.indexOf(
+  "ALTER TABLE public.registrations DISABLE TRIGGER trg_validate_registration_insert;",
+);
+const fixtureInsert = tranche16RegistrationFixture.indexOf("INSERT INTO public.registrations (");
+const fixtureTriggerEnable = tranche16RegistrationFixture.indexOf(
+  "ALTER TABLE public.registrations ENABLE TRIGGER trg_validate_registration_insert;",
+);
+assert.ok(fixtureTriggerDisable >= 0 && fixtureTriggerDisable < fixtureInsert && fixtureTriggerEnable > fixtureInsert,
+  "only the normal registration-validation trigger may be disabled around the privileged rollback fixture insert");
+assert.equal(
+  tranche16RegistrationFixture.split("ALTER TABLE public.registrations DISABLE TRIGGER").length - 1,
+  1,
+  "the fixture must not disable additional registrations triggers",
+);
+assert.equal(
+  tranche16RegistrationFixture.split("ALTER TABLE public.registrations ENABLE TRIGGER").length - 1,
+  1,
+  "the fixture must restore the normal registration-validation trigger before issuer tests continue",
+);
+
 const tranche16Review = draft.match(
   /CREATE OR REPLACE FUNCTION public\.review_registration\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
