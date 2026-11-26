@@ -41,6 +41,62 @@ for (const table of review.tables) {
   assert.ok(table.negative_tests.length > 0, "negative test evidence missing: " + table.table);
 }
 
+const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
+assert.equal(chatTables.length, 5);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 5);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 18);
+assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
+assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
+  repository: "taufx98/sykabelajar4.0",
+  ref: "main",
+  path: "supabase/migrations/20261105053729_retire_chat_system.sql",
+  blob_sha: "4628824aad895fa8419e49cf9b6774ab764f5592",
+});
+const stage3Regression = read("scripts/auth-migration/stage3-issuer-guard-regression.sql");
+for (const table of chatTables) {
+  const audit = table.authorization_path_review;
+  assert.equal(table.authorization_path_review_status, "verified_retired_browser_access");
+  assert.equal(audit.boundary, "retired_chat_browser_access");
+  assert.equal(audit.browser_rpc_execute, "revoked_for_public_anon_authenticated");
+  assert.equal(audit.direct_table_access, "revoked_for_public_anon_authenticated");
+  assert.equal(audit.chat_realtime, "removed_from_supabase_realtime");
+  assert.equal(audit.row_retention, "tables_and_rows_retained");
+  assert.equal(table.rls_enabled, true);
+  assert.equal(table.policy_count, 0);
+  assert.deepEqual(table.direct_table_acl_privileges_after_stage5_expected ?? table.direct_browser_privileges_after_stage5_expected, []);
+  assert.deepEqual(table.service_role_privileges, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+  for (const caller of table.source_callers) {
+    if (caller.signature === "public.admin_force_delete_competition(p_competition_id uuid, p_reason text)") {
+      assert.equal(table.table, "chat_groups");
+      assert.equal(caller.anon_execute, false);
+      assert.equal(caller.authenticated_execute, true);
+      assert.equal(caller.service_role_execute, true);
+      continue;
+    }
+    assert.equal(caller.anon_execute, false, "retired chat caller must not expose anon EXECUTE: " + caller.signature);
+    assert.equal(caller.authenticated_execute, false, "retired chat caller must not expose authenticated EXECUTE: " + caller.signature);
+  }
+}
+const chatGroups = chatTables.find((table) => table.table === "chat_groups");
+assert.deepEqual(chatGroups.authorization_path_review.exceptional_non_chat_callers, [{
+  signature: "public.admin_force_delete_competition(p_competition_id uuid, p_reason text)",
+  boundary: "better_auth_admin_only",
+  tests: [
+    "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_force_delete_competition",
+    "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_force_delete_competition",
+  ],
+}]);
+for (const marker of [
+  "STAGE3_LEGACY_ADMIN_RPC_ALLOWED:admin_force_delete_competition",
+  "STAGE3_BETTER_AUTH_ADMIN_RPC_ISSUER_GATE_FAILED:admin_force_delete_competition",
+]) assert.ok(stage3Regression.includes(marker), "missing admin-force-delete issuer regression: " + marker);
+for (const marker of [
+  "STAGE7_RLS_REVIEW_ANON_PRIVATE_SCHEMA_USAGE_REMAINS",
+  "STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_USAGE_REMAINS",
+  "STAGE7_RLS_REVIEW_ANON_PRIVATE_SCHEMA_CREATE_REMAINS",
+  "STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_CREATE_REMAINS",
+]) assert.ok(regression.includes(marker), "missing private-schema runtime assertion: " + marker);
+
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);
 for (const name of ["competition_status_history", "notification_deliveries", "supabase_system_logs"]) {
   assert.ok(stage5.includes("public." + name), "Stage 5 ACL draft must cover " + name);
