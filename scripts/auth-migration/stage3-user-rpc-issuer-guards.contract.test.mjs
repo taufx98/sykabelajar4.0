@@ -36,6 +36,12 @@ assert.ok(
   "Better Auth issuer must be checked before reading certificate pricing.",
 );
 
+assert.match(certificateOrderDefinition,
+  /v_cp\.managed_by_user_id\s*=\s*v_uid[\s\S]*?private\.current_user_is_admin\(\)/i,
+  "Collective certificate Admin override must use the Stage 3 issuer-gated shared role helper.");
+assert.doesNotMatch(certificateOrderDefinition, /FROM\s+(?:public\.)?user_roles\b/i,
+  "Collective certificate order must not read legacy user_roles directly.");
+
 const supplementalNames = new Set([...supplemental.matchAll(
   /CREATE OR REPLACE FUNCTION public\.([a-z_][a-z0-9_]*)\s*\(/gi,
 )].map((m) => m[1].toLowerCase()));

@@ -1377,7 +1377,7 @@ begin
   if v_cert.status not in ('ELIGIBLE','DRAFT') then raise exception 'CERTIFICATE_NOT_ORDERABLE'; end if;
   select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;
   if not found then raise exception 'PARTICIPANT_NOT_FOUND'; end if;
-  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or exists(select 1 from public.user_roles ur where ur.user_id=v_uid and ur.role='admin' and ur.is_active=true)) then raise exception 'FORBIDDEN'; end if;
+  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception 'FORBIDDEN'; end if;
   select o.* into v_order
     from public.collective_certificate_orders cco
     join public.orders o on o.id=cco.order_id
