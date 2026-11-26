@@ -865,6 +865,48 @@ BEGIN
     RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_RESULT_BADGES_ALLOWED';
   END IF;
 
+  -- Public results are available only after publication on a PUBLIC competition.
+  v_detail := public.get_public_competition_results('stage3-public-result-probe', 100, 0);
+  IF v_detail->'competition'->>'slug' IS DISTINCT FROM 'stage3-public-result-probe'
+     OR coalesce((v_detail->>'result_count')::integer, 0) < 1
+     OR jsonb_array_length(coalesce(v_detail->'results', '[]'::jsonb)) < 1 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_RESULTS_READ_FAILED:%', v_detail;
+  END IF;
+  IF (v_detail->'results'->0) ? 'answers'
+     OR (v_detail->'results'->0) ? 'answer_key'
+     OR (v_detail->'results'->0) ? 'social_proof_url'
+     OR (v_detail->'results'->0) ? 'registration_metadata' THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_RESULTS_PRIVATE_FIELDS_LEAKED:%', v_detail;
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_public_competition_results('stage3-unpublished-result-probe', 100, 0);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_RESULTS_NOT_FOUND' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_public_competition_results('stage7-tranche12-collective-result-probe', 100, 0);
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_RESULTS_NOT_FOUND' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED';
+  END IF;
+
   -- The social summary deliberately has no anon/PUBLIC EXECUTE grant.
   IF has_function_privilege('anon', 'public.get_public_profile_social(uuid)'::regprocedure, 'EXECUTE') THEN
     RAISE EXCEPTION 'STAGE3_ANON_SOCIAL_SUMMARY_GRANT_REMAINS';

@@ -71,6 +71,9 @@ jobs:
       - name: Verify all 23 application RLS table-boundary reviews
         run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
 
+      - name: Verify Stage 7 public shop-promo banner RPC contract
+        run: node scripts/auth-migration/stage7-public-shop-banner-rpc.contract.test.mjs
+
       - name: Verify Stage 7 disposable no-browser table ACL restore contract
         run: node scripts/auth-migration/stage7-disposable-table-acl-restore.contract.test.mjs
 

@@ -1389,4 +1389,14 @@ assert.ok(regression.includes("'66666666-6666-4666-8666-666666666691'"));
 assert.ok(regression.includes("'Stage 7 Tranche 16 owner custom plan probe'"));
 assert.match(regression, /RESET ROLE;\s*ROLLBACK;\s*$/i);
 
+for (const marker of [
+  "STAGE3_ANON_PUBLIC_RESULTS_READ_FAILED",
+  "STAGE3_ANON_PUBLIC_RESULTS_PRIVATE_FIELDS_LEAKED",
+  "STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED",
+  "STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED",
+]) assert.ok(regression.includes(marker), "missing public competition result caller assertion: " + marker);
+assert.ok(regression.includes("public.get_public_competition_results('stage3-public-result-probe', 100, 0)"));
+assert.ok(regression.includes("public.get_public_competition_results('stage3-unpublished-result-probe', 100, 0)"));
+assert.ok(regression.includes("public.get_public_competition_results('stage7-tranche12-collective-result-probe', 100, 0)"));
+
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
