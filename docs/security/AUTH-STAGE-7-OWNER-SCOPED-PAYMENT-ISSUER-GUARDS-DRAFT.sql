@@ -131,12 +131,8 @@ BEGIN
   );
   v_definition := pg_catalog.pg_get_functiondef(v_oid);
 
-  IF pg_catalog.position(
-       'v_price numeric := public.get_collective_certificate_price();' IN v_definition
-     ) = 0
-     OR pg_catalog.position(
-       E'begin\n  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;' IN v_definition
-     ) = 0 THEN
+  IF pg_catalog.strpos(v_definition, 'v_price numeric := public.get_collective_certificate_price();') = 0
+     OR pg_catalog.strpos(v_definition, E'begin\n  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;') = 0 THEN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_PATCH_ANCHOR_DRIFT';
   END IF;
 
@@ -156,12 +152,8 @@ BEGIN
       || E'  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;'
   );
 
-  IF pg_catalog.position('private.current_user_is_better_auth()' IN v_definition) = 0
-     OR pg_catalog.position(
-          'private.current_user_is_better_auth()' IN v_definition
-        ) > pg_catalog.position(
-          'public.get_collective_certificate_price()' IN v_definition
-        ) THEN
+  IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') = 0
+     OR pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') > pg_catalog.strpos(v_definition, 'public.get_collective_certificate_price()') THEN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_PATCH_POSTCONDITION_FAILED';
   END IF;
 
@@ -172,9 +164,7 @@ BEGIN
   );
   v_definition := pg_catalog.pg_get_functiondef(v_oid);
 
-  IF pg_catalog.position(
-       E'begin\n if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;' IN v_definition
-     ) = 0 THEN
+  IF pg_catalog.strpos(v_definition, E'begin\n if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;') = 0 THEN
     RAISE EXCEPTION 'STAGE7_ORGANIZER_PLAN_PATCH_ANCHOR_DRIFT';
   END IF;
 
@@ -187,9 +177,9 @@ BEGIN
       || E' if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'
   );
 
-  IF pg_catalog.position('private.current_user_is_better_auth()' IN v_definition) = 0
-     OR pg_catalog.position('private.current_user_is_better_auth()' IN v_definition)
-        > pg_catalog.position('private.current_user_is_organizer_for(' IN v_definition) THEN
+  IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') = 0
+     OR pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()')
+        > pg_catalog.strpos(v_definition, 'private.current_user_is_organizer_for(') THEN
     RAISE EXCEPTION 'STAGE7_ORGANIZER_PLAN_PATCH_POSTCONDITION_FAILED';
   END IF;
 
@@ -264,22 +254,22 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_EXECUTE_BOUNDARY_MUTATED:%', v_expected.signature;
     END IF;
 
-    IF pg_catalog.position('private.current_user_is_better_auth()' IN v_source) = 0 THEN
+    IF pg_catalog.strpos(v_source, 'private.current_user_is_better_auth()') = 0 THEN
       RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_ISSUER_GUARD_MISSING:%', v_expected.signature;
     END IF;
 
     IF v_expected.signature LIKE 'create_collective_certificate_order_with_proof(%'
        AND (
-         pg_catalog.position('private.current_user_is_better_auth()' IN v_source)
-         > pg_catalog.position('public.get_collective_certificate_price()' IN v_source)
-         OR pg_catalog.position('v_price numeric := public.get_collective_certificate_price()' IN v_definition) > 0
+         pg_catalog.strpos(v_source, 'private.current_user_is_better_auth()')
+         > pg_catalog.strpos(v_source, 'public.get_collective_certificate_price()')
+         OR pg_catalog.strpos(v_definition, 'v_price numeric := public.get_collective_certificate_price()') > 0
        ) THEN
       RAISE EXCEPTION 'STAGE7_CERTIFICATE_PRICE_READ_PRECEDES_ISSUER_GUARD';
     END IF;
 
     IF v_expected.signature LIKE 'create_organizer_plan_order(%'
-       AND pg_catalog.position('private.current_user_is_better_auth()' IN v_source)
-         > pg_catalog.position('private.current_user_is_organizer_for(' IN v_source) THEN
+       AND pg_catalog.strpos(v_source, 'private.current_user_is_better_auth()')
+         > pg_catalog.strpos(v_source, 'private.current_user_is_organizer_for(') THEN
       RAISE EXCEPTION 'STAGE7_ORGANIZER_MEMBERSHIP_READ_PRECEDES_ISSUER_GUARD';
     END IF;
   END LOOP;
