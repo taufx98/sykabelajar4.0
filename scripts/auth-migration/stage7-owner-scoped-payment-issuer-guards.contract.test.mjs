@@ -64,6 +64,6 @@ assert.ok(workflow.includes("scripts/auth-migration/stage7-owner-scoped-payment-
 assert.match(workflow, /Apply Stage 7 owner-scoped payment issuer guards to disposable restore only/);
 assert.match(workflow, /Run Stage 3 trusted-issuer RLS acceptance on disposable restore/);
 assert.match(workflow, /--file=\/baseline\/stage7-owner-scoped-payment-issuer-guards\.sql/);
-assert.match(workflow, /echo \"- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes\"/);
+assert.match(workflow, /echo "- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes"/);
 
 console.log("Stage 7 owner-scoped payment issuer guard contract passed: exact Production fingerprints, preserved ACL/search_path/signatures, and rollback-only issuer/owner tests.");
