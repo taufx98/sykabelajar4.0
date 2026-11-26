@@ -271,14 +271,17 @@ assert.ok(provisioningRegression.includes("public.create_organizer('Better Auth 
 assert.ok(provisioningRegression.includes("STAGE3_BETTER_AUTH_PHONE_REUSE_WAS_ALLOWED"));
 
 const referralSettings = privateTables.find((table) => table.table === "referral_program_settings");
-for (const signature of [
+for (const signaturePrefix of [
   "public.admin_update_referral_program_settings(",
   "public.admin_update_referral_program_settings_v2(",
   "public.get_referral_program_settings()",
   "public.get_referral_program_settings_v2()",
   "public.register_for_competition(",
   "public.better_auth_provision_user(",
-]) assert.ok(referralSettings.authorization_path_review.permitted_callers.includes(signature));
+]) assert.ok(
+  referralSettings.authorization_path_review.permitted_callers.some((signature) => signature.startsWith(signaturePrefix)),
+  "missing permitted referral-settings caller: " + signaturePrefix,
+);
 assert.match(referralSettingsMigration, /REVOKE ALL ON TABLE private\.referral_program_settings FROM PUBLIC, anon, authenticated, service_role/);
 for (const signature of [
   "public.get_referral_program_settings()",
