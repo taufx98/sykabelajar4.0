@@ -652,8 +652,8 @@ assert.match(regression, /STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION/);
 
 
 assert.match(adminRpcBetterAuthBlock,
-  /create_collective_certificate_order[\s\S]*?CERTIFICATE_PRICE_NOT_CONFIGURED/,
-  "Better Auth collective certificate order must pass scoped issuer/owner check and stop before writes when price is unconfigured");
+  /create_collective_certificate_order[\s\S]*?GLOBAL_GATEWAY_NOT_ACTIVE/,
+  "Better Auth collective certificate order must pass the issuer guard and stop at the disabled-gateway precondition before writing an order");
 
 
 const trancheTenFunctionNames = [

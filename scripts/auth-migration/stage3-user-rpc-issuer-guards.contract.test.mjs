@@ -24,6 +24,18 @@ functions.push(
 assert.equal(functions.length, 68,
   "User-bound RPC scope must include 62 personal RPCs, four frontend diagnostics RPCs, and two account-bound order RPCs.");
 
+const certificateOrderDefinition = definitionsFor(supplemental, "create_collective_certificate_order")[0] ?? "";
+assert.ok(certificateOrderDefinition, "Missing guarded create_collective_certificate_order(uuid) replacement.");
+assert.match(certificateOrderDefinition, /v_price numeric;/,
+  "Certificate price must not be read in DECLARE before the issuer check.");
+assert.doesNotMatch(certificateOrderDefinition, /v_price numeric := public\.get_collective_certificate_price\(\)/,
+  "Certificate price initializer must be removed from DECLARE.");
+assert.ok(
+  certificateOrderDefinition.indexOf("private.current_user_is_better_auth()") <
+    certificateOrderDefinition.indexOf("public.get_collective_certificate_price()"),
+  "Better Auth issuer must be checked before reading certificate pricing.",
+);
+
 const supplementalNames = new Set([...supplemental.matchAll(
   /CREATE OR REPLACE FUNCTION public\.([a-z_][a-z0-9_]*)\s*\(/gi,
 )].map((m) => m[1].toLowerCase()));
