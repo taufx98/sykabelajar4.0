@@ -24,6 +24,12 @@ BEGIN
   IF pg_catalog.has_schema_privilege('authenticated','private','CREATE') THEN
     RAISE EXCEPTION 'STAGE7_RLS_REVIEW_AUTHENTICATED_PRIVATE_SCHEMA_CREATE_REMAINS';
   END IF;
+  IF pg_catalog.has_schema_privilege('service_role','private','USAGE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_USAGE_REMAINS';
+  END IF;
+  IF pg_catalog.has_schema_privilege('service_role','private','CREATE') THEN
+    RAISE EXCEPTION 'STAGE7_RLS_REVIEW_SERVICE_ROLE_PRIVATE_SCHEMA_CREATE_REMAINS';
+  END IF;
 END;
 $stage7_private_schema_api_boundary$;
 
