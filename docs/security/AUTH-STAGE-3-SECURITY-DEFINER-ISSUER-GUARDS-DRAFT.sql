@@ -6686,7 +6686,7 @@ BEGIN
     RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED';
   END IF;
 
-  SELECT reg, comp INTO r, c
+  SELECT reg.* INTO r
   FROM public.registrations reg
   JOIN public.competitions comp ON comp.id = reg.competition_id
   WHERE reg.id = p_registration_id
