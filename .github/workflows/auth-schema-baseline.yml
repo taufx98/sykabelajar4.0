@@ -790,7 +790,7 @@ jobs:
               --file=/baseline/stage7-owner-scoped-payment-issuer-guards.sql
           echo "- Added issuer-first Better Auth checks to two owner-scoped checkout SECURITY DEFINER RPCs; no Production writes" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Apply Stage 7 post-Stage-3 user RPC issuer guards to disposable restore only
+      - name: Verify Stage 7 post-Stage-3 user RPC issuer guards and restore exact ACLs in disposable restore only
         if: steps.credentials.outputs.available == 'true'
         run: |
           set -euo pipefail

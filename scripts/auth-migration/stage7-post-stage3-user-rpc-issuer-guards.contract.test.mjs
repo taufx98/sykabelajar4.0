@@ -55,8 +55,6 @@ for (const marker of [
   "STAGE7_POST_STAGE3_RPC_SOURCE_OR_METADATA_DRIFT",
   "STAGE7_POST_STAGE3_RPC_ACL_RESTORE_POSTCONDITION_FAILED",
   "STAGE7_POST_STAGE3_RPC_ACL_GRANTEE_SET_DRIFT",
-  "STAGE7_POST_STAGE3_RPC_AUTH_ANCHOR_DRIFT",
-  "STAGE7_POST_STAGE3_RPC_ISSUER_GUARD_POSTCONDITION_FAILED",
   "STAGE7_POST_STAGE3_RPC_METADATA_OR_ACL_MUTATED",
   "STAGE7_POST_STAGE3_RPC_EXECUTE_BOUNDARY_MUTATED",
   "STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT",
@@ -67,12 +65,12 @@ for (const marker of [
 }
 
 assert.match(draft, /private\.current_user_is_better_auth\(\)/);
-assert.ok(draft.includes("v_begin_position := pg_catalog.strpos(v_expected.auth_anchor, 'begin')"));
-assert.match(draft, /pg_catalog\.substr\(v_expected\.auth_anchor, v_begin_position \+ 5\)/);
-assert.doesNotMatch(draft, /pg_catalog\.substring\(v_expected\.auth_anchor FROM/);
+assert.doesNotMatch(draft, /DO \$stage7_post_stage3_user_rpc_patch\$/,
+  "Stage 3 already installs all eight issuer guards; Stage 7 must verify exact bodies and must not inject duplicate guards.");
+assert.ok(draft.includes("md5(v_source) IS DISTINCT FROM v_expected.source_md5"),
+  "Postflight must preserve each exact post-Stage-3 function body.");
 
-assert.ok(draft.includes("v_replacement := 'begin' || E'\\n  ' || v_guard"),
-  "Issuer check must be injected inside BEGIN, before auth.uid and table access.");
+
 assert.ok(draft.includes("v_oid := pg_catalog.to_regprocedure(v_expected.signature);"));
 assert.ok(runtime.includes("INSERT INTO private.app_users (id, identity_origin)"),
   "Independent acceptance must seed its Better Auth identity in the rollback transaction.");
@@ -118,7 +116,7 @@ assert.match(runtime, /ROLLBACK;/);
 assert.ok(workflow.includes("docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"));
 assert.ok(workflow.includes("scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.contract.test.mjs"));
 assert.ok(workflow.includes("scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.regression.sql"));
-assert.match(workflow, /Apply Stage 7 post-Stage-3 user RPC issuer guards to disposable restore only/);
+assert.match(workflow, /Verify Stage 7 post-Stage-3 user RPC issuer guards and restore exact ACLs in disposable restore only/);
 assert.match(workflow, /Run Stage 7 post-Stage-3 user RPC issuer acceptance on disposable restore only/);
 assert.ok(prWorkflow.includes("stage7-post-stage3-user-rpc-issuer-guards.contract.test.mjs"));
 
