@@ -331,7 +331,7 @@ assert.deepEqual(referralAwards.authorization_path_review.internal_callers, [
 assert.match(referralAwardsMigration, /REVOKE ALL ON TABLE private\.referral_tier_awards FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(referralAwardsMigration, /REVOKE ALL ON FUNCTION private\.apply_referral_milestone_rewards\(uuid\) FROM PUBLIC, anon, authenticated, service_role/);
 assert.match(referralAwardsMigration, /CREATE TRIGGER trg_capture_referral_milestone_reward[\s\S]*?EXECUTE FUNCTION private\.capture_referral_milestone_reward\(\)/);
-assert.ok(userIssuerContract.includes("get_my_referral_tier_awards"));
+assert.ok(earlierIssuerDraft.includes("CREATE OR REPLACE FUNCTION public.get_my_referral_tier_awards()"));
 assert.ok(userIssuerContract.includes("68 user-bound SECURITY DEFINER signatures"));
 for (const marker of [
   "STAGE3_BETTER_AUTH_REFERRAL_PENDING_EVENT_MISSING",
