@@ -114,7 +114,7 @@ BEGIN
       AND p.prosecdef
       AND coalesce(array_to_string(p.proconfig, ', '), '') = 'search_path=""'
       AND p.prorettype = 'trigger'::regtype
-      AND p.proargtypes::oid[] = ARRAY[]::oid[]
+      AND pg_catalog.cardinality(p.proargtypes::oid[]) = 0
       -- The schema-only dump may preserve the Production default PUBLIC ACL
       -- (PUBLIC + owner) or restore an explicit owner-only ACL. Both are safe
       -- inputs here because this helper is private-schema-only and is revoked

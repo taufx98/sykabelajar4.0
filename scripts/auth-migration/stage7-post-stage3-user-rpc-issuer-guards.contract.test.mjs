@@ -85,6 +85,10 @@ assert.doesNotMatch(draft, /p\.proacl IS NULL/,
 assert.ok(draft.includes("STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT:expected_md5=%:actual_md5=%"));
 assert.ok(draft.includes("n.nspname = 'private'"));
 assert.ok(draft.includes("p.proname = 'sync_shop_voucher_order_status'"));
+assert.match(draft, /pg_catalog\.cardinality\(p\.proargtypes::oid\[\]\)\s*=\s*0/,
+  "Zero-argument voucher trigger must be checked by cardinality; empty-array equality is not stable for oidvector casts.");
+assert.doesNotMatch(draft, /p\.proargtypes::oid\[\]\s*=\s*ARRAY\[\]::oid\[\]/);
+
 assert.doesNotMatch(draft, /b\.signature\s*=/,
   "Trigger preflight must not depend on search_path-sensitive regprocedure display text.");
 
