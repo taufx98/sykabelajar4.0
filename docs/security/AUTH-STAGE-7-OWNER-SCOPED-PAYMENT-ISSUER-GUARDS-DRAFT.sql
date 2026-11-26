@@ -102,10 +102,8 @@ BEGIN
       RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_FINGERPRINT_OR_METADATA_DRIFT:%', v_expected.signature;
     END IF;
 
-    IF v_public_execute OR v_anon_execute
-       OR NOT v_authenticated_execute OR NOT v_service_role_execute THEN
-      RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_ACL_DRIFT:%', v_expected.signature;
-    END IF;
+    -- Per-function ACLs are restored immediately after this exact
+    -- source/owner/search_path preflight, using the read-only Production catalog.
   END LOOP;
 
   SELECT count(*) INTO v_count
@@ -119,6 +117,143 @@ BEGIN
   END IF;
 END;
 $stage7_owner_scoped_payment_rpc_preflight$;
+
+-- Schema-only pg_dump does not reproduce function grants for signatures
+-- outside the existing 59-function ACL allowlist. Reconstruct only these two
+-- exact Production ACLs in this disposable restore (read-only catalog source):
+-- postgres owner, authenticated + service_role EXECUTE; no PUBLIC or anon.
+REVOKE ALL PRIVILEGES ON FUNCTION
+  public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  public.create_collective_certificate_order_with_proof(uuid,text,text,text,integer,integer,text,text,text)
+  TO authenticated, service_role;
+
+REVOKE ALL PRIVILEGES ON FUNCTION
+  public.create_organizer_plan_order(uuid,text,text,text,text,text,text,jsonb,uuid,text,text,integer,integer,text,text,text)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  public.create_organizer_plan_order(uuid,text,text,text,text,text,text,jsonb,uuid,text,text,integer,integer,text,text,text)
+  TO authenticated, service_role;
+
+-- Update the disposable snapshot only after the ACL has been reconstructed.
+UPDATE stage7_owner_scoped_payment_rpc_before b
+SET proacl = p.proacl
+FROM pg_catalog.pg_proc p
+WHERE p.oid = b.oid;
+
+DO $stage7_owner_scoped_payment_rpc_acl_preflight$
+DECLARE
+  v_expected record;
+  v_acl_count integer;
+  v_public_execute boolean;
+  v_anon_execute boolean;
+  v_authenticated_execute boolean;
+  v_service_role_execute boolean;
+  v_postgres_execute boolean;
+BEGIN
+  FOR v_expected IN
+    SELECT signature, oid FROM stage7_owner_scoped_payment_rpc_before
+  LOOP
+    SELECT
+      (
+        SELECT count(*)
+        FROM pg_catalog.aclexplode(
+          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        )
+      ),
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.aclexplode(
+          coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        ) acl
+        WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+      ),
+      pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE'),
+      pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE'),
+      pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE'),
+      pg_catalog.has_function_privilege('postgres', p.oid, 'EXECUTE')
+    INTO
+      v_acl_count,
+      v_public_execute,
+      v_anon_execute,
+      v_authenticated_execute,
+      v_service_role_execute,
+      v_postgres_execute
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid = v_expected.oid;
+
+    IF v_acl_count <> 3
+       OR v_public_execute
+       OR v_anon_execute
+       OR NOT v_authenticated_execute
+       OR NOT v_service_role_execute
+       OR NOT v_postgres_execute THEN
+      RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_ACL_RESTORE_POSTCONDITION_FAILED:%:entries=%:public=%:anon=%:authenticated=%:service_role=%:postgres=%',
+        v_expected.signature,
+        v_acl_count,
+        v_public_execute,
+        v_anon_execute,
+        v_authenticated_execute,
+        v_service_role_execute,
+        v_postgres_execute;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_proc p
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+      ) acl
+      LEFT JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+      LEFT JOIN pg_catalog.pg_roles grantor ON grantor.oid = acl.grantor
+      WHERE p.oid = v_expected.oid
+        AND (
+          grantee.rolname IS NULL
+          OR grantee.rolname NOT IN ('postgres','authenticated','service_role')
+          OR grantor.rolname IS DISTINCT FROM 'postgres'
+          OR acl.privilege_type IS DISTINCT FROM 'EXECUTE'
+          OR acl.is_grantable
+        )
+    ) THEN
+      RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_ACL_ENTRY_DRIFT:%', v_expected.signature;
+    END IF;
+
+    IF NOT EXISTS (
+         SELECT 1
+         FROM pg_catalog.pg_proc p
+         CROSS JOIN LATERAL pg_catalog.aclexplode(p.proacl) acl
+         JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+         WHERE p.oid = v_expected.oid
+           AND grantee.rolname = 'postgres'
+           AND acl.privilege_type = 'EXECUTE'
+           AND NOT acl.is_grantable
+       )
+       OR NOT EXISTS (
+         SELECT 1
+         FROM pg_catalog.pg_proc p
+         CROSS JOIN LATERAL pg_catalog.aclexplode(p.proacl) acl
+         JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+         WHERE p.oid = v_expected.oid
+           AND grantee.rolname = 'authenticated'
+           AND acl.privilege_type = 'EXECUTE'
+           AND NOT acl.is_grantable
+       )
+       OR NOT EXISTS (
+         SELECT 1
+         FROM pg_catalog.pg_proc p
+         CROSS JOIN LATERAL pg_catalog.aclexplode(p.proacl) acl
+         JOIN pg_catalog.pg_roles grantee ON grantee.oid = acl.grantee
+         WHERE p.oid = v_expected.oid
+           AND grantee.rolname = 'service_role'
+           AND acl.privilege_type = 'EXECUTE'
+           AND NOT acl.is_grantable
+       ) THEN
+      RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_ACL_GRANTEE_SET_DRIFT:%', v_expected.signature;
+    END IF;
+  END LOOP;
+END;
+$stage7_owner_scoped_payment_rpc_acl_preflight$;
 
 DO $stage7_owner_scoped_payment_rpc_patch$
 DECLARE
