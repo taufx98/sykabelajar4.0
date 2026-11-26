@@ -76,6 +76,17 @@ assert.ok(runtime.includes("INSERT INTO private.app_users (id, identity_origin)"
 assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
 assert.equal((draft.match(/'BETTER_AUTH_ISSUER_REQUIRED'/g) ?? []).length, 1);
 assert.match(draft, /REVOKE ALL PRIVILEGES ON FUNCTION private\.sync_shop_voucher_order_status\(\)/);
+assert.ok(draft.includes(") IN (1, 2)"),
+  "Trigger preflight may accept only the default PUBLIC+postgres ACL or normalized postgres-only ACL.");
+assert.ok(draft.includes("grantee.rolname = 'postgres'"));
+assert.ok(draft.includes("acl.grantee = 0"));
+assert.doesNotMatch(draft, /p\.proacl IS NULL/,
+  "The schema-only restore may represent the same safe ACL as an explicit owner-only ACL.");
+assert.ok(draft.includes("STAGE7_VOUCHER_TRIGGER_FUNCTION_FINGERPRINT_OR_ACL_DRIFT:expected_md5=%:actual_md5=%"));
+assert.ok(draft.includes("b.signature = 'private.sync_shop_voucher_order_status()'"),
+  "Private trigger signature snapshot must match pg_regprocedure's schema-qualified output.");
+
+
 assert.equal(draft.split("REVOKE ALL PRIVILEGES ON FUNCTION public.").length - 1, 8,
   "Reconstruct only eight reviewed user RPC ACLs in the disposable restore.");
 assert.equal(draft.split("GRANT EXECUTE ON FUNCTION public.").length - 1, 8);
