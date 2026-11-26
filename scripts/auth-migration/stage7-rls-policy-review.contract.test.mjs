@@ -10,6 +10,7 @@ const inventory = JSON.parse(read("docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVE
 const review = JSON.parse(read("docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"));
 const stage5 = read("docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql");
 const regression = read("scripts/auth-migration/stage7-rls-policy-review-regression.sql");
+const workflow = read(".github/workflows/auth-schema-baseline.yml");
 
 const expected = inventory.tables
   .filter((t) => ["public", "private"].includes(t.schema))
