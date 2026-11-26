@@ -797,6 +797,23 @@ jobs:
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-rls-policy-review.contract.test.mjs
 
+      - name: Test Stage 7 public shop-promo banner RPC contract
+        if: steps.credentials.outputs.available == 'true'
+        run: node scripts/auth-migration/stage7-public-shop-banner-rpc.contract.test.mjs
+
+      - name: Run Stage 7 public shop-promo banner RPC acceptance on disposable restore
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$GITHUB_WORKSPACE/scripts/auth-migration/stage7-public-shop-banner-rpc-regression.sql:/baseline/stage7-public-shop-banner-rpc-regression.sql:ro" \
+            postgres:17.6-alpine \
+            psql "postgresql://postgres:postgres@127.0.0.1:55432/postgres" \
+              -X -q --set=ON_ERROR_STOP=1 \
+              --file=/baseline/stage7-public-shop-banner-rpc-regression.sql
+          echo "- Verified active-only public banner read, duplicate-safe VIEW/CLICK events, invalid input rejection and browser table default-deny in a rollback-only disposable fixture" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Test Stage 7 collective portal token boundary contract
         if: steps.credentials.outputs.available == 'true'
         run: node scripts/auth-migration/stage7-collective-portal-token.contract.test.mjs
