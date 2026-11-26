@@ -10,6 +10,7 @@ const inventory = JSON.parse(read("docs/security/AUTH-STAGE-7-RLS-NO-POLICY-INVE
 const review = JSON.parse(read("docs/security/AUTH-STAGE-7-RLS-POLICY-REVIEW-2026-11-22.json"));
 const stage5 = read("docs/security/AUTH-STAGE-5-NO-POLICY-TABLE-ACL-DRAFT.sql");
 const regression = read("scripts/auth-migration/stage7-rls-policy-review-regression.sql");
+const workflow = read(".github/workflows/auth-schema-baseline.yml");
 
 const expected = inventory.tables
   .filter((t) => ["public", "private"].includes(t.schema))
@@ -79,6 +80,45 @@ for (const table of review.tables) {
 
 const chatTables = review.tables.filter((table) => table.table.startsWith("chat_group"));
 assert.equal(chatTables.length, 5);
+
+const systemLogAclRestore = read("docs/security/AUTH-STAGE-7-SYSTEM-LOG-COLLECTOR-ACL-RESTORE.sql");
+const notificationDeliveries = review.tables.find((table) => table.schema === "public" && table.table === "notification_deliveries");
+const systemLogs = review.tables.find((table) => table.schema === "public" && table.table === "supabase_system_logs");
+assert.ok(notificationDeliveries);
+assert.deepEqual(notificationDeliveries.source_callers, [],
+  "notification_deliveries has no reviewed SECURITY DEFINER caller");
+assert.equal(notificationDeliveries.authorization_path_review_status, "pending_security_definer_audit");
+assert.ok(systemLogs);
+assert.deepEqual(systemLogs.source_callers.map((caller) => caller.signature), [
+  "public.fetch_and_save_supabase_logs()",
+]);
+assert.equal(systemLogs.source_callers[0].security_definer, true);
+assert.equal(systemLogs.source_callers[0].anon_execute, false);
+assert.equal(systemLogs.source_callers[0].authenticated_execute, false);
+assert.equal(systemLogs.source_callers[0].service_role_execute, true);
+assert.equal(systemLogs.authorization_path_review_status, "pending_security_definer_audit");
+assert.match(systemLogAclRestore, /5d0e79655d70a9019040ab9f4d529c88/);
+assert.match(systemLogAclRestore, /search_path=public, extensions, pg_catalog/);
+assert.match(systemLogAclRestore, /REVOKE ALL PRIVILEGES ON FUNCTION public\.fetch_and_save_supabase_logs\(\)/);
+assert.match(systemLogAclRestore, /GRANT EXECUTE ON FUNCTION public\.fetch_and_save_supabase_logs\(\)\s+TO service_role/);
+assert.match(systemLogAclRestore, /STAGE7_SYSTEM_LOG_COLLECTOR_ACL_RESTORE_FAILED/);
+assert.doesNotMatch(systemLogAclRestore, /ALTER TABLE|INSERT INTO|UPDATE public[.]|DELETE FROM|TRUNCATE/i);
+for (const marker of [
+  "STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_FUNCTION_CALLER",
+  "STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_TRIGGER",
+  "STAGE7_NOTIFICATION_DELIVERIES_UNREVIEWED_VIEW",
+  "STAGE7_NOTIFICATION_DELIVERIES_REALTIME_PUBLICATION_FOUND",
+  "STAGE7_SYSTEM_LOG_COLLECTOR_TRUSTED_CALLER_BOUNDARY_FAILED",
+  "STAGE7_SYSTEM_LOG_COLLECTOR_ACL_COUNT_DRIFT",
+  "STAGE7_SYSTEM_LOGS_UNREVIEWED_TRIGGER_OR_REALTIME_ENTRYPOINT",
+]) assert.ok(regression.includes(marker), "missing log-table caller runtime assertion: " + marker);
+
+const applySystemLogAcl = workflow.indexOf("- name: Apply Stage 7 system-log collector ACL to disposable restore only");
+const applyStage5NoPolicy = workflow.indexOf("- name: Apply Stage 5 no-policy table ACL draft to disposable restore only");
+const verify23 = workflow.indexOf("- name: Verify all 23 RLS table boundaries after Stage 5 on disposable restore");
+assert.ok(applySystemLogAcl > applyStage5NoPolicy && verify23 > applySystemLogAcl,
+  "system-log collector ACL restore must run after Stage 5 browser revoke and before the 23-table verification");
+
 assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
 assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
