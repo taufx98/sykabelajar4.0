@@ -677,7 +677,7 @@ for (const table of examTables) {
       .split(", ")
       .map((argument) => argument.slice(argument.indexOf(" ") + 1))
       .join(",");
-    const identitySignature = signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1] +
+    const identitySignature = "public." + signature.match(/^public\.([a-z_][a-z0-9_]*)\(/)?.[1] +
       "(" + identityArguments + ")";
     assert.ok(examUserRpcDraft.includes("'" + identitySignature + "'"),
       "missing Better Auth guarded exam RPC identity signature: " + identitySignature);
