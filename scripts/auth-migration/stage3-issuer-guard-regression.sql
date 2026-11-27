@@ -2553,6 +2553,26 @@ SELECT count(*) INTO v_count
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_FOREIGN_OWNER_NOT_DENIED';
   END IF;
 
+  -- A legacy Supabase Auth issuer cannot reach certificate ownership or
+  -- payment gateway state even with the correct participant UUID.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','ffffffff-ffff-4fff-8fff-fffffffffff6',TRUE);
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.create_collective_certificate_order(
+      '88888888-8888-4888-8888-888888888894'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_LEGACY_ISSUER_NOT_DENIED';
+  END IF;
+
   -- A Better Auth Admin is allowed through owner scope; the global gateway is
   -- disabled in this disposable baseline, so no order is written.
   PERFORM set_config(
