@@ -317,7 +317,7 @@ assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-
 
 
 const profilePrivacyPreflight = draft.match(
-  /DO \$stage7_profile_privacy_fingerprint_preflight\$[\\s\\S]*?\$stage7_profile_privacy_fingerprint_preflight\$;/i,
+  /DO \$stage7_profile_privacy_fingerprint_preflight\$[\s\S]*?\$stage7_profile_privacy_fingerprint_preflight\$;/i,
 )?.[0] ?? "";
 assert.ok(profilePrivacyPreflight, "missing exact Production profile RPC fingerprint/ACL preflight");
 assert.ok(
