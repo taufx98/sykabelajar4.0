@@ -257,6 +257,12 @@ BEGIN
       coalesce(v_error, '<no error>');
   END IF;
 
+  -- Reset A's marker so B's subsequent mark-seen call proves it cannot
+  -- touch A's voucher while marking B's row.
+  UPDATE public.shop_user_vouchers
+  SET viewed_at = NULL
+  WHERE id = v_voucher_a;
+
   -- Switch to B. B sees/marks only B's voucher and cannot address A's request.
   PERFORM set_config(
     'request.jwt.claims',
@@ -287,7 +293,7 @@ BEGIN
        SELECT 1 FROM public.shop_user_vouchers
        WHERE id = v_voucher_b AND viewed_at IS NOT NULL
      )
-     OR NOT EXISTS (
+     OR EXISTS (
        SELECT 1 FROM public.shop_user_vouchers
        WHERE id = v_voucher_a AND viewed_at IS NOT NULL
      ) THEN
