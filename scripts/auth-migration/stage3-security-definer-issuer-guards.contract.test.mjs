@@ -1468,8 +1468,14 @@ for (const marker of [
 assert.ok(regression.includes("public.transition_competition("));
 assert.ok(regression.includes("'44444444-4444-4444-8444-444444444441'::uuid"));
 
-const tranche16AcceptedReport = read("docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-16-2026-11-27.md");
-const securityDefinerGate = read("docs/security/AUTH-STAGE-7-SECURITY-DEFINER-AUDIT-GATE.md");
+const tranche16AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-16-2026-11-27.md"),
+  "utf8",
+);
+const securityDefinerGate = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-AUDIT-GATE.md"),
+  "utf8",
+);
 for (const marker of [
   "choose_organizer_plan(uuid,text)",
   "get_organizer_competition_result_overview(uuid,integer,integer)",
