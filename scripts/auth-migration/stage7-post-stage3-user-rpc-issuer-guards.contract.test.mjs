@@ -48,6 +48,8 @@ for (const target of targets) {
     "Stage 3 issuer replacement changed after its preflight fingerprint was reviewed: " + target.signature);
   assert.ok(body.includes("private.current_user_is_better_auth()"),
     "Stage 3 replacement must already include the Better Auth issuer check: " + target.signature);
+  assert.ok(body.includes("'BETTER_AUTH_ISSUER_REQUIRED'"),
+    "Stage 3 replacement must fail closed for a legacy issuer: " + target.signature);
 }
 
 for (const marker of [
@@ -74,8 +76,6 @@ assert.ok(draft.includes("md5(v_source) IS DISTINCT FROM v_expected.source_md5")
 assert.ok(draft.includes("v_oid := pg_catalog.to_regprocedure(v_expected.signature);"));
 assert.ok(runtime.includes("INSERT INTO private.app_users (id, identity_origin)"),
   "Independent acceptance must seed its Better Auth identity in the rollback transaction.");
-assert.match(draft, /BETTER_AUTH_ISSUER_REQUIRED/);
-assert.equal((draft.match(/'BETTER_AUTH_ISSUER_REQUIRED'/g) ?? []).length, 1);
 assert.match(draft, /REVOKE ALL PRIVILEGES ON FUNCTION private\.sync_shop_voucher_order_status\(\)/);
 assert.ok(draft.includes(") IN (1, 2)"),
   "Trigger preflight may accept only the default PUBLIC+postgres ACL or normalized postgres-only ACL.");
