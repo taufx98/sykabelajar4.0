@@ -1462,6 +1462,110 @@ $function$;
 -- profile owner. They must also reject a legacy Supabase Auth identity when a
 -- user has chosen to hide their connections. Public connections remain public
 -- when the owner's existing show_*_popup setting allows it.
+-- Fail closed if any reviewed Production profile projection changes before
+-- the Stage 3 replacement. The ACL snapshot deliberately preserves public
+-- reads for four constrained projections and records the social RPC's legacy
+-- PUBLIC/anon grants before they are narrowed below.
+DO $stage7_profile_privacy_fingerprint_preflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_source_md5 text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      (
+        'public.get_profile_connections(uuid,text)',
+        '85c419635f365e1af49ba0dddda9701c',
+        'search_path=public',
+        '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres,anon=X/postgres}',
+        'TABLE(id uuid, username text, full_name text, avatar_url text, verification_type text)',
+        'plpgsql'
+      ),
+      (
+        'public.get_public_profile_badge_visibility(uuid)',
+        '5ab5851b52904c7e0a8f0d1575eaad9c',
+        'search_path=public, private',
+        '{postgres=X/postgres,service_role=X/postgres,anon=X/postgres,authenticated=X/postgres}',
+        'TABLE(show_badges boolean, show_badge_collection boolean)',
+        'sql'
+      ),
+      (
+        'public.get_public_profile_badges(uuid)',
+        'f2fb6078710677182c07096c20a36cdf',
+        'search_path=public, private',
+        '{postgres=X/postgres,service_role=X/postgres,anon=X/postgres,authenticated=X/postgres}',
+        'TABLE(id uuid, name text, description text, icon_url text, icon_emoji text, category text, rarity text, awarded_at timestamp with time zone, reason text, award_source text)',
+        'sql'
+      ),
+      (
+        'public.get_public_profile_ui_settings(uuid)',
+        'b737fddaa31055b691adf65aa2d0f032',
+        'search_path=public, private',
+        '{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}',
+        'TABLE(show_social_popup boolean, show_following_popup boolean)',
+        'sql'
+      ),
+      (
+        'public.get_public_profile_social(uuid)',
+        '11b6f840dab3e234aa82d57993b96ed8',
+        'search_path=public, private',
+        '{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}',
+        'TABLE(follower_count bigint, following_count bigint, follow_status text)',
+        'plpgsql'
+      )
+    ) AS expected(signature, source_md5, settings, acl, return_type, language)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_PROFILE_PRIVACY_FUNCTION_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT
+      md5(p.prosrc),
+      pg_catalog.pg_get_userbyid(p.proowner),
+      p.prosecdef,
+      COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+      p.proacl::text,
+      pg_catalog.pg_get_function_result(p.oid),
+      l.lanname
+    INTO
+      v_source_md5,
+      v_owner,
+      v_security_definer,
+      v_settings,
+      v_acl,
+      v_return_type,
+      v_language
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_language AS l ON l.oid = p.prolang
+    WHERE p.oid = v_oid;
+
+    IF v_source_md5 IS DISTINCT FROM v_expected.source_md5
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM v_expected.acl
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language
+       OR NOT pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION
+        'STAGE7_PROFILE_PRIVACY_FINGERPRINT_OR_ACL_DRIFT:%:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+        v_expected.signature, v_source_md5, v_owner, v_security_definer,
+        v_settings, v_acl, v_return_type, v_language;
+    END IF;
+  END LOOP;
+END;
+$stage7_profile_privacy_fingerprint_preflight$;
+
 CREATE OR REPLACE FUNCTION public.get_profile_connections(
   p_profile_id uuid,
   p_mode text
