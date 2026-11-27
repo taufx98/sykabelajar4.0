@@ -2724,7 +2724,7 @@
       "The direct table checks ran after Stage 5 ACL revoke and the Stage 7 portal/password/legacy-certificate hardening on the disposable restore."
     ],
     "limitations": [
-      "This acceptance covers direct table RLS/ACL boundaries on the disposable schema restore only; SECURITY DEFINER caller review is tracked separately per table.",
+      "This acceptance covers direct table RLS/ACL boundaries only; it does not replace the separate SECURITY DEFINER caller/issuer/token audit, which is tracked per table.",
       "No Production grants, policies, DDL, DML, user rows or account changes are included."
     ]
   },
