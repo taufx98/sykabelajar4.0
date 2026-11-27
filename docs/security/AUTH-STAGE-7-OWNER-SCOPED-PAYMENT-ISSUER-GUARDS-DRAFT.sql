@@ -2,7 +2,7 @@
 -- Applies only to the disposable PostgreSQL 17.6 schema restore in
 -- auth-schema-baseline.yml. Never apply this draft to Production directly.
 --
--- The two functions remain SECURITY DEFINER and retain their owner, EXECUTE
+-- The three functions remain SECURITY DEFINER and retain their owner, EXECUTE
 -- ACL, argument/return signature and search_path. The only behavior change is
 -- an exact Better Auth issuer + private.app_users identity-origin check before
 -- any owner/admin lookup or gateway/certificate configuration read.
@@ -121,7 +121,7 @@ BEGIN
          AND b.source_md5 = '7fae7e641d7bed2a24bacaf3724139e7')
       OR (b.signature = 'create_collective_certificate_order(uuid)'
           AND b.source_md5 = '5c5843aca76cc5431565c848c6d35a7c');
-  IF v_count <> 2 THEN
+  IF v_count <> 3 THEN
     RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_EXPECTED_SOURCE_FINGERPRINTS_MISSING';
   END IF;
 END;
@@ -287,7 +287,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_PATCH_ANCHOR_DRIFT';
   END IF;
 
-  -- Move the price lookup out of DECLARE so issuer validation happens first.
+  -- Move the price lookup out of DECLARE. Enforce the Better Auth issuer and
+  -- certificate owner/Admin scope before reading price, method or gateway state.
   v_definition := pg_catalog.replace(
     v_definition,
     'v_price numeric := public.get_collective_certificate_price();',
@@ -298,14 +299,25 @@ BEGIN
     E'begin\n  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;',
     E'begin\n  IF NOT private.current_user_is_better_auth() THEN\n'
       || E'    RAISE EXCEPTION ''BETTER_AUTH_ISSUER_REQUIRED'';\n'
-      || E'  END IF;\n\n'
-      || E'  v_price := public.get_collective_certificate_price();\n'
-      || E'  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;'
+      || E'  END IF;\n'
+      || E'  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;\n'
+      || E'  select * into v_cert from public.collective_certificates where id=p_certificate_id for update;\n'
+      || E'  if not found then raise exception ''CERTIFICATE_NOT_FOUND''; end if;\n'
+      || E'  if v_cert.status not in (''ELIGIBLE'',''DRAFT'') then raise exception ''CERTIFICATE_NOT_ORDERABLE''; end if;\n'
+      || E'  select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;\n'
+      || E'  if not found then raise exception ''PARTICIPANT_NOT_FOUND''; end if;\n'
+      || E'  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;\n'
+      || E'  v_price := public.get_collective_certificate_price();'
   );
 
-  IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') = 0
-     OR pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') > pg_catalog.strpos(v_definition, 'public.get_collective_certificate_price()') THEN
-    RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_PATCH_POSTCONDITION_FAILED';
+  IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()')
+       > pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+     OR pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+       > pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
+     OR pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
+       > pg_catalog.strpos(v_definition, 'from public.payment_gateway_state')
+  THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_OWNER_BEFORE_GATEWAY_POSTCONDITION_FAILED';
   END IF;
 
   EXECUTE v_definition;
@@ -446,11 +458,15 @@ BEGIN
 
     IF v_expected.signature LIKE 'create_collective_certificate_order_with_proof(%'
        AND (
-         pg_catalog.strpos(v_source, 'private.current_user_is_better_auth()')
-         > pg_catalog.strpos(v_source, 'public.get_collective_certificate_price()')
-         OR pg_catalog.strpos(v_definition, 'v_price numeric := public.get_collective_certificate_price()') > 0
-       ) THEN
-      RAISE EXCEPTION 'STAGE7_CERTIFICATE_PRICE_READ_PRECEDES_ISSUER_GUARD';
+          pg_catalog.strpos(v_source, 'private.current_user_is_better_auth()')
+          > pg_catalog.strpos(v_source, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+          OR pg_catalog.strpos(v_source, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+          > pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
+          OR pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
+          > pg_catalog.strpos(v_source, 'from public.payment_gateway_state')
+          OR pg_catalog.strpos(v_definition, 'v_price numeric := public.get_collective_certificate_price()') > 0
+        ) THEN
+      RAISE EXCEPTION 'STAGE7_CERTIFICATE_PRICE_OR_GATEWAY_READ_PRECEDES_OWNER_GUARD';
     END IF;
 
     IF v_expected.signature LIKE 'create_collective_certificate_order(uuid)'
