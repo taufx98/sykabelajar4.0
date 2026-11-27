@@ -1184,6 +1184,12 @@ BEGIN
   IF v_private_row_count <> 0 THEN
     RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_XP_LEADERBOARD_LEAK:%', v_private_row_count;
   END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_leaderboard(1000)
+  WHERE user_id = 'abababab-abab-4aba-8aba-abababababab'::uuid;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_ADMIN_XP_LEADERBOARD_LEAK:%', v_count;
+  END IF;
 
   SELECT count(*) INTO v_public_row_count
   FROM public.get_public_coin_leaderboard(1000)
@@ -1203,6 +1209,12 @@ BEGIN
   );
   IF v_private_row_count <> 0 THEN
     RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COIN_LEADERBOARD_LEAK:%', v_private_row_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_coin_leaderboard(1000)
+  WHERE user_id = 'abababab-abab-4aba-8aba-abababababab'::uuid;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_ADMIN_COIN_LEADERBOARD_LEAK:%', v_count;
   END IF;
 
   SELECT count(*) INTO v_public_row_count
@@ -1224,6 +1236,12 @@ BEGIN
   IF v_private_row_count <> 0 THEN
     RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_ENRICHED_LEADERBOARD_LEAK:%', v_private_row_count;
   END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_leaderboard_enriched('all', 1000)
+  WHERE user_id = 'abababab-abab-4aba-8aba-abababababab'::uuid;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_ADMIN_ENRICHED_LEADERBOARD_LEAK:%', v_count;
+  END IF;
 
   SELECT count(*) INTO v_public_school_count
   FROM public.get_public_school_leaderboard('all', 1000) s
@@ -1244,6 +1262,11 @@ BEGIN
         'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         'ffffffff-ffff-4fff-8fff-fffffffffff6'
       )
+    ) = 0
+    AND (
+      SELECT count(*)
+      FROM jsonb_array_elements(s.top_students) AS student
+      WHERE student->>'user_id' = 'abababab-abab-4aba-8aba-abababababab'
     ) = 0;
   IF v_public_school_count <> 1 THEN
     RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_SCHOOL_LEADERBOARD_FAILED:%', v_public_school_count;
