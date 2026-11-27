@@ -1245,7 +1245,8 @@ BEGIN
 
   SELECT count(*) INTO v_public_school_count
   FROM public.get_public_school_leaderboard('all', 1000) s
-  WHERE s.school_name = 'Stage7 Public Synthetic School'
+  WHERE s.school_name = 'STAGE7 PUBLIC SYNTHETIC SCHOOL'
+    AND s.student_count = 2
     AND (
       SELECT count(*)
       FROM jsonb_array_elements(s.top_students) AS student
