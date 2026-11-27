@@ -13,6 +13,7 @@ const postStage3Runtime = read("scripts/auth-migration/stage7-post-stage3-user-r
 const postStage3Draft = read("docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const shopMigration = read("supabase/migrations/20261103074001_shop_vouchers_and_carousel_banners.sql");
 const adBannerPaymentMigration = read("supabase/migrations/20261029100000_unify_ad_banner_payments.sql");
+const paymentGatewaySettingsMigration = read("supabase/migrations/20261029090000_unified_payment_gateway_settings.sql");
 const workflow = read(".github/workflows/auth-schema-baseline.yml");
 const triage = JSON.parse(read("docs/security/AUTH-STAGE-7-SECURITY-DEFINER-TRIAGE-2026-11-21.json"));
 
@@ -92,6 +93,10 @@ for (const marker of [
   "STAGE7_AD_BANNER_OWNER_A_OWN_REQUEST_SCOPE_FAILED",
   "STAGE7_AD_BANNER_OWNER_B_FOREIGN_REQUEST_NOT_DENIED",
   "STAGE7_AD_BANNER_OWNER_B_OWN_REQUEST_SCOPE_FAILED",
+  "STAGE7_AD_BANNER_OWNER_A_ORDER_OWNER_MISMATCH",
+  "STAGE7_AD_BANNER_OWNER_B_ORDER_OWNER_MISMATCH",
+  "STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING",
+  "STAGE7_PAYMENT_GATEWAY_STATE_FIXTURE_MISSING",
   "STAGE7_VOUCHER_NON_ADMIN_ADMIN_RPC_NOT_DENIED",
 ]) {
   assert.ok(postStage3Runtime.includes(marker), "Missing rollback-only payment/voucher owner test: " + marker);
@@ -103,6 +108,12 @@ assert.match(shopMigration, /where user_id=auth\.uid\(\) and viewed_at is null/i
 assert.match(shopMigration, /if not private\.current_user_is_admin\(\) then raise exception 'ADMIN_REQUIRED'/i);
 assert.match(adBannerPaymentMigration, /where id=p_request_id and user_id=v_uid/i);
 assert.match(adBannerPaymentMigration, /raise exception 'AD_BANNER_REQUEST_NOT_FOUND'/i);
+assert.match(paymentGatewaySettingsMigration, /alter table public\.payment_gateway_configs enable row level security/i);
+assert.match(paymentGatewaySettingsMigration, /revoke all on table public\.payment_gateway_configs from public, anon, authenticated/i);
+assert.match(paymentGatewaySettingsMigration, /grant all on table public\.payment_gateway_configs to service_role/i);
+assert.match(paymentGatewaySettingsMigration, /alter table public\.payment_gateway_state enable row level security/i);
+assert.match(paymentGatewaySettingsMigration, /revoke all on table public\.payment_gateway_state from public, anon, authenticated/i);
+assert.match(paymentGatewaySettingsMigration, /grant all on table public\.payment_gateway_state to service_role/i);
 assert.match(postStage3Draft, /create_ad_banner_payment_order\(/i);
 
 assert.ok(workflow.includes("docs/security/AUTH-STAGE-7-OWNER-SCOPED-PAYMENT-ISSUER-GUARDS-DRAFT.sql"));
