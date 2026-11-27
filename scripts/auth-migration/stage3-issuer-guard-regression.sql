@@ -5148,8 +5148,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_OWNER_SCOPE_RESULT_MISMATCH:%', row_to_json(v_order);
   END IF;
 
-  -- A different valid Better Auth identity reaches the owner check but cannot
-  -- adopt the certificate order created for the actual collective manager.
+  -- A different valid Better Auth identity is denied at the certificate
+  -- owner check, before the RPC reads payment methods or gateway settings.
   PERFORM set_config(
     'request.jwt.claims',
     '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
@@ -5171,7 +5171,7 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
   END;
-  IF v_error IS DISTINCT FROM 'CERTIFICATE_ORDER_OWNED_BY_ANOTHER_USER' THEN
+  IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_OWNER_NOT_DENIED:%', coalesce(v_error,'<no error>');
   END IF;
 
