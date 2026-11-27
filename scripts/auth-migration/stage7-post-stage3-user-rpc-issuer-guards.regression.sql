@@ -219,12 +219,24 @@ BEGIN
     updated_by=EXCLUDED.updated_by,
     updated_at=now();
 
-  UPDATE public.payment_gateway_state
-  SET active_provider='MIDTRANS', automatic_payments_enabled=false,
-      updated_by=v_user_a, updated_at=now()
-  WHERE id=true;
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  IF v_count <> 1 THEN
+  -- payment_gateway_state is seeded by migration DML, which a schema-only
+  -- Production export intentionally omits. Create the singleton fixture here.
+  INSERT INTO public.payment_gateway_state (
+    id, active_provider, automatic_payments_enabled, updated_by
+  ) VALUES (
+    true, 'MIDTRANS', false, v_user_a
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    active_provider=EXCLUDED.active_provider,
+    automatic_payments_enabled=EXCLUDED.automatic_payments_enabled,
+    updated_by=EXCLUDED.updated_by,
+    updated_at=now();
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.payment_gateway_state
+    WHERE id=true AND active_provider='MIDTRANS'
+      AND automatic_payments_enabled=false AND updated_by=v_user_a
+  ) THEN
     RAISE EXCEPTION 'STAGE7_PAYMENT_GATEWAY_STATE_FIXTURE_MISSING';
   END IF;
 
