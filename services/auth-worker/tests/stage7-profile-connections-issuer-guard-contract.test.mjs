@@ -91,6 +91,12 @@ test("user-specific follow RPC denies anonymous execution without removing the a
 });
 
 
+test("all five SECURITY DEFINER profile RPCs use an empty search_path", () => {
+  for (const definition of [connections, badgeVisibility, badges, uiSettings, social]) {
+    assert.match(definition, /SET search_path TO ''/i);
+  }
+});
+
 test("public badge and UI projections expose only public profile data and retain visibility flags", () => {
   assert.match(badgeVisibility, /COALESCE\(p\.is_public, false\) = true/);
   assert.match(badgeVisibility, /private\.current_user_is_better_auth\(\)[\s\S]*\(SELECT auth\.uid\(\)\) = p_profile_id/);
