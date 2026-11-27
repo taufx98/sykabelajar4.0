@@ -72,8 +72,8 @@ test("public gateway status is a sanitized projection and never returns provider
   assert.match(paymentPublic, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(paymentPublic, /from\("payment_gateway_state"\)/);
   assert.match(paymentPublic, /from\("payment_gateway_configs"\)[\s\S]*?select\("provider,is_enabled,environment,public_config,secret_config"\)/);
-  const projectionStart = paymentPublic.indexOf("return json({");
-  assert.ok(projectionStart >= 0, "public gateway endpoint must have an explicit response projection");
+  const projectionStart = paymentPublic.indexOf("return json({\\n    ok: true,");
+  assert.ok(projectionStart >= 0, "public gateway endpoint must have an explicit successful response projection");
   const projection = paymentPublic.slice(projectionStart);
   assert.match(projection, /activeProvider/);
   assert.match(projection, /automaticPaymentsEnabled/);
