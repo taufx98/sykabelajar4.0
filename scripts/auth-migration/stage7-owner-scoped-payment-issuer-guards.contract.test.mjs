@@ -75,10 +75,16 @@ assert.equal(aclStatements.length, 6, "Only the three reviewed function ACLs may
 assert.equal(aclStatements.filter((line) => line.startsWith("REVOKE ALL PRIVILEGES ON FUNCTION")).length, 3);
 assert.equal(aclStatements.filter((line) => line.startsWith("GRANT EXECUTE ON FUNCTION")).length, 3);
 assert.match(draft, /IF v_count <> 3 THEN/);
-assert.match(draft, /STAGE7_CERTIFICATE_ORDER_OWNER_BEFORE_GATEWAY_POSTCONDITION_FAILED/);
+assert.match(draft, /STAGE7_CERTIFICATE_ORDER_OWNER_NULL_SAFE_POSTCONDITION_FAILED/);
 assert.match(draft, /STAGE7_CERTIFICATE_PRICE_OR_GATEWAY_READ_PRECEDES_OWNER_GUARD/);
-assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_OWNER_PATCH_POSTCONDITION_FAILED/);
-assert.match(draft, /v_cp\.managed_by_user_id=v_uid or v_cp\.user_id=v_uid or private\.current_user_is_admin\(\)/);
+assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_OWNER_NULL_SAFE_POSTCONDITION_FAILED/);
+assert.match(draft, /coalesce\(v_cp\.managed_by_user_id=v_uid,false\)/);
+assert.match(draft, /coalesce\(v_cp\.user_id=v_uid,false\)/);
+assert.doesNotMatch(draft, /if not \(v_cp\.managed_by_user_id=v_uid or v_cp\.user_id=v_uid or private\.current_user_is_admin\(\)\)/);
+assert.match(draft, /STAGE7_CERTIFICATE_ORDER_OWNER_NULL_SAFE_POSTCONDITION_FAILED/);
+assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_OWNER_NULL_SAFE_POSTCONDITION_FAILED/);
+assert.match(regression, /v_user IS NOT NULL/,
+  "The certificate fixture must explicitly retain a NULL participant user_id so this guard's NULL semantics are exercised.");
 assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_READ_PRECEDES_OWNER_GUARD/);
 assert.ok(draft.includes("FROM PUBLIC, anon, authenticated, service_role;"));
 assert.match(draft, /TO authenticated, service_role;/);

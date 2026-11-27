@@ -306,18 +306,22 @@ BEGIN
       || E'  if v_cert.status not in (''ELIGIBLE'',''DRAFT'') then raise exception ''CERTIFICATE_NOT_ORDERABLE''; end if;\n'
       || E'  select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;\n'
       || E'  if not found then raise exception ''PARTICIPANT_NOT_FOUND''; end if;\n'
-      || E'  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;\n'
+      || E'  if v_uid is null or not (coalesce(v_cp.managed_by_user_id=v_uid,false) or coalesce(v_cp.user_id=v_uid,false) or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;\n'
       || E'  v_price := public.get_collective_certificate_price();'
   );
 
   IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()')
        > pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
      OR pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+       > pg_catalog.strpos(v_definition, 'coalesce(v_cp.user_id=v_uid,false)')
+     OR pg_catalog.strpos(pg_catalog.lower(v_definition), 'coalesce(v_cp.managed_by_user_id=v_uid,false)') = 0
+     OR pg_catalog.strpos(pg_catalog.lower(v_definition), 'coalesce(v_cp.user_id=v_uid,false)') = 0
+     OR pg_catalog.strpos(v_definition, 'coalesce(v_cp.user_id=v_uid,false)')
        > pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
      OR pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
        > pg_catalog.strpos(v_definition, 'from public.payment_gateway_state')
   THEN
-    RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_OWNER_BEFORE_GATEWAY_POSTCONDITION_FAILED';
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_ORDER_OWNER_NULL_SAFE_POSTCONDITION_FAILED';
   END IF;
 
   EXECUTE v_definition;
@@ -341,18 +345,22 @@ BEGIN
       || E'  if v_cert.status not in (''ELIGIBLE'',''DRAFT'') then raise exception ''CERTIFICATE_NOT_ORDERABLE''; end if;\n'
       || E'  select * into v_cp from public.collective_participants where id=v_cert.collective_participant_id;\n'
       || E'  if not found then raise exception ''PARTICIPANT_NOT_FOUND''; end if;\n'
-      || E'  if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;\n\n'
+      || E'  if v_uid is null or not (coalesce(v_cp.managed_by_user_id=v_uid,false) or coalesce(v_cp.user_id=v_uid,false) or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;\n\n'
       || E'  v_price := public.get_collective_certificate_price();'
   );
 
   IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()')
        > pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
      OR pg_catalog.strpos(v_definition, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
+       > pg_catalog.strpos(v_definition, 'coalesce(v_cp.user_id=v_uid,false)')
+     OR pg_catalog.strpos(pg_catalog.lower(v_definition), 'coalesce(v_cp.managed_by_user_id=v_uid,false)') = 0
+     OR pg_catalog.strpos(pg_catalog.lower(v_definition), 'coalesce(v_cp.user_id=v_uid,false)') = 0
+     OR pg_catalog.strpos(v_definition, 'coalesce(v_cp.user_id=v_uid,false)')
        > pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
      OR pg_catalog.strpos(v_definition, 'v_price := public.get_collective_certificate_price();')
        > pg_catalog.strpos(v_definition, 'from public.payment_gateway_state')
   THEN
-    RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_OWNER_PATCH_POSTCONDITION_FAILED';
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_OWNER_NULL_SAFE_POSTCONDITION_FAILED';
   END IF;
 
   EXECUTE v_definition;
@@ -476,10 +484,10 @@ BEGIN
           OR pg_catalog.strpos(v_source, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
              > pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
           OR pg_catalog.strpos(v_source,
-               'if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
+               'if v_uid is null or not (coalesce(v_cp.managed_by_user_id=v_uid,false) or coalesce(v_cp.user_id=v_uid,false) or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
              = 0
           OR pg_catalog.strpos(v_source,
-               'if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
+               'if v_uid is null or not (coalesce(v_cp.managed_by_user_id=v_uid,false) or coalesce(v_cp.user_id=v_uid,false) or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
              > pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
           OR pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
              > pg_catalog.strpos(v_source, 'from public.payment_gateway_state')
