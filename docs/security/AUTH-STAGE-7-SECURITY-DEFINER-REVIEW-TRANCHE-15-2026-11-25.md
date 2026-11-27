@@ -83,7 +83,7 @@ The five Production fingerprints in this report are the same five exact function
 ## Count and remaining gate
 
 Previous accepted manual review: **73/202** (Tranches 01–14, including the reconciled Tranches 06–10 record).  
-Tranche 15 accepted signatures: **5**.  
+Tranche 15 rechecked signatures: **5**; new unique signatures added: **0**.  
 **Cumulative unique manual review remains 73/202 exact signatures; 129 remain.**
 
 This is partial per-function source/runtime evidence only. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the all-202 allowlist/classification and remaining per-function evidence are not complete. Production DB2 remains **NO-GO**.
