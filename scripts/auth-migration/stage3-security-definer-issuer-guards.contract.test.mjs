@@ -1517,6 +1517,18 @@ const tranche16AcceptedReport = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-16-2026-11-27.md"),
   "utf8",
 );
+const tranche1AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-01-2026-11-23.md"),
+  "utf8",
+);
+const tranche15RecheckReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-15-2026-11-25.md"),
+  "utf8",
+);
+const tranche17AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-17-2026-11-27.md"),
+  "utf8",
+);
 const securityDefinerGate = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-AUDIT-GATE.md"),
   "utf8",
@@ -1538,11 +1550,11 @@ for (const marker of [
   "248f15764ae7b4c89888407ba0031851",
   "46001136856",
   "78/78 steps",
-  "83/202 exact signatures; 119 remain",
+  "78/202 exact signatures; 124 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche16AcceptedReport.includes(marker), "Tranche 16 accepted-review report missing " + marker);
-assert.match(securityDefinerGate, /updated 27 November 2026; 93\/202 exact signatures individually reviewed \(109 remain\)/);
-assert.match(securityDefinerGate, /Cumulative accepted manual review: 93\/202 exact signatures; 109 remain/);
+assert.match(securityDefinerGate, /updated 27 November 2026; 88\/202 exact signatures individually reviewed \(114 remain\)/);
+assert.match(securityDefinerGate, /Cumulative accepted manual review: 88\/202 exact signatures; 114 remain/);
 for (const marker of [
   "get_platform_stats()",
   "get_public_coin_leaderboard(integer)",
@@ -1558,10 +1570,37 @@ for (const marker of [
   "78/78 steps",
   "46040774710",
   "23/23",
-  "93/202 exact signatures; 109 remain",
+  "88/202 exact signatures; 114 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
 assert.match(securityDefinerGate, /Tranche 18 report/);
+assert.match(securityDefinerGate, /Tranche 17 report[\\s\\S]*Tranche 18 report/);
+assert.match(tranche15RecheckReport, /Cumulative unique manual review remains 73\\/202 exact signatures; 129 remain/);
+assert.match(tranche15RecheckReport, /same five exact functions already accepted in Tranche 01/);
+for (const fingerprint of [
+  "aa8f5302840e39728b006496ad817275",
+  "1f6215cccdc383120bbb6787e96c0f2b",
+  "ee68f31dacc8cee624c80e7a42867c56",
+  "f2303a11f19903297554639acbd87f06",
+  "860b70d16e5d204cebad55924ab8c66d",
+]) {
+  assert.ok(tranche1AcceptedReport.includes(fingerprint), "Tranche 01 missing original accepted fingerprint " + fingerprint);
+  assert.ok(tranche15RecheckReport.includes(fingerprint), "Tranche 15 recheck must explicitly deduplicate fingerprint " + fingerprint);
+}
+for (const marker of [
+  "83/202 exact signatures; 119 remain",
+  "get_profile_connections(uuid,text)",
+  "get_public_profile_badge_visibility(uuid)",
+  "get_public_profile_badges(uuid)",
+  "get_public_profile_ui_settings(uuid)",
+  "get_public_profile_social(uuid)",
+  "85c419635f365e1af49ba0dddda9701c",
+  "5ab5851b52904c7e0a8f0d1575eaad9c",
+  "f2fb6078710677182c07096c20a36cdf",
+  "b737fddaa31055b691adf65aa2d0f032",
+  "11b6f840dab3e234aa82d57993b96ed8",
+]) assert.ok(tranche17AcceptedReport.includes(marker), "Tranche 17 accepted-review report missing " + marker);
+
 
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
