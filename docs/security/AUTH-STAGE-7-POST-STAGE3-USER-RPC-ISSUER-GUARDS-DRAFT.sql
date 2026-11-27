@@ -276,69 +276,12 @@ BEGIN
 END;
 $stage7_post_stage3_user_rpc_acl_postflight$;
 
-DO $stage7_post_stage3_user_rpc_patch$
-DECLARE
-  v_expected record;
-  v_definition text;
-  v_begin_position integer;
-  v_after_begin text;
-  v_replacement text;
-  v_oid oid;
-  v_guard text := E'IF NOT private.current_user_is_better_auth() THEN\n'
-    || E'    RAISE EXCEPTION ''BETTER_AUTH_ISSUER_REQUIRED'';\n'
-    || E'  END IF;';
-BEGIN
-  FOR v_expected IN
-    SELECT * FROM (VALUES
-      ('create_ad_banner_payment_order(uuid,uuid,text,text,integer,integer,text,text,integer)', E'begin\n  if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('create_collective_registration_order(uuid,uuid[],uuid,text,uuid,text,text,text,uuid,text,text,integer,integer,text,text,uuid)', E'begin if v_uid is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('create_shop_collective_certificate_order_with_vouchers(uuid,uuid,text,text,text,integer,integer,text,text,text,uuid[])', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('create_shop_product_order_with_edu_coin_vouchers(uuid,integer,text,uuid,uuid[])', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('create_shop_product_order_with_vouchers(uuid,integer,text,text,text,text,integer,integer,text,text,uuid,uuid[])', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('list_my_shop_vouchers()', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('list_shop_checkout_vouchers(uuid,integer,numeric,numeric)', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;'),
-      ('mark_my_shop_vouchers_seen()', E'begin\n  if auth.uid() is null then raise exception ''AUTH_REQUIRED''; end if;')
-    ) AS expected(signature, auth_anchor)
-  LOOP
-    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
-    SELECT pg_catalog.pg_get_functiondef(v_oid)
-    INTO v_definition
-    FROM pg_catalog.pg_proc p
-    WHERE p.oid = v_oid;
+-- Stage 3 has already installed Better Auth issuer guards in all eight
+-- user-bound RPC bodies. The exact post-Stage-3 source hashes were pinned
+-- and verified in the preflight above. Do not rewrite those bodies here:
+-- Stage 7 restores their exact reviewed ACLs and verifies the guard/hash again.
 
-    IF v_definition IS NULL
-       OR pg_catalog.strpos(v_definition, v_expected.auth_anchor) = 0 THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_AUTH_ANCHOR_DRIFT:%', v_expected.signature;
-    END IF;
 
-    v_begin_position := pg_catalog.strpos(v_expected.auth_anchor, 'begin');
-    IF v_begin_position <> 1 THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_BEGIN_ANCHOR_DRIFT:%', v_expected.signature;
-    END IF;
-
-    v_after_begin := pg_catalog.regexp_replace(
-      pg_catalog.substr(v_expected.auth_anchor, v_begin_position + 5),
-      '^[[:space:]]+',
-      ''
-    );
-    v_replacement := 'begin' || E'\n  ' || v_guard || E'\n  ' || v_after_begin;
-
-    v_definition := pg_catalog.replace(
-      v_definition,
-      v_expected.auth_anchor,
-      v_replacement
-    );
-
-    IF pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()') = 0
-       OR pg_catalog.strpos(v_definition, 'private.current_user_is_better_auth()')
-          > pg_catalog.strpos(v_definition, 'AUTH_REQUIRED') THEN
-      RAISE EXCEPTION 'STAGE7_POST_STAGE3_RPC_ISSUER_GUARD_POSTCONDITION_FAILED:%', v_expected.signature;
-    END IF;
-
-    EXECUTE v_definition;
-  END LOOP;
-END;
-$stage7_post_stage3_user_rpc_patch$;
 
 -- The private voucher status trigger is created already and is invoked by
 -- PostgreSQL as a trigger, not as a user-callable RPC. Remove the default
@@ -379,7 +322,8 @@ BEGIN
     FROM pg_catalog.pg_proc p
     WHERE p.oid = v_expected.oid;
 
-    IF v_owner IS DISTINCT FROM 'postgres'
+    IF md5(v_source) IS DISTINCT FROM v_expected.source_md5
+       OR v_owner IS DISTINCT FROM 'postgres'
        OR v_security_definer IS DISTINCT FROM TRUE
        OR v_search_path IS DISTINCT FROM v_expected.proconfig
        OR v_acl IS DISTINCT FROM v_expected.proacl
