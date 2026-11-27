@@ -256,11 +256,15 @@ VALUES
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'stage3_ba_private_badge_owner', 'Private Badge Owner Probe', false);
 
-INSERT INTO public.profile_ui_settings (user_id, show_following_popup, show_social_popup)
+INSERT INTO public.profile_ui_settings (
+  user_id, show_following_popup, show_social_popup, show_badges, show_badge_collection
+)
 VALUES
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false, false),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', false, false),
-  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', true, false);
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false, false, false, false),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', false, false, false, false),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', true, false, true, true),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', true, true, true, false),
+  ('ffffffff-ffff-4fff-8fff-fffffffffff6', false, false, false, false);
 
 INSERT INTO public.follows (follower_id, following_id, status)
 VALUES
@@ -589,7 +593,11 @@ VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '88888888-8888-4888-8888-888888888881',
    'MANUAL', 'Legacy private badge probe', '33333333-3333-4333-8333-333333333333'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', '88888888-8888-4888-8888-888888888881',
-   'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333');
+   'MANUAL', 'Better Auth private badge probe', '33333333-3333-4333-8333-333333333333'),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '88888888-8888-4888-8888-888888888881',
+   'MANUAL', 'Public badge probe', '33333333-3333-4333-8333-333333333334'),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', '88888888-8888-4888-8888-888888888881',
+   'MANUAL', 'Hidden public badge collection probe', '33333333-3333-4333-8333-333333333335');
 INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
@@ -1007,6 +1015,10 @@ DECLARE
   v_count integer;
   v_detail jsonb;
   v_status text;
+  v_show_badges boolean;
+  v_show_badge_collection boolean;
+  v_show_social_popup boolean;
+  v_show_following_popup boolean;
   v_denied boolean := false;
 BEGIN
   -- A private profile remains private even when its popup setting is enabled.
@@ -1021,6 +1033,59 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM public.get_profile_connections('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid, 'followers');
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_ANON_HIDDEN_FOLLOWERS_LIST_ALLOWED'; END IF;
+
+  -- Public profile projections remain available to guests, but the badge
+  -- collection flag controls whether the underlying badge rows are returned.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_BADGE_VISIBILITY_FAILED:%', v_count;
+  END IF;
+  SELECT show_badges, show_badge_collection
+    INTO v_show_badges, v_show_badge_collection
+  FROM public.get_public_profile_badge_visibility('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_show_badges IS DISTINCT FROM true OR v_show_badge_collection IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_BADGE_VISIBILITY_VALUES_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_BADGES_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_HIDDEN_PUBLIC_BADGE_COLLECTION_ALLOWED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_UI_SETTINGS_FAILED:%', v_count;
+  END IF;
+  SELECT show_social_popup, show_following_popup
+    INTO v_show_social_popup, v_show_following_popup
+  FROM public.get_public_profile_ui_settings('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
+  IF v_show_social_popup IS DISTINCT FROM false OR v_show_following_popup IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PUBLIC_UI_SETTINGS_VALUES_FAILED';
+  END IF;
+
+  -- Private profile projections stay hidden from guests even when the
+  -- private owner has a stored badge and UI settings row.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_BADGE_VISIBILITY_ALLOWED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_BADGES_ALLOWED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_UI_SETTINGS_ALLOWED';
+  END IF;
 
   v_detail := public.get_competition_participant_detail(
     'stage3-public-result-probe',
@@ -3532,6 +3597,15 @@ BEGIN
   FROM public.get_public_profile_social('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid);
   IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_SOCIAL_ALLOWED'; END IF;
   SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGE_VISIBILITY_ALLOWED'; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGES_ALLOWED'; END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_UI_SETTINGS_ALLOWED'; END IF;
+  SELECT count(*) INTO v_count
   FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
 
@@ -3647,6 +3721,11 @@ SELECT set_config('request.jwt.claim.sub', 'ffffffff-ffff-4fff-8fff-fffffffffff6
 DO $better_auth_private_badge_owner$
 DECLARE
   v_detail jsonb;
+  v_count integer;
+  v_show_badges boolean;
+  v_show_badge_collection boolean;
+  v_show_social_popup boolean;
+  v_show_following_popup boolean;
 BEGIN
   v_detail := public.get_competition_participant_detail(
     'stage3-public-result-probe',
@@ -3654,6 +3733,36 @@ BEGIN
   );
   IF jsonb_array_length(coalesce(v_detail->'badges', '[]'::jsonb)) <> 1 THEN
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_PRIVATE_RESULT_BADGE_OWNER_FAILED:%', v_detail;
+  END IF;
+
+  -- A private-profile owner keeps self access to badge and UI projections even
+  -- when those projections are hidden from guests and unrelated identities.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badge_visibility('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGE_VISIBILITY_FAILED:%', v_count;
+  END IF;
+  SELECT show_badges, show_badge_collection
+    INTO v_show_badges, v_show_badge_collection
+  FROM public.get_public_profile_badge_visibility('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_show_badges IS DISTINCT FROM false OR v_show_badge_collection IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGE_VISIBILITY_VALUES_FAILED';
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_badges('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGES_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_profile_ui_settings('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OWNER_PRIVATE_UI_SETTINGS_FAILED:%', v_count;
+  END IF;
+  SELECT show_social_popup, show_following_popup
+    INTO v_show_social_popup, v_show_following_popup
+  FROM public.get_public_profile_ui_settings('ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid);
+  IF v_show_social_popup IS DISTINCT FROM false OR v_show_following_popup IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_OWNER_PRIVATE_UI_SETTINGS_VALUES_FAILED';
   END IF;
 END;
 $better_auth_private_badge_owner$;
