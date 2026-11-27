@@ -7,6 +7,7 @@ const identityResolver = readFileSync(new URL("_shared/require-application-user.
 const paymentAdmin = readFileSync(new URL("payment-gateway-admin/index.ts", edgeRoot), "utf8");
 const paymentCreate = readFileSync(new URL("payment-gateway-create/index.ts", edgeRoot), "utf8");
 const paymentReconcile = readFileSync(new URL("payment-gateway-reconcile/index.ts", edgeRoot), "utf8");
+const paymentPublic = readFileSync(new URL("payment-gateway-public/index.ts", edgeRoot), "utf8");
 
 const cloudinarySignature = readFileSync(new URL("../../supabase/functions/get-cloudinary-signature/index.ts", import.meta.url), "utf8");
 const cloudinaryDelete = readFileSync(new URL("../../supabase/functions/cloudinary-delete-asset/index.ts", import.meta.url), "utf8");
@@ -65,6 +66,20 @@ test("payment checkout keeps the verified canonical UUID as the sole order-owner
   const identity = paymentCreate.indexOf("requireApplicationUser(req)");
   const serviceRole = paymentCreate.indexOf('createClient(supabaseUrl, serviceRoleKey)');
   assert.ok(identity >= 0 && serviceRole > identity && ownerGuard > serviceRole);
+});
+
+test("public gateway status is a sanitized projection and never returns provider secrets", () => {
+  assert.match(paymentPublic, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(paymentPublic, /from\("payment_gateway_state"\)/);
+  assert.match(paymentPublic, /from\("payment_gateway_configs"\)[\s\S]*?select\("provider,is_enabled,environment,public_config,secret_config"\)/);
+  const projectionStart = paymentPublic.indexOf("return json({");
+  assert.ok(projectionStart >= 0, "public gateway endpoint must have an explicit response projection");
+  const projection = paymentPublic.slice(projectionStart);
+  assert.match(projection, /activeProvider/);
+  assert.match(projection, /automaticPaymentsEnabled/);
+  assert.match(projection, /checkoutEnabled/);
+  assert.doesNotMatch(projection, /secret_config|secretEnv|server_key|api_key|api_secret|webhook_secret|public_config/,
+    "public endpoint may expose only gateway status, never provider config values");
 });
 
 test("payment reconciliation scopes all order lookups and checks to the verified UUID", () => {
