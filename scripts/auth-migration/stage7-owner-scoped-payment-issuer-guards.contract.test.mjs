@@ -98,6 +98,10 @@ for (const marker of [
   "STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING",
   "STAGE7_PAYMENT_GATEWAY_STATE_FIXTURE_MISSING",
   "STAGE7_VOUCHER_NON_ADMIN_ADMIN_RPC_NOT_DENIED",
+  "STAGE7_VOUCHER_NON_ADMIN_SAVE_DEFINITION_NOT_DENIED",
+  "STAGE7_VOUCHER_NON_ADMIN_ISSUE_NOT_DENIED",
+  "STAGE7_VOUCHER_NON_ADMIN_LIST_ISSUED_NOT_DENIED",
+  "STAGE7_VOUCHER_CALCULATOR_PRIVATE_EXECUTE_OVERBROAD",
 ]) {
   assert.ok(postStage3Runtime.includes(marker), "Missing rollback-only payment/voucher owner test: " + marker);
 }
@@ -106,6 +110,9 @@ assert.match(postStage3Runtime, /ROLLBACK;/);
 assert.match(shopMigration, /where uv\.user_id=auth\.uid\(\)/i);
 assert.match(shopMigration, /where user_id=auth\.uid\(\) and viewed_at is null/i);
 assert.match(shopMigration, /if not private\.current_user_is_admin\(\) then raise exception 'ADMIN_REQUIRED'/i);
+assert.match(shopMigration, /v_effects := private\.calculate_shop_voucher_effects\(\s*auth\.uid\(\)/i);
+assert.match(shopMigration, /where uv\.id=any\(v_one_time_ids\) and uv\.user_id=auth\.uid\(\)/i);
+assert.match(shopMigration, /revoke all on function private\.calculate_shop_voucher_effects\(uuid,uuid,integer,numeric,numeric,uuid\[\]\) from public,anon,authenticated/i);
 assert.match(adBannerPaymentMigration, /where id=p_request_id and user_id=v_uid/i);
 assert.match(adBannerPaymentMigration, /raise exception 'AD_BANNER_REQUEST_NOT_FOUND'/i);
 assert.match(paymentGatewaySettingsMigration, /alter table public\.payment_gateway_configs enable row level security/i);
