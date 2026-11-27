@@ -122,6 +122,47 @@ const verify23 = workflow.indexOf("- name: Verify all 23 RLS table boundaries af
 assert.ok(applySystemLogAcl > applyStage5NoPolicy && verify23 > applySystemLogAcl,
   "system-log collector ACL restore must run after Stage 5 browser revoke and before the 23-table verification");
 
+
+const examQuestionsReview = review.tables.find(
+  (table) => table.schema === "public" && table.table === "exam_attempt_questions",
+);
+assert.ok(examQuestionsReview);
+const publicParticipantDetailCaller = examQuestionsReview.source_callers.find(
+  (caller) => caller.signature === "public.get_competition_participant_detail(p_slug text, p_participant_id uuid)",
+);
+assert.ok(publicParticipantDetailCaller, "public published-result projection must be explicit in the exam table caller map");
+assert.equal(publicParticipantDetailCaller.security_definer, true);
+assert.equal(publicParticipantDetailCaller.anon_execute, true);
+assert.equal(publicParticipantDetailCaller.authenticated_execute, true);
+
+const publicDetailContract = read("scripts/competition-public-detail-contract.test.mjs");
+const publicDetailMigration = read("supabase/migrations/20261102061000_competition_result_badge_collection_privacy.sql");
+const publicDetailDefinition = publicDetailMigration.match(
+  /CREATE OR REPLACE FUNCTION public\.get_competition_participant_detail\([\s\S]*?\$function\$;/i,
+)?.[0] ?? "";
+assert.ok(publicDetailDefinition, "published participant result projection definition missing");
+for (const marker of [
+  "v_comp.visibility = 'PUBLIC'",
+  "'RESULT_PUBLISHED', 'ARCHIVED'",
+  "RESULT_NOT_PUBLISHED",
+  "ACCESS_DENIED",
+  "private.current_user_is_admin()",
+  "private.current_user_can_edit_competition",
+  "a.is_preview = false",
+  "a.status::text = 'FINALIZED'",
+]) assert.ok(publicDetailDefinition.includes(marker), "public result detail boundary missing " + marker);
+assert.match(publicDetailDefinition, /evaluate_linear_preview_answer/);
+assert.match(publicDetailDefinition, /'correct', v_correct/);
+assert.match(publicDetailDefinition, /'incorrect', v_incorrect/);
+assert.doesNotMatch(publicDetailDefinition, /'answer',\s*|answer_json->|answer_key_snapshot->/);
+assert.match(publicDetailContract, /participant result detail is gated by publication or organizer\/admin access and excludes raw answers/);
+assert.match(publicDetailMigration, /GRANT EXECUTE ON FUNCTION public\.get_competition_participant_detail\(text, uuid\) TO anon, authenticated/i);
+for (const marker of [
+  "STAGE7_PUBLIC_PARTICIPANT_DETAIL_FUNCTION_MISSING",
+  "STAGE7_PUBLIC_PARTICIPANT_DETAIL_RPC_METADATA_OR_GRANT_DRIFT",
+  "STAGE7_PUBLIC_PARTICIPANT_DETAIL_PUBLICATION_OR_OWNER_GUARD_DRIFT",
+]) assert.ok(regression.includes(marker), "public participant detail disposable caller assertion missing " + marker);
+
 assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
 assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {

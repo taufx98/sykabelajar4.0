@@ -1431,7 +1431,7 @@
         "UPDATE",
         "DELETE"
       ],
-      "intended_boundary": "Question snapshots, exam runtime, and event history stay service_role-only at the table layer. Individual attempts use issuer-gated Better Auth RPCs; collective attempts use a separate participant access-token guard. No direct browser table access or answer-key exposure is allowed.",
+      "intended_boundary": "Question snapshots, exam runtime, and event history stay service_role-only at the table layer. Individual attempt RPCs require the Better Auth issuer, collective attempt RPCs require the scoped participant access token, and public participant detail is a SECURITY DEFINER projection allowed only for PUBLIC competitions with RESULT_PUBLISHED/ARCHIVED results; it returns aggregates and published certificates, never raw answers or answer keys.",
       "source_callers": [
         {
           "signature": "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
@@ -1604,11 +1604,14 @@
       ],
       "positive_tests": [
         "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending",
+        "scripts/competition-public-detail-contract.test.mjs: published participant result projection, organizer/Admin access, preview exclusion, and no raw answer/answer-key output",
+        "stage7-rls-policy-review-regression.sql: public result detail RPC remains SECURITY DEFINER with narrow anon/authenticated EXECUTE and publication/owner guard metadata"
       ],
       "negative_tests": [
         "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending",
+        "stage7-rls-policy-review-regression.sql + competition-public-detail-contract.test.mjs: unpublished/private detail rejects anon (RESULT_NOT_PUBLISHED) and unauthorized users (ACCESS_DENIED); raw answer and answer-key payloads are never returned"
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
