@@ -93,7 +93,7 @@ test("legacy XP and coin leaderboards are bounded and filter private/inactive/Ad
     assert.match(entry.sourceExcerpt, /coalesce\(pr\.is_public,true\)=true/);
     assert.match(entry.sourceExcerpt, /ur\.role='admin'::app_role/);
     assert.match(entry.sourceExcerpt, /ur\.is_active=true/);
-    assert.match(entry.sourceExcerpt, /greatest\(1,least\(coalesce\(p_limit,100\),1000\)\)/);
+    assert.match(entry.sourceExcerpt, /rn<=greatest\(1,least\(coalesce\(p_limit,100\),1000/);
   }
 });
 
