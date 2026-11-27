@@ -85,6 +85,16 @@ assert.match(draft, /TO authenticated, service_role;/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_ACL_RESTORE_POSTCONDITION_FAILED/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_ACL_ENTRY_DRIFT/);
 
+assert.match(regression, /'12121212-1212-4212-8212-121212121212', 'better_auth'/);
+const certificateForeignActorBlock = regression.slice(
+  regression.indexOf("A fresh Better Auth identity with no role"),
+  regression.indexOf("STAGE7_CERTIFICATE_GATEWAY_FOREIGN_OWNER_NOT_DENIED")
+);
+assert.ok(certificateForeignActorBlock.includes("12121212-1212-4212-8212-121212121212"),
+  "Certificate IDOR test must use a dedicated unrelated Better Auth identity.");
+assert.ok(certificateForeignActorBlock.includes("BETTER_AUTH_ISSUER_REQUIRED") === false,
+  "Foreign-owner case must test owner denial, not legacy issuer rejection.");
+
 for (const marker of [
   "STAGE7_CERTIFICATE_OWNER_POSITIVE_FAILED",
   "STAGE7_CERTIFICATE_FOREIGN_OWNER_NOT_DENIED",
