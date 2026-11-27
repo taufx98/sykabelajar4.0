@@ -332,7 +332,9 @@ for (const hash of [
   "b737fddaa31055b691adf65aa2d0f032",
   "11b6f840dab3e234aa82d57993b96ed8",
 ]) assert.ok(profilePrivacyPreflight.includes(hash), "missing exact Production profile source fingerprint " + hash);
-assert.match(profilePrivacyPreflight, /p\.proacl::text/);
+assert.match(profilePrivacyPreflight, /pg_catalog\.aclexplode/);
+assert.match(profilePrivacyPreflight, /a\.is_grantable/);
+assert.match(profilePrivacyPreflight, /string_agg/);
 assert.match(profilePrivacyPreflight, /pg_get_function_result/);
 assert.match(profilePrivacyPreflight, /p\.prosecdef/);
 assert.match(profilePrivacyPreflight, /v_acl IS DISTINCT FROM v_expected\.acl/);
