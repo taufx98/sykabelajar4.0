@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 27 November 2026; 83/202 exact signatures individually reviewed (119 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 27 November 2026; 88/202 exact signatures individually reviewed (114 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -100,6 +100,18 @@ The reviewed replacements enforce the Better Auth issuer before protected reads/
 Protected Auth Production Schema Baseline [#46001136856](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136856) passed **78/78 steps** on commit `0e2a5a30ed60ed3c6075f8ac42e12c1ceda00176`. Its schema-only PostgreSQL 17.6 restore applied the Stage 3 SECURITY DEFINER issuer draft and passed the complete trusted-issuer regression containing Tranche 16, then passed the Stage 7 post-Stage-3/payment/voucher acceptance, all 23 direct table RLS boundaries, all 14 portal invalid-token checks, 69-FK and Stage 3 rollback, and two-user Cloudinary/payment Edge integration. The disposable database and schema export were removed. Supabase Local Auth Claims CI [#46001136934](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136934) passed **23/23**.
 
 **Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five accepted signatures to the previous 78/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial review does not satisfy the complete 202-function gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change, or secret change was performed.
+
+## Accepted manual review — 27 November 2026 (Tranche 17)
+
+[Tranche 17 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-17-2026-11-27.md) adds five profile SECURITY DEFINER signatures: `get_profile_connections(uuid,text)`, `get_public_profile_badge_visibility(uuid)`, `get_public_profile_badges(uuid)`, `get_public_profile_ui_settings(uuid)`, and `get_public_profile_social(uuid)`.
+
+The five exact Production source fingerprints, owners, SECURITY DEFINER flags, return types, languages, `search_path` settings and effective ACL grant sets match the immutable 21 November triage inventory. The preflight compares canonical `aclexplode` role/privilege/grantor entries, including grant-option state, so an equivalent ACL restore cannot fail only because PostgreSQL serialized array entries in a different order. The original inventory remains unchanged.
+
+The reviewed profile functions preserve the intended public projection while preventing private-profile and preference leakage. Private owner access requires the exact Better Auth issuer and `private.app_users.identity_origin='better_auth'`; unrelated Better Auth users and legacy Supabase Auth issuers cannot use UUID equality as a substitute. The social summary is session-scoped and its disposable draft ACL is narrowed to authenticated-only; guest access is not retained merely because the old production ACL had a public grant.
+
+Protected Auth Production Schema Baseline [#46037657998](https://github.com/taufx98/sykabelajar4.0/actions/runs/46037657998) passed **78/78 steps** on commit `4d8d7c16265572cfbb075743ee9f1330399841ba`. It completed the schema-only export and PostgreSQL 17.6 disposable restore, applied the Stage 3 SECURITY DEFINER draft, and passed the trusted-issuer/RLS regression. It also passed all 23 direct RLS table boundaries, all 14 collective portal invalid-token checks, the 69-FK and Stage 3 rollback rehearsals, and the two-user Cloudinary/payment Edge integration; cleanup removed the disposable stack and export. Supabase Local Auth Claims CI [#46037657928](https://github.com/taufx98/sykabelajar4.0/actions/runs/46037657928) passed **23/23**.
+
+**Cumulative accepted manual review: 88/202 exact signatures; 114 remain.** This adds five accepted profile signatures to the previous 83/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, grant, policy, Worker deployment, DNS change, or secret change was performed.
 
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
