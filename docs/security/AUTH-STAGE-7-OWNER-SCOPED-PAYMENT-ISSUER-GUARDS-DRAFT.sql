@@ -66,7 +66,7 @@ BEGIN
       ),
       (
         'public.create_collective_certificate_order(uuid)',
-        '0041c711a1e602b6d15dbd390d4669a3'
+        '5c5843aca76cc5431565c848c6d35a7c'
       )
     ) AS expected(signature, source_md5)
   LOOP
@@ -120,7 +120,7 @@ BEGIN
      OR (b.signature = 'create_organizer_plan_order(uuid,text,text,text,text,text,text,jsonb,uuid,text,text,integer,integer,text,text,text)'
          AND b.source_md5 = '7fae7e641d7bed2a24bacaf3724139e7')
       OR (b.signature = 'create_collective_certificate_order(uuid)'
-          AND b.source_md5 = '0041c711a1e602b6d15dbd390d4669a3');
+          AND b.source_md5 = '5c5843aca76cc5431565c848c6d35a7c');
   IF v_count <> 3 THEN
     RAISE EXCEPTION 'STAGE7_PAYMENT_RPC_EXPECTED_SOURCE_FINGERPRINTS_MISSING';
   END IF;

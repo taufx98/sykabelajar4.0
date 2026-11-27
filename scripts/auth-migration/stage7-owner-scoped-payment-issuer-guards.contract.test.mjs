@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ const read = (p) => readFileSync(path.join(root, p), "utf8");
 
 const draft = read("docs/security/AUTH-STAGE-7-OWNER-SCOPED-PAYMENT-ISSUER-GUARDS-DRAFT.sql");
 const regression = read("scripts/auth-migration/stage3-issuer-guard-regression.sql");
+const stage3UserRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const postStage3Runtime = read("scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.regression.sql");
 const postStage3Draft = read("docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const shopMigration = read("supabase/migrations/20261103074001_shop_vouchers_and_carousel_banners.sql");
@@ -29,6 +31,7 @@ const targets = [
   {
     signature: "create_collective_certificate_order(uuid)",
     md5: "0041c711a1e602b6d15dbd390d4669a3",
+    postStage3Md5: "5c5843aca76cc5431565c848c6d35a7c",
   },
 ];
 
@@ -41,7 +44,19 @@ for (const target of targets) {
   assert.equal(entry.execute.anon, false);
   assert.equal(entry.execute.authenticated, true);
   assert.equal(entry.execute.serviceRole, true);
-  assert.ok(draft.includes(target.md5), "Draft must fail closed on source drift: " + target.signature);
+  assert.ok(draft.includes(target.postStage3Md5 ?? target.md5),
+    "Disposable preflight must pin the exact post-Stage-3 source fingerprint: " + target.signature);
+  if (target.postStage3Md5) {
+    const functionName = target.signature.slice(0, target.signature.indexOf("("));
+    const start = stage3UserRpcDraft.toLowerCase().indexOf("create or replace function public." + functionName.toLowerCase() + "(");
+    const bodyStart = stage3UserRpcDraft.indexOf("AS $function$", start);
+    const bodyEnd = stage3UserRpcDraft.indexOf("$function$;", bodyStart);
+    assert.ok(start >= 0 && bodyStart >= 0 && bodyEnd > bodyStart,
+      "Stage 3 replacement body must be present: " + target.signature);
+    const body = stage3UserRpcDraft.slice(bodyStart + "AS $function$".length, bodyEnd);
+    assert.equal(createHash("md5").update(body, "utf8").digest("hex"), target.postStage3Md5,
+      "Stage 3 replacement fingerprint drifted: " + target.signature);
+  }
   assert.ok(draft.includes(target.signature), "Draft must preflight exact signature: " + target.signature);
 }
 
