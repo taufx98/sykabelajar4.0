@@ -121,6 +121,12 @@ for (const marker of [
   assert.ok(postStage3Runtime.includes(marker), "Missing rollback-only payment/voucher owner test: " + marker);
 }
 assert.match(postStage3Runtime, /stage7_payment_and_voucher_owner_runtime/);
+assert.match(postStage3Runtime, /INSERT INTO public\.organizer_payment_methods/);
+assert.match(postStage3Runtime, /STAGE7 disposable global gateway/);
+assert.match(postStage3Runtime, /'global_gateway', true/);
+assert.match(postStage3Runtime, /STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING/);
+assert.match(postStage3Runtime, /INSERT INTO public\.payment_gateway_configs/);
+assert.match(postStage3Runtime, /STAGE7_DISPOSABLE_ONLY/);
 assert.match(postStage3Runtime, /ROLLBACK;/);
 assert.match(shopMigration, /where uv\.user_id=auth\.uid\(\)/i);
 assert.match(shopMigration, /where user_id=auth\.uid\(\) and viewed_at is null/i);
