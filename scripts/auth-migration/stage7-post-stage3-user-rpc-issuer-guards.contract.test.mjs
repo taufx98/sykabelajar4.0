@@ -127,6 +127,10 @@ for (const marker of [
   "STAGE7_AD_BANNER_OWNER_B_FOREIGN_REQUEST_NOT_DENIED",
   "STAGE7_AD_BANNER_OWNER_B_OWN_REQUEST_SCOPE_FAILED",
   "STAGE7_VOUCHER_NON_ADMIN_ADMIN_RPC_NOT_DENIED",
+  "STAGE7_VOUCHER_TRIGGER_A_RESERVATION_FIXTURE_FAILED",
+  "STAGE7_VOUCHER_TRIGGER_B_RESERVATION_FIXTURE_FAILED",
+  "STAGE7_VOUCHER_TRIGGER_PAID_CROSS_OWNER_BOUNDARY",
+  "STAGE7_VOUCHER_TRIGGER_CANCEL_CROSS_OWNER_BOUNDARY",
   "STAGE7_PAYMENT_VOUCHER_FIXTURE_UUID_COLLISION",
 ]) {
   assert.ok(runtime.includes(marker), "Missing two-actor owner-scope runtime assertion: " + marker);
@@ -135,6 +139,12 @@ assert.match(runtime, /stage7_payment_and_voucher_owner_runtime/);
 assert.match(runtime, /INSERT INTO public\.profiles \(id, username, full_name, is_public\)/);
 assert.match(runtime, /INSERT INTO public\.shop_user_vouchers/);
 assert.match(runtime, /INSERT INTO public\.ad_banner_requests/);
+assert.match(runtime, /CREATE TEMP TABLE stage7_voucher_order_trigger_probe/);
+assert.match(runtime, /CREATE TRIGGER stage7_voucher_order_trigger_probe_status/);
+assert.match(runtime, /SET status='PAID'/);
+assert.match(runtime, /SET status='CANCELLED'/);
+assert.match(runtime, /status='USED'.*used_order_id/s);
+assert.match(runtime, /status='READY'.*reserved_order_id IS NULL/s);
 assert.match(runtime, /ROLLBACK;/);
 
 // Keep the actual SECURITY DEFINER row predicates that these runtime probes
