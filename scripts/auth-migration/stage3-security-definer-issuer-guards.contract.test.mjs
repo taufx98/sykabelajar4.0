@@ -315,6 +315,32 @@ assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-
   "draft must not mutate application data or replace RLS policy state");
 
 
+
+const profilePrivacyPreflight = draft.match(
+  /DO \$stage7_profile_privacy_fingerprint_preflight\$[\\s\\S]*?\$stage7_profile_privacy_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(profilePrivacyPreflight, "missing exact Production profile RPC fingerprint/ACL preflight");
+assert.ok(
+  draft.indexOf("DO $stage7_profile_privacy_fingerprint_preflight$") <
+    draft.indexOf("CREATE OR REPLACE FUNCTION public.get_profile_connections("),
+  "profile source/metadata preflight must run before any profile function replacement",
+);
+for (const hash of [
+  "85c419635f365e1af49ba0dddda9701c",
+  "5ab5851b52904c7e0a8f0d1575eaad9c",
+  "f2fb6078710677182c07096c20a36cdf",
+  "b737fddaa31055b691adf65aa2d0f032",
+  "11b6f840dab3e234aa82d57993b96ed8",
+]) assert.ok(profilePrivacyPreflight.includes(hash), "missing exact Production profile source fingerprint " + hash);
+assert.match(profilePrivacyPreflight, /p\.proacl::text/);
+assert.match(profilePrivacyPreflight, /pg_get_function_result/);
+assert.match(profilePrivacyPreflight, /p\.prosecdef/);
+assert.match(profilePrivacyPreflight, /v_acl IS DISTINCT FROM v_expected\.acl/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('anon'/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('authenticated'/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('service_role'/);
+
+
 const profileConnections = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_profile_connections\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
