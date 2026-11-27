@@ -64,6 +64,9 @@ jobs:
       - name: Verify Stage 7 profile connections, badge, and UI issuer guard contracts
         run: node --test services/auth-worker/tests/stage7-profile-connections-issuer-guard-contract.test.mjs
 
+      - name: Verify Stage 7 public statistics and leaderboard read boundaries
+        run: node --test services/auth-worker/tests/stage7-public-leaderboard-read-contract.test.mjs
+
       - name: Verify Admin organizer pgcrypto search_path migration contract
         run: node scripts/auth-migration/admin-create-organizer-search-path.contract.test.mjs
 
