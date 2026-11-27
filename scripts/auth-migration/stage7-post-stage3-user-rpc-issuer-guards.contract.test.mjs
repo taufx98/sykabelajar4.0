@@ -10,6 +10,9 @@ const read = (p) => readFileSync(path.join(root, p), "utf8");
 
 const draft = read("docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
 const stage3UserRpcDraft = read("docs/security/AUTH-STAGE-3-USER-RPC-ISSUER-GUARDS-DRAFT.sql");
+const shopVoucherMigration = read("supabase/migrations/20261103074001_shop_vouchers_and_carousel_banners.sql");
+const adBannerPaymentMigration = read("supabase/migrations/20261029100000_unify_ad_banner_payments.sql");
+const adBannerSchemaMigration = read("supabase/migrations/20260828_ad_banners.sql");
 const runtime = read("scripts/auth-migration/stage7-post-stage3-user-rpc-issuer-guards.regression.sql");
 const workflow = read(".github/workflows/auth-schema-baseline.yml");
 const prWorkflow = read(".github/workflows/auth-schema-pr-contracts.yml");
@@ -111,6 +114,38 @@ assert.match(runtime, /https:\/\/auth-prod\.sykabelajar\.my\.id\/api\/auth/);
 assert.match(runtime, /STAGE7_POST_STAGE3_LEGACY_ISSUER_NOT_DENIED/);
 assert.match(runtime, /STAGE7_POST_STAGE3_BETTER_AUTH_SCOPE_FAILED/);
 assert.match(runtime, /STAGE7_POST_STAGE3_VOUCHER_TRIGGER_EXECUTE_OVERBROAD/);
+
+for (const marker of [
+  "STAGE7_VOUCHER_OWNER_A_CANNOT_READ_OWN_VOUCHER",
+  "STAGE7_VOUCHER_OWNER_A_READ_FOREIGN_VOUCHER",
+  "STAGE7_VOUCHER_OWNER_A_MARK_SEEN_CROSSED_BOUNDARY",
+  "STAGE7_VOUCHER_OWNER_B_CANNOT_READ_OWN_VOUCHER",
+  "STAGE7_VOUCHER_OWNER_B_READ_FOREIGN_VOUCHER",
+  "STAGE7_VOUCHER_OWNER_B_MARK_SEEN_CROSSED_BOUNDARY",
+  "STAGE7_AD_BANNER_OWNER_A_FOREIGN_REQUEST_NOT_DENIED",
+  "STAGE7_AD_BANNER_OWNER_A_OWN_REQUEST_SCOPE_FAILED",
+  "STAGE7_AD_BANNER_OWNER_B_FOREIGN_REQUEST_NOT_DENIED",
+  "STAGE7_AD_BANNER_OWNER_B_OWN_REQUEST_SCOPE_FAILED",
+  "STAGE7_VOUCHER_NON_ADMIN_ADMIN_RPC_NOT_DENIED",
+  "STAGE7_PAYMENT_VOUCHER_FIXTURE_UUID_COLLISION",
+]) {
+  assert.ok(runtime.includes(marker), "Missing two-actor owner-scope runtime assertion: " + marker);
+}
+assert.match(runtime, /stage7_payment_and_voucher_owner_runtime/);
+assert.match(runtime, /INSERT INTO public\.profiles \(id, username, full_name, is_public\)/);
+assert.match(runtime, /INSERT INTO public\.shop_user_vouchers/);
+assert.match(runtime, /INSERT INTO public\.ad_banner_requests/);
+assert.match(runtime, /ROLLBACK;/);
+
+// Keep the actual SECURITY DEFINER row predicates that these runtime probes
+// exercise pinned to their reviewed owner identities.
+assert.match(shopVoucherMigration, /where uv\.user_id=auth\.uid\(\)/i);
+assert.match(shopVoucherMigration, /where user_id=auth\.uid\(\) and viewed_at is null/i);
+assert.match(adBannerPaymentMigration, /where id=p_request_id and user_id=v_uid/i);
+assert.match(adBannerPaymentMigration, /raise exception 'AD_BANNER_REQUEST_NOT_FOUND'/i);
+assert.match(adBannerSchemaMigration, /user_id uuid NOT NULL REFERENCES auth\.users\(id\)/i);
+assert.match(stage3UserRpcDraft, /list_my_shop_vouchers\(\)/i);
+assert.match(stage3UserRpcDraft, /mark_my_shop_vouchers_seen\(\)/i);
 assert.match(runtime, /ROLLBACK;/);
 
 assert.ok(workflow.includes("docs/security/AUTH-STAGE-7-POST-STAGE3-USER-RPC-ISSUER-GUARDS-DRAFT.sql"));
