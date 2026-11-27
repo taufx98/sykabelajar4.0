@@ -285,6 +285,10 @@ for (const marker of [
 assert.match(regression, /SET LOCAL ROLE anon[\s\S]*?public\.get_profile_connections/);
 assert.match(regression, /public\.get_public_profile_social[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
 assert.match(regression, /public\.get_follow_status[\s\S]*?BETTER_AUTH_ISSUER_REQUIRED/);
+assert.match(regression, /STAGE3_ANON_GET_MY_VERIFIED_REFERRALS_EXECUTE_REMAINS/);
+assert.match(regression, /STAGE3_ANON_GET_MY_VERIFIED_REFERRALS_ALLOWED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_FOLLOW_STATUS_IDOR_ALLOWED/);
+assert.match(regression, /STAGE3_OTHER_BETTER_AUTH_PRIVATE_PARTICIPANT_DETAIL_ALLOWED/);
 assert.match(regression, /public\.admin_diagnose_organizer_voucher_delete[\s\S]*?ADMIN_REQUIRED/);
 assert.match(regression, /public\.admin_evaluate_badges\(\)[\s\S]*?ACCESS_DENIED/);
 assert.match(regression, /public\.admin_update_system_error_status[\s\S]*?ADMIN_REQUIRED/);
