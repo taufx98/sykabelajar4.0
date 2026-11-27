@@ -80,9 +80,9 @@ test("five public statistics/leaderboard signatures still match immutable Produc
 test("platform statistics exposes aggregate counts rather than profile rows", () => {
   const entry = inventory.functions.find((item) => item.signature === "get_platform_stats()");
   assert.match(entry.sourceExcerpt, /SELECT \(SELECT COUNT\(\*\) FROM public\.profiles WHERE status='ACTIVE'\)/i);
-  assert.equal((entry.sourceExcerpt.match(/COUNT\\(\\*\\)/gi) ?? []).length, 6);
+  assert.equal((entry.sourceExcerpt.match(/COUNT\(\*\)/gi) ?? []).length, 6);
   assert.match(entry.sourceExcerpt, /visibility='PUBLIC'/);
-  assert.match(entry.sourceExcerpt, /status IN \\('GENERATED','REVIEW','APPROVED','PUBLISHED'\\)/);
+  assert.match(entry.sourceExcerpt, /status IN \('GENERATED','REVIEW','APPROVED','PUBLISHED'\)/);
   assert.doesNotMatch(entry.sourceExcerpt, /user_id|email|phone|avatar_url/i);
 });
 
