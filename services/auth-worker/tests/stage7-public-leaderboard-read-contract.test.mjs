@@ -72,7 +72,7 @@ test("five public statistics/leaderboard signatures still match immutable Produc
     assert.equal(entry.execute.anon, true);
     assert.equal(entry.execute.authenticated, true);
     assert.equal(entry.execute.serviceRole, true);
-    assert.equal(entry.acl.includes("=X/postgres"), expectedEntry.publicAcl);
+    assert.equal(entry.acl.some((grant) => grant.startsWith("=X/")), expectedEntry.publicAcl);
     assert.equal(entry.acl.includes("anon=X/postgres"), true);
   }
 });
@@ -80,8 +80,9 @@ test("five public statistics/leaderboard signatures still match immutable Produc
 test("platform statistics exposes aggregate counts rather than profile rows", () => {
   const entry = inventory.functions.find((item) => item.signature === "get_platform_stats()");
   assert.match(entry.sourceExcerpt, /SELECT \(SELECT COUNT\(\*\) FROM public\.profiles WHERE status='ACTIVE'\)/i);
-  assert.match(entry.sourceExcerpt, /total_public_competitions/);
-  assert.match(entry.sourceExcerpt, /total_certificates/);
+  assert.equal((entry.sourceExcerpt.match(/COUNT\\(\\*\\)/gi) ?? []).length, 6);
+  assert.match(entry.sourceExcerpt, /visibility='PUBLIC'/);
+  assert.match(entry.sourceExcerpt, /status IN \\('GENERATED','REVIEW','APPROVED','PUBLISHED'\\)/);
   assert.doesNotMatch(entry.sourceExcerpt, /user_id|email|phone|avatar_url/i);
 });
 
@@ -127,10 +128,13 @@ test("rollback-only anon regression positively reads public profiles and exclude
     "STAGE7_ANON_PLATFORM_STATS_ROW_FAILED",
     "STAGE7_ANON_PUBLIC_XP_LEADERBOARD_FAILED",
     "STAGE7_ANON_PRIVATE_XP_LEADERBOARD_LEAK",
+    "STAGE7_ANON_PUBLIC_ADMIN_XP_LEADERBOARD_LEAK",
     "STAGE7_ANON_PUBLIC_COIN_LEADERBOARD_FAILED",
     "STAGE7_ANON_PRIVATE_COIN_LEADERBOARD_LEAK",
+    "STAGE7_ANON_PUBLIC_ADMIN_COIN_LEADERBOARD_LEAK",
     "STAGE7_ANON_PUBLIC_ENRICHED_LEADERBOARD_FAILED",
     "STAGE7_ANON_PRIVATE_ENRICHED_LEADERBOARD_LEAK",
+    "STAGE7_ANON_PUBLIC_ADMIN_ENRICHED_LEADERBOARD_LEAK",
     "STAGE7_ANON_PUBLIC_SCHOOL_LEADERBOARD_FAILED",
   ]) assert.ok(anonBlock.includes(marker), "missing anonymous public-read regression: " + marker);
   assert.match(regression.slice(anonBlockEnd), /RESET ROLE;/);
