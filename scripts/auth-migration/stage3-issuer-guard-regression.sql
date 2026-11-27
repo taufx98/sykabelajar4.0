@@ -2770,6 +2770,14 @@ SELECT count(*) INTO v_count
     RAISE EXCEPTION 'STAGE3_BETTER_AUTH_GET_FOLLOW_STATUS_FAILED:%', v_status;
   END IF;
 
+  -- Schema-only baseline imports no referral rows. A valid Better Auth
+  -- identity with identity_origin=better_auth gets the empty owned projection.
+  SELECT count(*) INTO v_count
+  FROM public.get_my_verified_referrals();
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE3_BETTER_AUTH_GET_MY_VERIFIED_REFERRALS_EMPTY_PROJECTION_FAILED:%', v_count;
+  END IF;
+
   -- A valid Better Auth identity passes the shared issuer gate before the
   -- missing-attempt check; use an impossible UUID so no business row is read
   -- or changed in this positive boundary probe.

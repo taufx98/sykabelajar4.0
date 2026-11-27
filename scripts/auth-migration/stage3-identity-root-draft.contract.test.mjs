@@ -8,6 +8,10 @@ const draft = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-3-IDENTITY-ROOT-DRAFT.sql"),
   "utf8",
 );
+const regression = readFileSync(
+  path.join(here, "stage3-issuer-guard-regression.sql"),
+  "utf8",
+);
 
 function escapeRegex(value) {
   return value.replaceAll(".", "\\.").replaceAll("(", "\\(").replaceAll(")", "\\)");
@@ -163,6 +167,10 @@ for (const name of [
   assert.match(definition, /auth[.]jwt\(\)[\s\S]{0,220}https:\/\/auth-prod[.]sykabelajar[.]my[.]id\/api\/auth/,
     "SECURITY DEFINER caller RPC must require the exact Better Auth issuer: " + name);
 }
+assert.match(draft, /STAGE3_VERIFIED_REFERRALS_PRODUCTION_FINGERPRINT_OR_ACL_DRIFT/);
+assert.match(draft, /source_md5|62edae46657affa808e469311f25d85f/);
+assert.match(draft, /caller[.]identity_origin = 'better_auth'/);
+assert.match(regression, /STAGE3_BETTER_AUTH_GET_MY_VERIFIED_REFERRALS_EMPTY_PROJECTION_FAILED/);
 assert.match(draft, /REVOKE ALL ON FUNCTION public[.]get_my_verified_referrals\(\)[\s\S]{0,180}FROM PUBLIC, anon, authenticated, service_role;/i,
   "legacy anonymous EXECUTE must be removed from get_my_verified_referrals");
 assert.match(draft, /GRANT EXECUTE ON FUNCTION public[.]get_my_verified_referrals\(\) TO authenticated;/i,
