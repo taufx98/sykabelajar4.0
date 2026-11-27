@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 27 November 2026; 93/202 exact signatures individually reviewed (109 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 27 November 2026; 88/202 exact signatures individually reviewed (114 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -77,7 +77,7 @@ Protected Auth Production Schema Baseline [#45578016932](https://github.com/tauf
 
 ## Accepted manual review — 25 November 2026 (Tranche 15)
 
-[Tranche 15 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-15-2026-11-25.md) adds five Admin-only currency, organizer-plan, username and organizer-creation RPCs: `admin_adjust_user_currency(uuid,text,bigint,text)`, `admin_assign_organizer_plan(uuid,text,timestamptz,timestamptz)`, `admin_bulk_adjust_currency(uuid[],text,bigint,text)`, `admin_change_username(uuid,text,text)`, and `admin_create_organizer(uuid,text,text)`.
+[Tranche 15 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-15-2026-11-25.md) re-checks five Admin-only currency, organizer-plan, username and organizer-creation RPCs already counted in Tranche 01: `admin_adjust_user_currency(uuid,text,bigint,text)`, `admin_assign_organizer_plan(uuid,text,timestamptz,timestamptz)`, `admin_bulk_adjust_currency(uuid[],text,bigint,text)`, `admin_change_username(uuid,text,text)`, and `admin_create_organizer(uuid,text,text)`.
 
 A read-only Production DB2 catalog query on 25 November confirmed all five exact `md5(pg_proc.prosrc)` fingerprints match the immutable 21 November triage inventory. Each remains owned by `postgres`, SECURITY DEFINER, with its original `search_path=public, private` and ACL: `authenticated` and `service_role` EXECUTE; no `anon` or `PUBLIC` EXECUTE. The Stage 3 replacement routes all five through the shared issuer-gated Admin helper. The pre-replacement `current_user_has_role(app_role)` helper fingerprint is checked before that helper is replaced.
 
@@ -87,7 +87,7 @@ PRs #283 and #285–#291 add the five reviewed replacements, hash-only test corr
 
 Protected Auth Production Schema Baseline [#45598325366](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325366) passed **68/68 steps** on merge commit `17118b4964484988f85f47842b68c72bec4d64eb`. It passed schema-only export/restore, zero imported Auth/profile rows, all 69 FK catalog checks and cutover/rollback simulations, Stage 3 trusted-issuer regression including Tranche 15, all 23 application RLS boundaries, all 14 collective portal invalid-token denials, valid portal lifecycle and 5,000 selector cases, and the two-user Cloudinary/payment Edge integration. The disposable Supabase stack and schema export were removed. Supabase Local Auth Claims CI [#45598325344](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325344) also passed on the same commit.
 
-**Cumulative accepted manual review: 78/202 exact signatures; 124 remain.** This adds five accepted signatures to the previous 73/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; it is the complete post-Stage-3/pre-issuer-guard allowlist and is not the partial manual-review counter. Production DB2 remains **NO-GO**. No Production DDL/DML, user-data export/backup/migration, row changes, role/grant/policy edits, Worker deployment, DNS change or secret change was performed.
+**Cumulative unique accepted manual review remains 73/202 exact signatures; 129 remain.** Tranche 15 revalidates five signatures already counted in Tranche 01 (matching the same exact Production MD5 values), so it adds zero new unique signatures. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; it is the complete post-Stage-3/pre-issuer-guard allowlist and is not the partial manual-review counter. Production DB2 remains **NO-GO**. No Production DDL/DML, user-data export/backup/migration, row changes, role/grant/policy edits, Worker deployment, DNS change or secret change was performed.
 
 ## Accepted manual review — 27 November 2026 (Tranche 16)
 
@@ -99,19 +99,7 @@ The reviewed replacements enforce the Better Auth issuer before protected reads/
 
 Protected Auth Production Schema Baseline [#46001136856](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136856) passed **78/78 steps** on commit `0e2a5a30ed60ed3c6075f8ac42e12c1ceda00176`. Its schema-only PostgreSQL 17.6 restore applied the Stage 3 SECURITY DEFINER issuer draft and passed the complete trusted-issuer regression containing Tranche 16, then passed the Stage 7 post-Stage-3/payment/voucher acceptance, all 23 direct table RLS boundaries, all 14 portal invalid-token checks, 69-FK and Stage 3 rollback, and two-user Cloudinary/payment Edge integration. The disposable database and schema export were removed. Supabase Local Auth Claims CI [#46001136934](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136934) passed **23/23**.
 
-**Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five accepted signatures to the previous 78/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial review does not satisfy the complete 202-function gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change, or secret change was performed.
-
-## Accepted manual review — 27 November 2026 (Tranche 18)
-
-[Tranche 18 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-18-2026-11-27.md) adds five public statistics/leaderboard SECURITY DEFINER signatures: `get_platform_stats()`, `get_public_coin_leaderboard(integer)`, `get_public_leaderboard(integer)`, `get_public_leaderboard_enriched(text,integer)`, and `get_public_school_leaderboard(text,integer)`.
-
-The five Production source fingerprints, owners, SECURITY DEFINER flags, return types, languages, `search_path` values and canonical ACL grant sets match the immutable 21 November triage inventory. All are owned by `postgres` and remain executable by anon/authenticated/service_role; only the first three retain PUBLIC EXECUTE in their original catalog ACL. The aggregate statistics RPC returns counts only. Both legacy leaderboards, the enriched leaderboard, and the school leaderboard filter to active/public profiles and exclude active Admin identities; the enriched/school results derive from the same public-profile CTE and school top-student JSON is limited to five rows.
-
-The rollback-only guest regression seeds two public students, private profiles with higher XP/coin totals, and a public Admin with the highest values. It confirms the public rows are visible to `anon`, while private profiles and the Admin do not appear in XP/coin/enriched leaderboards or school top-student JSON. The school fixture honors the existing institution-normalization trigger and asserts exactly two public students.
-
-Protected Auth Production Schema Baseline [#46040774742](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774742) passed **78/78** on `53248fd3bf17d3bdfb55e34aec9c312511b2caa6`, including schema-only Production export, PostgreSQL 17.6 disposable restore, Stage 3 trusted-issuer RLS regression, all 23 direct RLS boundaries, all 14 invalid portal-token checks, 64-bit portal collision rehearsal, 69-FK and Stage 3 rollback, two-user Cloudinary/payment Edge integration, and cleanup. Local Auth Claims [#46040774710](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774710) passed **23/23**; Cloudflare staging preflight [#46040774630](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774630) passed **9/9** read-only.
-
-**Cumulative accepted manual review: 93/202 exact signatures; 109 remain.** The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, grants, policy, account/data changes, Worker deployment, DNS change, or secret change were performed.
+**Cumulative accepted manual review: 78/202 exact signatures; 124 remain.** This adds five new signatures to the previous 73/202 unique count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial review does not satisfy the complete 202-function gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change, or secret change was performed.
 
 ## Accepted manual review — 27 November 2026 (Tranche 17)
 
@@ -123,7 +111,20 @@ The reviewed profile functions preserve the intended public projection while pre
 
 Protected Auth Production Schema Baseline [#46037657998](https://github.com/taufx98/sykabelajar4.0/actions/runs/46037657998) passed **78/78 steps** on commit `4d8d7c16265572cfbb075743ee9f1330399841ba`. It completed the schema-only export and PostgreSQL 17.6 disposable restore, applied the Stage 3 SECURITY DEFINER draft, and passed the trusted-issuer/RLS regression. It also passed all 23 direct RLS table boundaries, all 14 collective portal invalid-token checks, the 69-FK and Stage 3 rollback rehearsals, and the two-user Cloudinary/payment Edge integration; cleanup removed the disposable stack and export. Supabase Local Auth Claims CI [#46037657928](https://github.com/taufx98/sykabelajar4.0/actions/runs/46037657928) passed **23/23**.
 
-**Cumulative accepted manual review: 93/202 exact signatures; 109 remain.** This adds five accepted profile signatures to the previous 83/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, grant, policy, Worker deployment, DNS change, or secret change was performed.
+**Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five new profile signatures to the previous 78/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, grant, policy, Worker deployment, DNS change, or secret change was performed.
+
+
+## Accepted manual review — 27 November 2026 (Tranche 18)
+
+[Tranche 18 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-18-2026-11-27.md) adds five public statistics/leaderboard SECURITY DEFINER signatures: `get_platform_stats()`, `get_public_coin_leaderboard(integer)`, `get_public_leaderboard(integer)`, `get_public_leaderboard_enriched(text,integer)`, and `get_public_school_leaderboard(text,integer)`.
+
+The five Production source fingerprints, owners, SECURITY DEFINER flags, return types, languages, `search_path` values and canonical ACL grant sets match the immutable 21 November triage inventory. All are owned by `postgres` and remain executable by anon/authenticated/service_role; only the first three retain PUBLIC EXECUTE in their original catalog ACL. The aggregate statistics RPC returns counts only. Both legacy leaderboards, the enriched leaderboard, and the school leaderboard filter to active/public profiles and exclude active Admin identities; the enriched/school results derive from the same public-profile CTE and school top-student JSON is limited to five rows.
+
+The rollback-only guest regression seeds two public students, private profiles with higher XP/coin totals, and a public Admin with the highest values. It confirms the public rows are visible to `anon`, while private profiles and the Admin do not appear in XP/coin/enriched leaderboards or school top-student JSON. The school fixture honors the existing institution-normalization trigger and asserts exactly two public students.
+
+Protected Auth Production Schema Baseline [#46040774742](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774742) passed **78/78** on `53248fd3bf17d3bdfb55e34aec9c312511b2caa6`, including schema-only Production export, PostgreSQL 17.6 disposable restore, Stage 3 trusted-issuer RLS regression, all 23 direct RLS boundaries, all 14 invalid portal-token checks, 64-bit portal collision rehearsal, 69-FK and Stage 3 rollback, two-user Cloudinary/payment Edge integration, and cleanup. Local Auth Claims [#46040774710](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774710) passed **23/23**; Cloudflare staging preflight [#46040774630](https://github.com/taufx98/sykabelajar4.0/actions/runs/46040774630) passed **9/9** read-only.
+
+**Cumulative accepted manual review: 88/202 exact signatures; 114 remain.** This adds five new public statistics/leaderboard signatures to the previous 83/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, grants, policy, account/data changes, Worker deployment, DNS change, or secret change were performed.
 
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
