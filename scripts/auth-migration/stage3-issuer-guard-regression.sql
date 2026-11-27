@@ -2537,10 +2537,10 @@ SELECT count(*) INTO v_count
   -- scope before the function reads price or the global gateway state.
   PERFORM set_config(
     'request.jwt.claims',
-    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
     TRUE
   );
-  PERFORM set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
   v_exam_denied := false;
   BEGIN
     PERFORM public.create_collective_certificate_order(
@@ -5172,12 +5172,12 @@ BEGIN
   -- owner check, before the RPC reads payment methods or gateway settings.
   PERFORM set_config(
     'request.jwt.claims',
-    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
     TRUE
   );
   PERFORM set_config(
     'request.jwt.claim.sub',
-    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     TRUE
   );
   v_error := NULL;

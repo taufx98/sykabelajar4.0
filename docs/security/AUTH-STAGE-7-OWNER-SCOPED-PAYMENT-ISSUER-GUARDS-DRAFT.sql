@@ -475,6 +475,12 @@ BEGIN
              > pg_catalog.strpos(v_source, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
           OR pg_catalog.strpos(v_source, 'select * into v_cert from public.collective_certificates where id=p_certificate_id for update;')
              > pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
+          OR pg_catalog.strpos(v_source,
+               'if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
+             = 0
+          OR pg_catalog.strpos(v_source,
+               'if not (v_cp.managed_by_user_id=v_uid or v_cp.user_id=v_uid or private.current_user_is_admin()) then raise exception ''FORBIDDEN''; end if;')
+             > pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
           OR pg_catalog.strpos(v_source, 'v_price := public.get_collective_certificate_price();')
              > pg_catalog.strpos(v_source, 'from public.payment_gateway_state')
        ) THEN

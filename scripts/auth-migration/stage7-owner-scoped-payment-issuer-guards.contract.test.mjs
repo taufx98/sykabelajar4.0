@@ -78,6 +78,8 @@ assert.match(draft, /IF v_count <> 3 THEN/);
 assert.match(draft, /STAGE7_CERTIFICATE_ORDER_OWNER_BEFORE_GATEWAY_POSTCONDITION_FAILED/);
 assert.match(draft, /STAGE7_CERTIFICATE_PRICE_OR_GATEWAY_READ_PRECEDES_OWNER_GUARD/);
 assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_OWNER_PATCH_POSTCONDITION_FAILED/);
+assert.match(draft, /v_cp\.managed_by_user_id=v_uid or v_cp\.user_id=v_uid or private\.current_user_is_admin\(\)/);
+assert.match(draft, /STAGE7_CERTIFICATE_GATEWAY_READ_PRECEDES_OWNER_GUARD/);
 assert.ok(draft.includes("FROM PUBLIC, anon, authenticated, service_role;"));
 assert.match(draft, /TO authenticated, service_role;/);
 assert.match(draft, /STAGE7_PAYMENT_RPC_ACL_RESTORE_POSTCONDITION_FAILED/);
