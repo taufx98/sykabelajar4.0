@@ -122,6 +122,8 @@ DECLARE
   v_missing_method constant uuid := 'e8000000-0000-4000-8000-000000000099'::uuid;
   v_global_method constant uuid := 'e8000000-0000-4000-8000-000000000098'::uuid;
   v_order public.orders%rowtype;
+  v_order_a_id uuid;
+  v_order_b_id uuid;
   v_count integer;
   v_seen integer;
   v_error text;
@@ -327,6 +329,7 @@ BEGIN
      OR v_order.payment_provider IS DISTINCT FROM 'GLOBAL' THEN
     RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_A_ORDER_OWNER_MISMATCH:%', row_to_json(v_order);
   END IF;
+  v_order_a_id := v_order.id;
 
   -- Reset A's marker so B's subsequent mark-seen call proves it cannot
   -- touch A's voucher while marking B's row.
@@ -404,6 +407,70 @@ BEGIN
      OR v_order.payment_method_id IS DISTINCT FROM v_global_method
      OR v_order.payment_provider IS DISTINCT FROM 'GLOBAL' THEN
     RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_B_ORDER_OWNER_MISMATCH:%', row_to_json(v_order);
+  END IF;
+  v_order_b_id := v_order.id;
+
+  -- Exercise the private trigger as it is actually attached to an AFTER UPDATE
+  -- OF status boundary. A temporary row proxy avoids changing real order status
+  -- and lets this regression prove both consume and release transitions.
+  CREATE TEMP TABLE stage7_voucher_order_trigger_probe (
+    id uuid PRIMARY KEY,
+    status public.order_status NOT NULL
+  ) ON COMMIT DROP;
+
+  CREATE TRIGGER stage7_voucher_order_trigger_probe_status
+  AFTER UPDATE OF status ON stage7_voucher_order_trigger_probe
+  FOR EACH ROW EXECUTE FUNCTION private.sync_shop_voucher_order_status();
+
+  INSERT INTO stage7_voucher_order_trigger_probe (id,status)
+  VALUES (v_order_a_id,'PENDING_PAYMENT'),(v_order_b_id,'PENDING_PAYMENT');
+
+  UPDATE public.shop_user_vouchers
+  SET status='RESERVED',reserved_order_id=v_order_a_id,reserved_at=now()
+  WHERE id=v_voucher_a AND user_id=v_user_a AND status='READY';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_A_RESERVATION_FIXTURE_FAILED:%',v_count;
+  END IF;
+
+  UPDATE public.shop_user_vouchers
+  SET status='RESERVED',reserved_order_id=v_order_b_id,reserved_at=now()
+  WHERE id=v_voucher_b AND user_id=v_user_b AND status='READY';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_B_RESERVATION_FIXTURE_FAILED:%',v_count;
+  END IF;
+
+  UPDATE stage7_voucher_order_trigger_probe
+  SET status='PAID'
+  WHERE id=v_order_a_id;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_voucher_a AND user_id=v_user_a AND status='USED'
+      AND used_order_id=v_order_a_id AND reserved_order_id IS NULL
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_voucher_b AND user_id=v_user_b AND status='RESERVED'
+      AND reserved_order_id=v_order_b_id
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_PAID_CROSS_OWNER_BOUNDARY';
+  END IF;
+
+  UPDATE stage7_voucher_order_trigger_probe
+  SET status='CANCELLED'
+  WHERE id=v_order_b_id;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_voucher_b AND user_id=v_user_b AND status='READY'
+      AND reserved_order_id IS NULL AND reserved_at IS NULL
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_voucher_a AND user_id=v_user_a AND status='USED'
+      AND used_order_id=v_order_a_id
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_TRIGGER_CANCEL_CROSS_OWNER_BOUNDARY';
   END IF;
 
   -- Voucher administration remains Better Auth Admin-only across every
