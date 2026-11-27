@@ -1577,7 +1577,7 @@ assert.match(securityDefinerGate, /Tranche 18 report/);
 assert.match(securityDefinerGate, /Tranche 17 report[\s\S]*Tranche 18 report/);
 assert.match(tranche15RecheckReport, /Cumulative unique manual review remains 73\/202 exact signatures; 129 remain/);
 assert.match(tranche15RecheckReport, /same five exact functions already accepted in Tranche 01/);
-assert.match(tranche15RecheckReport, /Tranche 15 rechecked signatures: \\*\\*5\\*\\*; new unique signatures added: \\*\\*0\\*\\*\\./);
+assert.ok(tranche15RecheckReport.includes("Tranche 15 rechecked signatures: **5**; new unique signatures added: **0**."));
 for (const fingerprint of [
   "aa8f5302840e39728b006496ad817275",
   "1f6215cccdc383120bbb6787e96c0f2b",
