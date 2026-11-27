@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 25 November 2026; 78/202 exact signatures individually reviewed (124 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 27 November 2026; 83/202 exact signatures individually reviewed (119 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -88,6 +88,18 @@ PRs #283 and #285–#291 add the five reviewed replacements, hash-only test corr
 Protected Auth Production Schema Baseline [#45598325366](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325366) passed **68/68 steps** on merge commit `17118b4964484988f85f47842b68c72bec4d64eb`. It passed schema-only export/restore, zero imported Auth/profile rows, all 69 FK catalog checks and cutover/rollback simulations, Stage 3 trusted-issuer regression including Tranche 15, all 23 application RLS boundaries, all 14 collective portal invalid-token denials, valid portal lifecycle and 5,000 selector cases, and the two-user Cloudinary/payment Edge integration. The disposable Supabase stack and schema export were removed. Supabase Local Auth Claims CI [#45598325344](https://github.com/taufx98/sykabelajar4.0/actions/runs/45598325344) also passed on the same commit.
 
 **Cumulative accepted manual review: 78/202 exact signatures; 124 remain.** This adds five accepted signatures to the previous 73/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; it is the complete post-Stage-3/pre-issuer-guard allowlist and is not the partial manual-review counter. Production DB2 remains **NO-GO**. No Production DDL/DML, user-data export/backup/migration, row changes, role/grant/policy edits, Worker deployment, DNS change or secret change was performed.
+
+## Accepted manual review — 27 November 2026 (Tranche 16)
+
+[Tranche 16 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-16-2026-11-27.md) adds five organizer/registration SECURITY DEFINER RPCs: `choose_organizer_plan(uuid,text)`, `get_organizer_competition_result_overview(uuid,integer,integer)`, `list_organizer_registrations(uuid)`, `request_custom_organizer_plan(uuid,jsonb,text,text)`, and `review_registration(uuid,text,text)`.
+
+The five exact `md5(pg_proc.prosrc)` values match the immutable 21 November triage snapshot and the read-only Production schema export used by the protected 27 November baseline. The preflight checks each exact signature, owner `postgres`, SECURITY DEFINER flag, original `search_path`, return type, language, ACL, and effective execution flags: `authenticated` and `service_role` EXECUTE, with no `anon` or `PUBLIC` EXECUTE. The original triage JSON remains immutable; this later acceptance is recorded separately.
+
+The reviewed replacements enforce the Better Auth issuer before protected reads/writes, then apply Admin or organizer ownership/editor scope. `review_registration` performs a non-locking authorization preflight, locks the registration, and rechecks Admin/organizer scope after the lock before updating it. The rollback-only Stage 3 regression proves legacy Supabase issuer denial, unrelated Better Auth user denial, and successful authorized organizer/Admin paths for all five functions.
+
+Protected Auth Production Schema Baseline [#46001136856](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136856) passed **78/78 steps** on commit `0e2a5a30ed60ed3c6075f8ac42e12c1ceda00176`. Its schema-only PostgreSQL 17.6 restore applied the Stage 3 SECURITY DEFINER issuer draft and passed the complete trusted-issuer regression containing Tranche 16, then passed the Stage 7 post-Stage-3/payment/voucher acceptance, all 23 direct table RLS boundaries, all 14 portal invalid-token checks, 69-FK and Stage 3 rollback, and two-user Cloudinary/payment Edge integration. The disposable database and schema export were removed. Supabase Local Auth Claims CI [#46001136934](https://github.com/taufx98/sykabelajar4.0/actions/runs/46001136934) passed **23/23**.
+
+**Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five accepted signatures to the previous 78/202 count. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial review does not satisfy the complete 202-function gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, role/grant/policy edit, Worker deployment, DNS change, or secret change was performed.
 
 ## Accepted manual review — Tranches 06–10, 23–24 November 2026
 
