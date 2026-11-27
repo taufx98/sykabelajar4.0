@@ -3,9 +3,9 @@
 -- auth-schema-baseline.yml. Never apply this draft to Production directly.
 --
 -- The three functions remain SECURITY DEFINER and retain their owner, EXECUTE
--- ACL, argument/return signature and search_path. The only behavior change is
--- an exact Better Auth issuer + private.app_users identity-origin check before
--- any owner/admin lookup or gateway/certificate configuration read.
+-- ACL, argument/return signature and search_path. Better Auth issuer and
+-- certificate/organizer owner or Admin authorization must pass before pricing,
+-- payment gateway state/configuration or certificate/order lookups are exposed.
 
 BEGIN;
 SET LOCAL lock_timeout = '5s';
