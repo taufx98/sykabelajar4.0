@@ -2533,14 +2533,58 @@ SELECT count(*) INTO v_count
   END IF;
 
 
-  -- The Better Auth Admin must pass the issuer check before the function
-  -- reads certificate pricing. The restored baseline has the global gateway
-  -- disabled, so the call stops at that deterministic business precondition;
-  -- no certificate/order row is created or modified.
+  -- A valid but unrelated Better Auth participant must be rejected by owner
+  -- scope before the function reads price or the global gateway state.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc',TRUE);
   v_exam_denied := false;
   BEGIN
     PERFORM public.create_collective_certificate_order(
-      '99999999-9999-4999-8999-999999999931'::uuid
+      '88888888-8888-4888-8888-888888888894'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'FORBIDDEN' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_FOREIGN_OWNER_NOT_DENIED';
+  END IF;
+
+  -- A legacy Supabase Auth issuer cannot reach certificate ownership or
+  -- payment gateway state even with the correct participant UUID.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','ffffffff-ffff-4fff-8fff-fffffffffff6',TRUE);
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.create_collective_certificate_order(
+      '88888888-8888-4888-8888-888888888894'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'BETTER_AUTH_ISSUER_REQUIRED' THEN v_exam_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_exam_denied THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_GATEWAY_LEGACY_ISSUER_NOT_DENIED';
+  END IF;
+
+  -- A Better Auth Admin is allowed through owner scope; the global gateway is
+  -- disabled in this disposable baseline, so no order is written.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+  v_exam_denied := false;
+  BEGIN
+    PERFORM public.create_collective_certificate_order(
+      '88888888-8888-4888-8888-888888888894'::uuid
     );
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'GLOBAL_GATEWAY_NOT_ACTIVE' THEN v_exam_denied := true; ELSE RAISE; END IF;
@@ -5124,8 +5168,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_OWNER_SCOPE_RESULT_MISMATCH:%', row_to_json(v_order);
   END IF;
 
-  -- A different valid Better Auth identity reaches the owner check but cannot
-  -- adopt the certificate order created for the actual collective manager.
+  -- A different valid Better Auth identity is denied at the certificate
+  -- owner check, before the RPC reads payment methods or gateway settings.
   PERFORM set_config(
     'request.jwt.claims',
     '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
@@ -5147,7 +5191,7 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
   END;
-  IF v_error IS DISTINCT FROM 'CERTIFICATE_ORDER_OWNED_BY_ANOTHER_USER' THEN
+  IF v_error IS DISTINCT FROM 'FORBIDDEN' THEN
     RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_OWNER_NOT_DENIED:%', coalesce(v_error,'<no error>');
   END IF;
 
