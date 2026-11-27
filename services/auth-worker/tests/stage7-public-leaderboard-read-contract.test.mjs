@@ -137,6 +137,8 @@ test("rollback-only anon regression positively reads public profiles and exclude
     "STAGE7_ANON_PUBLIC_ADMIN_ENRICHED_LEADERBOARD_LEAK",
     "STAGE7_ANON_PUBLIC_SCHOOL_LEADERBOARD_FAILED",
   ]) assert.ok(anonBlock.includes(marker), "missing anonymous public-read regression: " + marker);
+  assert.match(regression, /s\.school_name = 'STAGE7 PUBLIC SYNTHETIC SCHOOL'/);
+  assert.match(regression, /s\.student_count = 2/);
   assert.match(regression.slice(anonBlockEnd), /RESET ROLE;/);
   assert.match(regression, /ROLLBACK;/i);
 });
