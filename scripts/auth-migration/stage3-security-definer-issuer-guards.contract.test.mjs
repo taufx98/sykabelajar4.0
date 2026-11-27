@@ -1537,7 +1537,7 @@ for (const marker of [
   "83/202 exact signatures; 119 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche16AcceptedReport.includes(marker), "Tranche 16 accepted-review report missing " + marker);
-assert.match(securityDefinerGate, /updated 27 November 2026; 83\/202 exact signatures individually reviewed \(119 remain\)/);
-assert.match(securityDefinerGate, /Cumulative accepted manual review: 83\/202 exact signatures; 119 remain/);
+assert.match(securityDefinerGate, /updated 27 November 2026; 88\/202 exact signatures individually reviewed \(114 remain\)/);
+assert.match(securityDefinerGate, /Cumulative accepted manual review: 88\/202 exact signatures; 114 remain/);
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
