@@ -23,8 +23,8 @@ assert.equal(review.reviewed_table_count, 23);
 assert.equal(review.application_table_count, 23);
 assert.equal(review.status, "direct_table_acl_boundary_passed_disposable");
 assert.equal(review.direct_table_boundary_acceptance.status, "passed_disposable_schema_only");
-assert.equal(review.direct_table_boundary_acceptance.workflow_run_id, 45100444988);
-assert.equal(review.direct_table_boundary_acceptance.commit, "feeefcfa3077adfcb6a1151cf03bb8bff75a5321");
+assert.equal(review.direct_table_boundary_acceptance.workflow_run_id, 45922512277);
+assert.equal(review.direct_table_boundary_acceptance.commit, "b7a28adc954058b7388773e19272d32924e8679c");
 assert.match(review.direct_table_boundary_acceptance.limitations.join(" "), /SECURITY DEFINER caller\/issuer\/token audit/);
 
 for (const table of review.tables) {
@@ -50,6 +50,7 @@ for (const table of review.tables) {
     "shop_promo_banner_events",
     "shop_promo_banners",
   ].includes(table.table);
+  const isExamAttemptTable = table.table.startsWith("exam_attempt_");
   const expectedAuthorizationStatus = isRetiredChatTable
     ? "verified_retired_browser_access"
     : isParticipantPortalTable
@@ -60,7 +61,13 @@ for (const table of review.tables) {
           ? "verified_public_promo_banner_boundary"
           : table.table === "competition_status_history"
             ? "verified_competition_status_history_boundary"
-            : "pending_security_definer_audit";
+            : isExamAttemptTable
+              ? "verified_server_authoritative_exam_storage"
+              : table.table === "notification_deliveries"
+                ? "verified_no_database_or_realtime_caller"
+                : table.table === "supabase_system_logs"
+                  ? "verified_server_only_collector"
+                  : "pending_security_definer_audit";
   assert.equal(
     table.authorization_path_review_status,
     expectedAuthorizationStatus,
@@ -87,7 +94,12 @@ const systemLogs = review.tables.find((table) => table.schema === "public" && ta
 assert.ok(notificationDeliveries);
 assert.deepEqual(notificationDeliveries.source_callers, [],
   "notification_deliveries has no reviewed SECURITY DEFINER caller");
-assert.equal(notificationDeliveries.authorization_path_review_status, "pending_security_definer_audit");
+assert.equal(notificationDeliveries.authorization_path_review_status, "verified_no_database_or_realtime_caller");
+assert.deepEqual(notificationDeliveries.authorization_path_review.security_definer_callers, []);
+assert.deepEqual(notificationDeliveries.authorization_path_review.trigger_callers, []);
+assert.deepEqual(notificationDeliveries.authorization_path_review.view_or_materialized_view_callers, []);
+assert.equal(notificationDeliveries.authorization_path_review.realtime_publication_member, false);
+assert.equal(notificationDeliveries.authorization_path_review.runtime_acceptance.run_id, 45922512277);
 assert.ok(systemLogs);
 assert.deepEqual(systemLogs.source_callers.map((caller) => caller.signature), [
   "public.fetch_and_save_supabase_logs()",
@@ -96,7 +108,13 @@ assert.equal(systemLogs.source_callers[0].security_definer, true);
 assert.equal(systemLogs.source_callers[0].anon_execute, false);
 assert.equal(systemLogs.source_callers[0].authenticated_execute, false);
 assert.equal(systemLogs.source_callers[0].service_role_execute, true);
-assert.equal(systemLogs.authorization_path_review_status, "pending_security_definer_audit");
+assert.equal(systemLogs.authorization_path_review_status, "verified_server_only_collector");
+assert.equal(systemLogs.authorization_path_review.trusted_caller.owner, "postgres");
+assert.equal(systemLogs.authorization_path_review.trusted_caller.security_definer, true);
+assert.equal(systemLogs.authorization_path_review.trusted_caller.anon_execute, false);
+assert.equal(systemLogs.authorization_path_review.trusted_caller.authenticated_execute, false);
+assert.equal(systemLogs.authorization_path_review.trusted_caller.service_role_execute, true);
+assert.equal(systemLogs.authorization_path_review.runtime_acceptance.run_id, 45922512277);
 assert.match(systemLogAclRestore, /5d0e79655d70a9019040ab9f4d529c88/);
 assert.match(systemLogAclRestore, /search_path=public, extensions, pg_catalog/);
 assert.match(systemLogAclRestore, /REVOKE ALL PRIVILEGES ON FUNCTION public\.fetch_and_save_supabase_logs\(\)/);
@@ -156,6 +174,30 @@ assert.match(publicDetailDefinition, /'correct', v_correct/);
 assert.match(publicDetailDefinition, /'incorrect', v_incorrect/);
 assert.doesNotMatch(publicDetailDefinition, /'answer',\s*|answer_json->|answer_key_snapshot->/);
 assert.match(publicDetailContract, /participant result detail is gated by publication or organizer\/admin access and excludes raw answers/);
+const validPortalRuntime = read("scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql");
+const examTables = review.tables.filter((table) => table.table.startsWith("exam_attempt_"));
+assert.equal(examTables.length, 3);
+for (const table of examTables) {
+  assert.equal(table.authorization_path_review_status, "verified_server_authoritative_exam_storage");
+  assert.equal(table.authorization_path_review.boundary, "server_authoritative_exam_attempt_state");
+  assert.equal(table.authorization_path_review.direct_table_access, "revoked_for_public_anon_authenticated");
+  assert.equal(table.authorization_path_review.table_data_boundary, "service_role_only");
+  assert.equal(table.authorization_path_review.runtime_acceptance.run_id, 45922512277);
+  assert.equal(table.authorization_path_review.runtime_acceptance.commit, "b7a28adc954058b7388773e19272d32924e8679c");
+  assert.ok(table.authorization_path_review.runtime_acceptance.successful_steps.includes(65));
+}
+for (const marker of [
+  "STAGE7_CROSS_PARTICIPANT_EXAM_STATE_READ",
+  "STAGE7_CROSS_PARTICIPANT_DRAFT_WRITE",
+  "STAGE7_CROSS_PARTICIPANT_ANSWER_WRITE",
+  "STAGE7_CROSS_PARTICIPANT_SKIP_WRITE",
+  "STAGE7_CROSS_PARTICIPANT_CHOOSE_TIMEOUT",
+  "STAGE7_OTHER_TOKEN_READ_FOREIGN_ATTEMPT",
+  "STAGE7_OTHER_TOKEN_LEARNED_FOREIGN_RESULT",
+  "STAGE7_VALID_ACCESS_TOKEN_LINEAR_ANSWER_ADVANCE_FAILED",
+  "STAGE7_VALID_ACCESS_TOKEN_LINEAR_SKIP_COMPLETION_FAILED",
+]) assert.ok(validPortalRuntime.includes(marker), "missing two-participant exam token acceptance: " + marker);
+assert.match(workflow, /Verify valid collective portal password, listing, opening and revocation on disposable restore only/);
 assert.match(publicDetailMigration, /GRANT EXECUTE ON FUNCTION public\.get_competition_participant_detail\(text, uuid\) TO anon, authenticated/i);
 for (const marker of [
   "STAGE7_PUBLIC_PARTICIPANT_DETAIL_FUNCTION_MISSING",
@@ -163,16 +205,37 @@ for (const marker of [
   "STAGE7_PUBLIC_PARTICIPANT_DETAIL_PUBLICATION_OR_OWNER_GUARD_DRIFT",
 ]) assert.ok(regression.includes(marker), "public participant detail disposable caller assertion missing " + marker);
 
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 19);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 4);
+assert.deepEqual(
+  review.tables.filter((table) => table.authorization_path_review_status === "pending_security_definer_audit")
+    .map((table) => table.table).sort(),
+  ["payment_gateway_configs", "payment_gateway_state", "shop_user_vouchers", "shop_voucher_definitions"],
+  "only the four remaining payment/voucher caller audits may remain pending",
+);
+assert.deepEqual(
+  review.tables.filter((table) => table.authorization_path_review_status === "pending_security_definer_audit")
+    .map((table) => table.table).sort(),
+  ["payment_gateway_configs", "payment_gateway_state", "shop_user_vouchers", "shop_voucher_definitions"],
+  "only the four remaining payment/voucher caller audits may remain pending",
+);
+assert.deepEqual(
+  review.tables.filter((table) => table.authorization_path_review_status === "pending_security_definer_audit")
+    .map((table) => table.table).sort(),
+  ["payment_gateway_configs", "payment_gateway_state", "shop_user_vouchers", "shop_voucher_definitions"],
+  "only the four remaining payment/voucher caller audits may remain pending",
+);
 assert.deepEqual(review.authorization_path_audit_summary.verified_boundaries, {
   retired_chat_browser_access: 5,
   participant_portal_token_boundary: 3,
   private_better_auth_boundary: 3,
   public_promo_banner_boundary: 2,
   competition_status_history_boundary: 1,
+  server_authoritative_exam_storage: 3,
+  no_database_or_realtime_caller: 1,
+  server_only_system_log_collector: 1,
 });
-assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-26");
+assert.equal(review.authorization_path_audit_summary.reviewed_at, "2026-11-27");
 assert.deepEqual(review.authorization_path_audit_summary.retirement_source, {
   repository: "taufx98/sykabelajar4.0",
   ref: "main",
@@ -226,8 +289,8 @@ for (const marker of [
 
 const portalTables = review.tables.filter((table) => table.classification === "participant_portal_token_storage");
 assert.equal(portalTables.length, 3);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 19);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 4);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.retired_chat_browser_access, 5);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.public_promo_banner_boundary, 2);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.participant_portal_token_boundary, 3);
@@ -648,8 +711,8 @@ for (const marker of [
   "STAGE3_ANON_UNPUBLISHED_COMPETITION_RESULTS_ALLOWED",
   "STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED",
 ]) assert.ok(historyStage3Regression.includes(marker), "missing competition status history caller test: " + marker);
-assert.equal(review.authorization_path_audit_summary.verified_tables, 14);
-assert.equal(review.authorization_path_audit_summary.pending_tables, 9);
+assert.equal(review.authorization_path_audit_summary.verified_tables, 19);
+assert.equal(review.authorization_path_audit_summary.pending_tables, 4);
 assert.equal(review.authorization_path_audit_summary.verified_boundaries.competition_status_history_boundary, 1);
 
 const stage5Tables = [...stage5.matchAll(/public\.([a-z_][a-z0-9_]*)/g)].map((m) => m[1]);

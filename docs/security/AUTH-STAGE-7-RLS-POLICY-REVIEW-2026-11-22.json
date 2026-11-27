@@ -1401,16 +1401,75 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Baseline #364 step 63: table owner postgres, RLS enabled, zero policies, no anon/authenticated table privileges, and service_role table boundary verified.",
+        "Baseline #364 steps 40 and 48: Stage 3 issuer, owner, organizer and Admin acceptance passed on the disposable schema restore.",
+        "Baseline #364 steps 64-66: all 14 portal RPC invalid-token checks, two-participant valid-token and session-boundary acceptance, and selector collision tests passed.",
+        "Baseline #364 step 65: valid portal token can complete its own linear exam; parent and child session revocation are independently enforced."
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "Baseline #364 step 63: anon/authenticated direct SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER and MAINTAIN privileges denied.",
+        "Baseline #364 step 40: legacy issuer, unrelated Better Auth owner and non-Admin access are denied; Admin cannot access organizer preview answer keys.",
+        "Baseline #364 step 65: participant A cannot read/write participant B's attempt (state, draft, answer, skip, timeout); participant B cannot read/write A's attempt; unrelated result and certificate data are not exposed.",
+        "Baseline #364 steps 65-66: unpublished result score/answer-key fields remain hidden; revoked parent/child tokens cannot be reused."
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)"
+        ],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [],
+        "public_projection_entrypoints": [],
+        "private_helpers": [
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.log_linear_exam_event(p_attempt_id uuid, p_position integer, p_question_id uuid, p_event_type text, p_actor_kind text, p_metadata jsonb, p_occurred_at timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS remains enabled with zero policies.",
+          "Table rows remain service_role-only; anon/authenticated receive no direct table privileges.",
+          "Individual exam RPCs require the exact Better Auth issuer and owning participant/organizer scope; Admin investigation and monitoring require Better Auth Admin.",
+          "Collective exam RPCs use opaque participant access tokens bound to the active parent portal session and participant identity.",
+          "The portal token cannot read or mutate another participant's attempt; the reciprocal token cannot read or mutate the first participant's attempt.",
+          "Public participant detail is available only for eligible published public results and omits raw answers, question snapshots and answer keys.",
+          "Organizer preview answer keys are limited to the owning Better Auth organizer after completion; Admin and unrelated users are denied.",
+          "Private exam helpers and trigger functions are inaccessible to browser roles."
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45922512277,
+          "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+          "successful_steps": [
+            40,
+            48,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -1603,19 +1662,99 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending",
-        "scripts/competition-public-detail-contract.test.mjs: published participant result projection, organizer/Admin access, preview exclusion, and no raw answer/answer-key output",
-        "stage7-rls-policy-review-regression.sql: public result detail RPC remains SECURITY DEFINER with narrow anon/authenticated EXECUTE and publication/owner guard metadata"
+        "Baseline #364 step 63: table owner postgres, RLS enabled, zero policies, no anon/authenticated table privileges, and service_role table boundary verified.",
+        "Baseline #364 steps 40 and 48: Stage 3 issuer, owner, organizer and Admin acceptance passed on the disposable schema restore.",
+        "Baseline #364 steps 64-66: all 14 portal RPC invalid-token checks, two-participant valid-token and session-boundary acceptance, and selector collision tests passed.",
+        "Baseline #364 step 65: valid portal token can complete its own linear exam; parent and child session revocation are independently enforced."
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending",
-        "stage7-rls-policy-review-regression.sql + competition-public-detail-contract.test.mjs: unpublished/private detail rejects anon (RESULT_NOT_PUBLISHED) and unauthorized users (ACCESS_DENIED); raw answer and answer-key payloads are never returned"
+        "Baseline #364 step 63: anon/authenticated direct SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER and MAINTAIN privileges denied.",
+        "Baseline #364 step 40: legacy issuer, unrelated Better Auth owner and non-Admin access are denied; Admin cannot access organizer preview answer keys.",
+        "Baseline #364 step 65: participant A cannot read/write participant B's attempt (state, draft, answer, skip, timeout); participant B cannot read/write A's attempt; unrelated result and certificate data are not exposed.",
+        "Baseline #364 steps 65-66: unpublished result score/answer-key fields remain hidden; revoked parent/child tokens cannot be reused."
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [
+          "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "public.finalize_attempt_manual(p_attempt_id uuid, p_score numeric, p_reason text)",
+          "public.get_attempt_grading_limits(p_attempt_id uuid)",
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)",
+          "public.skip_linear_exam_question(p_attempt_id uuid)"
+        ],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.save_manual_grading_item(p_grading_item_id uuid, p_score numeric, p_feedback text)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [
+          "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)"
+        ],
+        "public_projection_entrypoints": [
+          "public.get_competition_participant_detail(p_slug text, p_participant_id uuid)"
+        ],
+        "private_helpers": [
+          "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "private.prevent_option_mutation_during_exam()",
+          "private.prevent_question_mutation_during_exam()",
+          "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS remains enabled with zero policies.",
+          "Table rows remain service_role-only; anon/authenticated receive no direct table privileges.",
+          "Individual exam RPCs require the exact Better Auth issuer and owning participant/organizer scope; Admin investigation and monitoring require Better Auth Admin.",
+          "Collective exam RPCs use opaque participant access tokens bound to the active parent portal session and participant identity.",
+          "The portal token cannot read or mutate another participant's attempt; the reciprocal token cannot read or mutate the first participant's attempt.",
+          "Public participant detail is available only for eligible published public results and omits raw answers, question snapshots and answer keys.",
+          "Organizer preview answer keys are limited to the owning Better Auth organizer after completion; Admin and unrelated users are denied.",
+          "Private exam helpers and trigger functions are inaccessible to browser roles."
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45922512277,
+          "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+          "successful_steps": [
+            40,
+            48,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -1801,16 +1940,96 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "Individual exam issuer guard covered by Stage 3 regression; collective portal-token IDOR acceptance is still pending"
+        "Baseline #364 step 63: table owner postgres, RLS enabled, zero policies, no anon/authenticated table privileges, and service_role table boundary verified.",
+        "Baseline #364 steps 40 and 48: Stage 3 issuer, owner, organizer and Admin acceptance passed on the disposable schema restore.",
+        "Baseline #364 steps 64-66: all 14 portal RPC invalid-token checks, two-participant valid-token and session-boundary acceptance, and selector collision tests passed.",
+        "Baseline #364 step 65: valid portal token can complete its own linear exam; parent and child session revocation are independently enforced."
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied",
-        "No direct browser table grants; legacy issuer denied for individual exam; collective token IDOR runtime test remains pending"
+        "Baseline #364 step 63: anon/authenticated direct SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER and MAINTAIN privileges denied.",
+        "Baseline #364 step 40: legacy issuer, unrelated Better Auth owner and non-Admin access are denied; Admin cannot access organizer preview answer keys.",
+        "Baseline #364 step 65: participant A cannot read/write participant B's attempt (state, draft, answer, skip, timeout); participant B cannot read/write A's attempt; unrelated result and certificate data are not exposed.",
+        "Baseline #364 steps 65-66: unpublished result score/answer-key fields remain hidden; revoked parent/child tokens cannot be reused."
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_authoritative_exam_storage",
+      "authorization_path_review": {
+        "boundary": "server_authoritative_exam_attempt_state",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "better_auth_user_entrypoints": [
+          "public.answer_linear_exam_question(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_linear_exam_timeout(p_attempt_id uuid, p_decision text)",
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_competition_result_overview(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)",
+          "public.publish_competition_results(p_competition_id uuid)",
+          "public.save_linear_exam_draft(p_attempt_id uuid, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_linear_exam_question(p_attempt_id uuid)",
+          "public.start_linear_exam_attempt(p_competition_id uuid)"
+        ],
+        "better_auth_owner_entrypoints": [
+          "public.get_linear_exam_activity(p_competition_id uuid, p_limit integer, p_offset integer)",
+          "public.get_organizer_exam_preview_report(p_attempt_id uuid)",
+          "public.grade_essay_similarity(p_attempt_id uuid, p_question_id uuid)"
+        ],
+        "admin_entrypoints": [
+          "public.admin_get_attempt_investigation(p_attempt_id uuid)",
+          "public.admin_get_monitoring_dashboard(p_competition_id uuid, p_query text, p_status text, p_limit integer, p_offset integer)"
+        ],
+        "participant_portal_token_entrypoints": [
+          "public.answer_collective_linear_exam_question(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb, p_skip boolean)",
+          "public.choose_collective_linear_exam_timeout(p_attempt_id uuid, p_access_token text, p_decision text)",
+          "public.save_collective_linear_exam_draft(p_attempt_id uuid, p_access_token text, p_question_id uuid, p_answer_json jsonb)",
+          "public.skip_collective_linear_exam_question(p_attempt_id uuid, p_access_token text)",
+          "public.start_collective_linear_exam_attempt(p_competition_id uuid, p_access_token text)"
+        ],
+        "public_projection_entrypoints": [],
+        "private_helpers": [
+          "private.advance_linear_exam_question(p_attempt_id uuid, p_transition_at timestamp with time zone, p_final_state text, p_time_bank_seconds integer, p_reason text, p_actor_kind text)",
+          "private.build_linear_exam_state(p_attempt_id uuid)",
+          "private.capture_automatic_grading_score()",
+          "private.complete_linear_exam_attempt(p_attempt_id uuid, p_completed_at timestamp with time zone)",
+          "private.prepare_linear_exam_runtime(p_attempt_id uuid)",
+          "private.resolve_linear_exam_timeouts(p_attempt_id uuid, p_server_now timestamp with time zone)"
+        ],
+        "private_schema_browser_usage": [],
+        "invariants": [
+          "No direct browser table SELECT/INSERT/UPDATE/DELETE; RLS remains enabled with zero policies.",
+          "Table rows remain service_role-only; anon/authenticated receive no direct table privileges.",
+          "Individual exam RPCs require the exact Better Auth issuer and owning participant/organizer scope; Admin investigation and monitoring require Better Auth Admin.",
+          "Collective exam RPCs use opaque participant access tokens bound to the active parent portal session and participant identity.",
+          "The portal token cannot read or mutate another participant's attempt; the reciprocal token cannot read or mutate the first participant's attempt.",
+          "Public participant detail is available only for eligible published public results and omits raw answers, question snapshots and answer keys.",
+          "Organizer preview answer keys are limited to the owning Better Auth organizer after completion; Admin and unrelated users are denied.",
+          "Private exam helpers and trigger functions are inaccessible to browser roles."
+        ],
+        "tests": [
+          "scripts/auth-migration/stage3-issuer-guard-regression.sql",
+          "scripts/auth-migration/stage3-security-definer-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage3-user-rpc-issuer-guards.contract.test.mjs",
+          "scripts/auth-migration/stage7-collective-portal-token-regression.sql",
+          "scripts/auth-migration/stage7-collective-portal-valid-token-regression.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45922512277,
+          "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+          "successful_steps": [
+            40,
+            48,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -1852,15 +2071,43 @@
       "intended_boundary": "These RLS-enabled tables currently have zero policies but broad anon/authenticated table privileges, including non-RLS privileges. The Stage 5 draft revokes PUBLIC/anon/authenticated grants on exactly these three tables and preserves service_role/postgres CRUD and MAINTAIN. Acceptance remains pending the disposable post-Stage5 regression.",
       "source_callers": [],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+        "Baseline #364 step 63: RLS enabled, zero policies, table owner postgres and service_role-only CRUD boundary verified.",
+        "Baseline #364 step 63 caller scan: no SECURITY DEFINER caller, trigger caller, view/materialized-view caller or Realtime publication membership."
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "Baseline #364 steps 57 and 63: PUBLIC, anon and authenticated direct table privileges (including SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN) are absent.",
+        "Baseline #364 step 63: runtime assertions fail closed if any function, trigger, view or Realtime path is added."
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_no_database_or_realtime_caller",
+      "authorization_path_review": {
+        "boundary": "no_database_or_realtime_caller",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "service_role_only",
+        "security_definer_callers": [],
+        "trigger_callers": [],
+        "view_or_materialized_view_callers": [],
+        "realtime_publication_member": false,
+        "invariants": [
+          "No SECURITY DEFINER function references this table.",
+          "No trigger function, view or materialized view exposes this table.",
+          "The table is absent from Supabase Realtime publications.",
+          "RLS remains enabled with zero policies; direct browser table grants are revoked and service_role retains CRUD."
+        ],
+        "tests": [
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45922512277,
+          "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+          "successful_steps": [
+            57,
+            63
+          ]
+        }
+      }
     },
     {
       "schema": "public",
@@ -2412,41 +2659,79 @@
         }
       ],
       "positive_tests": [
-        "stage7-rls-policy-review-regression.sql: RLS enabled, zero policies, table owner and service_role privilege boundary",
-        "stage5-no-policy-table-acl-draft.sql: browser revoke and trusted service_role/postgres preservation"
+        "Baseline #364 step 58: exact reviewed collector ACL restored on disposable restore with postgres and service_role only; owner, SECURITY DEFINER, search_path and source fingerprint matched.",
+        "Baseline #364 step 63: system log table RLS, zero-policy, no-browser-grant boundary and trusted service_role access verified."
       ],
       "negative_tests": [
-        "stage7-rls-policy-review-regression.sql: anon/authenticated direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN denied"
+        "Baseline #364 steps 58 and 63: anon/authenticated cannot execute the collector or access the table; unexpected function, trigger, view or Realtime paths fail the regression."
       ],
       "review_status": "direct_table_acl_boundary_passed_disposable",
       "public_acl_grant": false,
-      "authorization_path_review_status": "pending_security_definer_audit"
+      "authorization_path_review_status": "verified_server_only_collector",
+      "authorization_path_review": {
+        "boundary": "server_only_system_log_collector",
+        "direct_table_access": "revoked_for_public_anon_authenticated",
+        "table_data_boundary": "postgres_and_service_role_only",
+        "trusted_caller": {
+          "signature": "public.fetch_and_save_supabase_logs()",
+          "owner": "postgres",
+          "security_definer": true,
+          "search_path": "public, extensions, pg_catalog",
+          "anon_execute": false,
+          "authenticated_execute": false,
+          "service_role_execute": true,
+          "source_md5": "5d0e79655d70a9019040ab9f4d529c88"
+        },
+        "alternate_database_callers": [],
+        "trigger_callers": [],
+        "view_or_materialized_view_callers": [],
+        "realtime_publication_member": false,
+        "invariants": [
+          "Only the PostgreSQL cron/service-role collector may write system log rows.",
+          "The collector is SECURITY DEFINER, owned by postgres, with the reviewed fixed search_path and source fingerprint.",
+          "EXECUTE is limited to postgres and service_role; anon and authenticated cannot invoke the function.",
+          "No alternate function, trigger, view or Realtime entrypoint exists.",
+          "Direct table access remains revoked for browser roles; service_role retains the trusted table boundary."
+        ],
+        "tests": [
+          "docs/security/AUTH-STAGE-7-SYSTEM-LOG-COLLECTOR-ACL-RESTORE.sql",
+          "scripts/auth-migration/stage7-rls-policy-review-regression.sql"
+        ],
+        "runtime_acceptance": {
+          "workflow": "Auth Production Schema Baseline",
+          "run_id": 45922512277,
+          "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+          "successful_steps": [
+            58,
+            63
+          ]
+        }
+      }
     }
   ],
   "direct_table_boundary_acceptance": {
     "status": "passed_disposable_schema_only",
     "workflow": "Auth Production Schema Baseline",
-    "workflow_run_id": 45100444988,
-    "workflow_url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45100444988",
-    "commit": "feeefcfa3077adfcb6a1151cf03bb8bff75a5321",
+    "workflow_run_id": 45922512277,
+    "workflow_url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45922512277",
+    "commit": "b7a28adc954058b7388773e19272d32924e8679c",
     "postgres_version": "17.6",
     "checks": [
       "All 23 application-owned tables exist, remain owned by postgres, retain RLS, and have zero policies.",
-      "anon and authenticated have no effective SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, or MAINTAIN privilege on the 23 tables.",
+      "anon and authenticated have no effective SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN privilege on the 23 tables.",
       "No explicit PUBLIC ACL remains on the 23 application tables.",
       "service_role retains CRUD on the 20 designated public backend tables and has no direct table grants on the three private tables.",
-      "The assertion ran after the Stage 5 no-policy ACL draft and the Stage 7 portal parent-session hardening on the disposable restore."
+      "The direct table checks ran after Stage 5 ACL revoke and the Stage 7 portal/password/legacy-certificate hardening on the disposable restore."
     ],
     "limitations": [
-      "This acceptance covers direct table RLS/ACL boundaries on the disposable schema restore only.",
-      "It does not complete the separate SECURITY DEFINER caller/issuer/token audit, which remains a Production cutover blocker.",
-      "It does not apply any grants, policies, DDL, or DML to Production."
+      "This acceptance covers direct table RLS/ACL boundaries only; it does not replace the separate SECURITY DEFINER caller/issuer/token audit, which is tracked per table.",
+      "No Production grants, policies, DDL, DML, user rows or account changes are included."
     ]
   },
   "authorization_path_audit_summary": {
-    "reviewed_at": "2026-11-26",
-    "verified_tables": 14,
-    "pending_tables": 9,
+    "reviewed_at": "2026-11-27",
+    "verified_tables": 19,
+    "pending_tables": 4,
     "retirement_source": {
       "repository": "taufx98/sykabelajar4.0",
       "ref": "main",
@@ -2459,14 +2744,20 @@
       "The only remaining non-chat caller is admin_force_delete_competition on chat_groups; its legacy-issuer denial and Better Auth admin path are tested separately.",
       "The three private organizer/referral tables remain RLS-enabled with zero policies, no direct grants to browser or service_role, and no private schema USAGE/CREATE for anon/authenticated/service_role. They are reachable only from Better Auth issuer/identity-guarded owner/admin RPCs, the server-only Better Auth provisioning routine, or internal trigger functions. The legacy auth.users signup/referral triggers are dropped in the identity-root draft.",
       "The two public Shop promo banner tables remain RLS-enabled with zero policies and no direct anon/authenticated table grants. Anonymous storefront access is limited to active-banner listing and a validated, deduplicated VIEW/CLICK RPC; raw banner/event rows stay service_role-only. Banner Admin CRUD is exposed only through authenticated Admin SECURITY DEFINER RPCs, whose shared role helper verifies the exact Better Auth issuer and private.app_users identity_origin.",
-      "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles."
+      "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles.",
+      "Baseline #364 (commit b7a28adc) passed all 75 numbered workflow steps plus post-job cleanup. Its disposable-restore acceptance closes the three server-authoritative exam tables, including cross-participant token IDOR, result publication projection and parent/child session revocation.",
+      "notification_deliveries has no database or Realtime caller; supabase_system_logs has one exact postgres-owned service_role-only collector. Both boundaries passed the latest disposable runtime ACL/caller scan.",
+      "The remaining four pending tables are payment_gateway_configs, payment_gateway_state, shop_user_vouchers and shop_voucher_definitions; their SECURITY DEFINER owner/issuer paths are the next tranche."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
       "participant_portal_token_boundary": 3,
       "private_better_auth_boundary": 3,
       "public_promo_banner_boundary": 2,
-      "competition_status_history_boundary": 1
+      "competition_status_history_boundary": 1,
+      "server_authoritative_exam_storage": 3,
+      "no_database_or_realtime_caller": 1,
+      "server_only_system_log_collector": 1
     }
   }
 }
