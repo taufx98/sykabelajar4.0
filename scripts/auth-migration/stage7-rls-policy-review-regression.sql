@@ -236,7 +236,7 @@ BEGIN
       AND coalesce(array_to_string(p.proconfig,', '),'')='search_path=public, extensions, pg_catalog'
       AND md5(p.prosrc)='5d0e79655d70a9019040ab9f4d529c88'
       AND p.prorettype='void'::regtype
-      AND p.proargtypes::oid[]=ARRAY[]::oid[]
+      AND pg_catalog.cardinality(p.proargtypes::oid[])=0
       AND NOT pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE')
       AND NOT pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE')
       AND pg_catalog.has_function_privilege('service_role',p.oid,'EXECUTE')
@@ -270,5 +270,50 @@ BEGIN
   END IF;
 END;
 $stage7_log_table_caller_boundary$;
+
+
+DO $stage7_public_participant_result_detail_caller$
+DECLARE
+  v_oid oid;
+  v_definition text;
+BEGIN
+  v_oid := pg_catalog.to_regprocedure('public.get_competition_participant_detail(text,uuid)');
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_PUBLIC_PARTICIPANT_DETAIL_FUNCTION_MISSING';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE p.oid=v_oid
+      AND n.nspname='public'
+      AND p.prosecdef
+      AND p.prorettype='jsonb'::regtype
+      AND pg_catalog.cardinality(p.proargtypes::oid[])=2
+      AND pg_catalog.has_function_privilege('anon',p.oid,'EXECUTE')
+      AND pg_catalog.has_function_privilege('authenticated',p.oid,'EXECUTE')
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_PUBLIC_PARTICIPANT_DETAIL_RPC_METADATA_OR_GRANT_DRIFT';
+  END IF;
+
+  SELECT pg_catalog.pg_get_functiondef(p.oid)
+  INTO v_definition
+  FROM pg_catalog.pg_proc p
+  WHERE p.oid=v_oid;
+
+  IF pg_catalog.strpos(v_definition, 'v_comp.visibility = ''PUBLIC''')=0
+     OR pg_catalog.strpos(v_definition, 'RESULT_PUBLISHED')=0
+     OR pg_catalog.strpos(v_definition, 'ARCHIVED')=0
+     OR pg_catalog.strpos(v_definition, 'RESULT_NOT_PUBLISHED')=0
+     OR pg_catalog.strpos(v_definition, 'ACCESS_DENIED')=0
+     OR pg_catalog.strpos(v_definition, 'private.current_user_is_admin()')=0
+     OR pg_catalog.strpos(v_definition, 'private.current_user_can_edit_competition')=0
+     OR pg_catalog.strpos(v_definition, 'a.is_preview = false')=0
+     OR pg_catalog.strpos(v_definition, 'a.status::text = ''FINALIZED''')=0 THEN
+    RAISE EXCEPTION 'STAGE7_PUBLIC_PARTICIPANT_DETAIL_PUBLICATION_OR_OWNER_GUARD_DRIFT';
+  END IF;
+END;
+$stage7_public_participant_result_detail_caller$;
 
 ROLLBACK;
