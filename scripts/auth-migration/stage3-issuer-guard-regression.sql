@@ -3535,6 +3535,15 @@ BEGIN
   FROM public.get_public_profile_social('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid);
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PUBLIC_SOCIAL_FAILED:%', v_count; END IF;
 
+  -- Use a dedicated Better Auth identity whose fixture preflight proves it
+  -- has no user role or organizer membership.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"12121212-1212-4212-8212-121212121212","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','12121212-1212-4212-8212-121212121212',TRUE);
+
   -- An unrelated Better Auth identity cannot inspect a follow edge between
   -- two other users, even though the follow status RPC has a valid JWT.
   v_denied := false;
@@ -3573,6 +3582,15 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_OTHER_BETTER_AUTH_PRIVATE_PARTICIPANT_DETAIL_ALLOWED';
   END IF;
+
+  -- Restore the organizer-owner identity used by the remaining collective
+  -- owner/Admin checks in this same regression block.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
 
   v_denied := false;
   BEGIN
