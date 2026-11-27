@@ -457,6 +457,50 @@ AS $function$
 $function$;
 
 
+-- Pin the existing Production SECURITY DEFINER RPC before replacing it.
+-- This is a read-only fail-closed check on the disposable restore; it does not
+-- change the Production function definition or its ACL.
+DO $stage3_verified_referrals_source_preflight$
+DECLARE
+  v_function regprocedure := pg_catalog.to_regprocedure('public.get_my_verified_referrals()');
+  v_source_md5 text;
+  v_owner text;
+  v_security_definer boolean;
+  v_config text[];
+  v_public_execute boolean;
+BEGIN
+  IF v_function IS NULL THEN
+    RAISE EXCEPTION 'STAGE3_VERIFIED_REFERRALS_FUNCTION_MISSING';
+  END IF;
+
+  SELECT
+    md5(p.prosrc),
+    pg_catalog.pg_get_userbyid(p.proowner),
+    p.prosecdef,
+    coalesce(p.proconfig, ARRAY[]::text[]),
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) AS acl
+      WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+    )
+  INTO
+    v_source_md5, v_owner, v_security_definer, v_config, v_public_execute
+  FROM pg_catalog.pg_proc AS p
+  WHERE p.oid = v_function;
+
+  IF v_source_md5 IS DISTINCT FROM '62edae46657affa808e469311f25d85f'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM TRUE
+     OR v_config IS DISTINCT FROM ARRAY['search_path=public, private']::text[]
+     OR NOT v_public_execute
+     OR NOT pg_catalog.has_function_privilege('anon', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('authenticated', v_function, 'EXECUTE')
+     OR NOT pg_catalog.has_function_privilege('service_role', v_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'STAGE3_VERIFIED_REFERRALS_PRODUCTION_FINGERPRINT_OR_ACL_DRIFT';
+  END IF;
+END;
+$stage3_verified_referrals_source_preflight$;
+
 CREATE OR REPLACE FUNCTION public.get_my_verified_referrals()
 RETURNS TABLE (
   referred_user_id uuid,
@@ -482,6 +526,12 @@ AS $function$
   WHERE re.referrer_user_id = (SELECT auth.uid())
     AND re.verified_at IS NOT NULL
     AND (SELECT auth.jwt() ->> 'iss') = 'https://auth-prod.sykabelajar.my.id/api/auth'
+    AND EXISTS (
+      SELECT 1
+      FROM private.app_users AS caller
+      WHERE caller.id = (SELECT auth.uid())
+        AND caller.identity_origin = 'better_auth'
+    )
   ORDER BY re.verified_at DESC;
 $function$;
 
