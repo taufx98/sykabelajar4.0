@@ -248,13 +248,15 @@ VALUES
 -- Synthetic profiles exercise the SECURITY DEFINER privacy boundary after
 -- Stage 3. Two fresh synthetic Better Auth identities have private profiles;
 -- public profile C publishes only its following list, not its followers list.
-INSERT INTO public.profiles (id, username, full_name, is_public)
+INSERT INTO public.profiles (
+  id, username, full_name, is_public, institution, grade, total_xp, edu_coin
+)
 VALUES
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_untrusted_issuer_private', 'Untrusted Issuer Probe', false),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false),
-  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true),
-  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true),
-  ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'stage3_ba_private_badge_owner', 'Private Badge Owner Probe', false);
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage3_untrusted_issuer_private', 'Untrusted Issuer Probe', false, 'Private Synthetic School', 'SMA 3', 990000, 990000),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false, 'Private Synthetic School', 'SMA 2', 880000, 880000),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true, 'Stage7 Public Synthetic School', 'SMA 1', 120, 80),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true, 'Stage7 Public Synthetic School', 'SMA 1', 60, 40),
+  ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'stage3_ba_private_badge_owner', 'Private Badge Owner Probe', false, 'Private Synthetic School', 'SMA 1', 770000, 770000);
 
 INSERT INTO public.profile_ui_settings (
   user_id, show_following_popup, show_social_popup, show_badges, show_badge_collection
@@ -1020,6 +1022,9 @@ DECLARE
   v_show_social_popup boolean;
   v_show_following_popup boolean;
   v_denied boolean := false;
+  v_public_row_count integer;
+  v_private_row_count integer;
+  v_public_school_count integer;
 BEGIN
   -- A private profile remains private even when its popup setting is enabled.
   SELECT count(*) INTO v_count
@@ -1148,6 +1153,97 @@ BEGIN
   END;
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED';
+  END IF;
+
+  -- The explicitly public leaderboard/statistics RPCs may be called by
+  -- guests, but must not expose private profiles or active Admin identities.
+  SELECT count(*) INTO v_count FROM public.get_platform_stats();
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PLATFORM_STATS_ROW_FAILED:%', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_public_row_count
+  FROM public.get_public_leaderboard(1000)
+  WHERE user_id IN (
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+  );
+  IF v_public_row_count <> 2 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_XP_LEADERBOARD_FAILED:%', v_public_row_count;
+  END IF;
+  SELECT count(*) INTO v_private_row_count
+  FROM public.get_public_leaderboard(1000)
+  WHERE user_id IN (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+    'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+  );
+  IF v_private_row_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_XP_LEADERBOARD_LEAK:%', v_private_row_count;
+  END IF;
+
+  SELECT count(*) INTO v_public_row_count
+  FROM public.get_public_coin_leaderboard(1000)
+  WHERE user_id IN (
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+  );
+  IF v_public_row_count <> 2 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_COIN_LEADERBOARD_FAILED:%', v_public_row_count;
+  END IF;
+  SELECT count(*) INTO v_private_row_count
+  FROM public.get_public_coin_leaderboard(1000)
+  WHERE user_id IN (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+    'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+  );
+  IF v_private_row_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COIN_LEADERBOARD_LEAK:%', v_private_row_count;
+  END IF;
+
+  SELECT count(*) INTO v_public_row_count
+  FROM public.get_public_leaderboard_enriched('all', 1000)
+  WHERE user_id IN (
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
+  );
+  IF v_public_row_count <> 2 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_ENRICHED_LEADERBOARD_FAILED:%', v_public_row_count;
+  END IF;
+  SELECT count(*) INTO v_private_row_count
+  FROM public.get_public_leaderboard_enriched('all', 1000)
+  WHERE user_id IN (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,
+    'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+  );
+  IF v_private_row_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_ENRICHED_LEADERBOARD_LEAK:%', v_private_row_count;
+  END IF;
+
+  SELECT count(*) INTO v_public_school_count
+  FROM public.get_public_school_leaderboard('all', 1000) s
+  WHERE s.school_name = 'Stage7 Public Synthetic School'
+    AND (
+      SELECT count(*)
+      FROM jsonb_array_elements(s.top_students) AS student
+      WHERE student->>'user_id' IN (
+        'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+      )
+    ) = 2
+    AND (
+      SELECT count(*)
+      FROM jsonb_array_elements(s.top_students) AS student
+      WHERE student->>'user_id' IN (
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'ffffffff-ffff-4fff-8fff-fffffffffff6'
+      )
+    ) = 0;
+  IF v_public_school_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_SCHOOL_LEADERBOARD_FAILED:%', v_public_school_count;
   END IF;
 
   -- The social summary deliberately has no anon/PUBLIC EXECUTE grant.
