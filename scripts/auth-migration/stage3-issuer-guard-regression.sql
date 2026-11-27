@@ -98,6 +98,10 @@ BEGIN
       AND requester_user_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'::uuid
       AND notes = 'Stage 7 Tranche 16 owner custom plan probe'
   ) OR EXISTS (
+    SELECT 1 FROM private.app_users WHERE id = '12121212-1212-4212-8212-121212121212'::uuid
+  ) OR EXISTS (
+    SELECT 1 FROM public.user_roles WHERE user_id = '12121212-1212-4212-8212-121212121212'::uuid
+  ) OR EXISTS (
     SELECT 1 FROM public.commerce_products
     WHERE id = '77777777-7777-4777-8777-777777777794'::uuid
        OR code = 'STAGE7-PAYMENT-ISSUER-CERTIFICATE'
@@ -238,6 +242,7 @@ VALUES
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'better_auth'),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth'),
+  ('12121212-1212-4212-8212-121212121212', 'better_auth'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'better_auth');
 
 -- Synthetic profiles exercise the SECURITY DEFINER privacy boundary after
@@ -2533,14 +2538,14 @@ SELECT count(*) INTO v_count
   END IF;
 
 
-  -- A valid but unrelated Better Auth participant must be rejected by owner
-  -- scope before the function reads price or the global gateway state.
+  -- A fresh Better Auth identity with no role, organizer membership, or
+  -- participant ownership must be denied before price/gateway state is read.
   PERFORM set_config(
     'request.jwt.claims',
-    '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    '{"sub":"12121212-1212-4212-8212-121212121212","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
     TRUE
   );
-  PERFORM set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd',TRUE);
+  PERFORM set_config('request.jwt.claim.sub','12121212-1212-4212-8212-121212121212',TRUE);
   v_exam_denied := false;
   BEGIN
     PERFORM public.create_collective_certificate_order(
