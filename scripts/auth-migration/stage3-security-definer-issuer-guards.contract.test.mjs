@@ -1521,6 +1521,10 @@ const securityDefinerGate = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-AUDIT-GATE.md"),
   "utf8",
 );
+const tranche18AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-18-2026-11-27.md"),
+  "utf8",
+);
 for (const marker of [
   "choose_organizer_plan(uuid,text)",
   "get_organizer_competition_result_overview(uuid,integer,integer)",
@@ -1537,7 +1541,27 @@ for (const marker of [
   "83/202 exact signatures; 119 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche16AcceptedReport.includes(marker), "Tranche 16 accepted-review report missing " + marker);
-assert.match(securityDefinerGate, /updated 27 November 2026; 88\/202 exact signatures individually reviewed \(114 remain\)/);
-assert.match(securityDefinerGate, /Cumulative accepted manual review: 88\/202 exact signatures; 114 remain/);
+assert.match(securityDefinerGate, /updated 27 November 2026; 93\/202 exact signatures individually reviewed \(109 remain\)/);
+assert.match(securityDefinerGate, /Cumulative accepted manual review: 93\/202 exact signatures; 109 remain/);
+for (const marker of [
+  "get_platform_stats()",
+  "get_public_coin_leaderboard(integer)",
+  "get_public_leaderboard(integer)",
+  "get_public_leaderboard_enriched(text,integer)",
+  "get_public_school_leaderboard(text,integer)",
+  "89940ccab266fee4780fbe2999d8e000",
+  "c340deca8807f29674602e920f452837",
+  "56a97da61639d334dcdc5298f14c2faa",
+  "442f3995f43dec475d5ed8c79fdbfb8f",
+  "efab75373f8f4db86e2f1e917ee8fe55",
+  "46040774742",
+  "78/78 steps",
+  "46040774710",
+  "23/23",
+  "93/202 exact signatures; 109 remain",
+  "Production DB2 remains **NO-GO**",
+]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
+assert.match(securityDefinerGate, /Tranche 18 report/);
+
 
 console.log("Stage 3 SECURITY DEFINER issuer-guard contract passed: Admin, organizer owner, unrelated user and legacy issuer paths are covered in disposable runtime tests.");
