@@ -554,6 +554,32 @@ VALUES (
   'ELIGIBLE'
 );
 
+-- Verify the fixture's owner boundary with the privileged setup role before
+-- the script switches to authenticated (which correctly cannot read this row).
+DO $stage7_certificate_owner_fixture_preflight$
+DECLARE
+  v_certificate_id uuid;
+  v_collective_participant_id uuid;
+  v_manager uuid;
+  v_user uuid;
+BEGIN
+  SELECT cert.id, cp.id, cp.managed_by_user_id, cp.user_id
+    INTO v_certificate_id, v_collective_participant_id, v_manager, v_user
+  FROM public.collective_certificates AS cert
+  JOIN public.collective_participants AS cp
+    ON cp.id=cert.collective_participant_id
+  WHERE cert.id='88888888-8888-4888-8888-888888888894'::uuid;
+
+  IF v_certificate_id IS DISTINCT FROM '88888888-8888-4888-8888-888888888894'::uuid
+     OR v_collective_participant_id IS DISTINCT FROM '66666666-6666-4666-8666-666666666682'::uuid
+     OR v_manager IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+     OR v_user IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_OWNER_FIXTURE_INVALID:certificate=%:participant=%:manager=%:user=%',
+      v_certificate_id, v_collective_participant_id, v_manager, v_user;
+  END IF;
+END;
+$stage7_certificate_owner_fixture_preflight$;
+
 INSERT INTO public.badges (id, code, name, slug, status, award_type)
 VALUES ('88888888-8888-4888-8888-888888888881', 'stage3-private-badge',
         'Stage 3 Private Badge', 'stage3-private-badge', 'ACTIVE', 'MANUAL');
@@ -2383,8 +2409,6 @@ DECLARE
   v_question public.questions;
   v_option_count integer;
   v_certificate_actor uuid;
-  v_certificate_manager uuid;
-  v_certificate_user uuid;
   v_certificate_actor_admin boolean;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
@@ -2551,30 +2575,16 @@ SELECT count(*) INTO v_count
   );
   PERFORM set_config('request.jwt.claim.sub','12121212-1212-4212-8212-121212121212',TRUE);
 
-  -- Fail with explicit fixture diagnostics before the SECURITY DEFINER call.
-  -- The actor must be a valid Better Auth identity, but neither the manager nor
-  -- an explicitly claimed participant, and must not carry an Admin role.
+  -- This check runs as authenticated: prove the effective JWT identity and
+  -- issuer-gated Admin status, without querying participant rows hidden by RLS.
   v_certificate_actor := auth.uid();
-  SELECT cp.managed_by_user_id, cp.user_id
-    INTO v_certificate_manager, v_certificate_user
-  FROM public.collective_certificates AS cert
-  JOIN public.collective_participants AS cp
-    ON cp.id=cert.collective_participant_id
-  WHERE cert.id='88888888-8888-4888-8888-888888888894'::uuid;
-
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_roles AS ur
-    WHERE ur.user_id=v_certificate_actor
-      AND ur.role='admin'::public.app_role
-      AND ur.is_active=true
-  ) INTO v_certificate_actor_admin;
+  SELECT public.is_active_admin(v_certificate_actor)
+    INTO v_certificate_actor_admin;
 
   IF v_certificate_actor IS DISTINCT FROM '12121212-1212-4212-8212-121212121212'::uuid
-     OR v_certificate_manager IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
-     OR v_certificate_user IS NOT NULL
      OR coalesce(v_certificate_actor_admin,false) THEN
-    RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_ACTOR_FIXTURE_INVALID:uid=%:manager=%:user=%:admin=%',
-      v_certificate_actor, v_certificate_manager, v_certificate_user, v_certificate_actor_admin;
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_ACTOR_JWT_INVALID:uid=%:admin=%',
+      v_certificate_actor, v_certificate_actor_admin;
   END IF;
 
   v_exam_denied := false;
