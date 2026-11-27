@@ -376,7 +376,8 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_B_ORDER_OWNER_MISMATCH:%', row_to_json(v_order);
   END IF;
 
-  -- Voucher administration remains Better Auth Admin-only.
+  -- Voucher administration remains Better Auth Admin-only across every
+  -- public admin wrapper. Each call is expected to fail before table access.
   v_error := NULL;
   BEGIN
     PERFORM * FROM public.admin_list_shop_voucher_definitions();
@@ -386,6 +387,57 @@ BEGIN
   IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
     RAISE EXCEPTION 'STAGE7_VOUCHER_NON_ADMIN_ADMIN_RPC_NOT_DENIED:%',
       coalesce(v_error, '<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_save_shop_voucher_definition('{}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_NON_ADMIN_SAVE_DEFINITION_NOT_DENIED:%',
+      coalesce(v_error, '<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM public.admin_issue_shop_voucher(v_definition, 'stage7_owner_boundary_b');
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_NON_ADMIN_ISSUE_NOT_DENIED:%',
+      coalesce(v_error, '<no error>');
+  END IF;
+
+  v_error := NULL;
+  BEGIN
+    PERFORM * FROM public.admin_list_issued_shop_vouchers();
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'ADMIN_REQUIRED' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_NON_ADMIN_LIST_ISSUED_NOT_DENIED:%',
+      coalesce(v_error, '<no error>');
+  END IF;
+
+  IF pg_catalog.has_function_privilege(
+       'anon',
+       'private.calculate_shop_voucher_effects(uuid,uuid,integer,numeric,numeric,uuid[])',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'authenticated',
+       'private.calculate_shop_voucher_effects(uuid,uuid,integer,numeric,numeric,uuid[])',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'service_role',
+       'private.calculate_shop_voucher_effects(uuid,uuid,integer,numeric,numeric,uuid[])',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_CALCULATOR_PRIVATE_EXECUTE_OVERBROAD';
   END IF;
 END;
 $stage7_payment_and_voucher_owner_runtime$;
