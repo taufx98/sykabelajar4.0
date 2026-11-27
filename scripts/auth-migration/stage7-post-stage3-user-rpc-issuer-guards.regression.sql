@@ -113,6 +113,8 @@ DO $stage7_payment_and_voucher_owner_runtime$
 DECLARE
   v_user_a constant uuid := 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid;
   v_user_b constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid;
+  v_admin constant uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid;
+  v_checkout_product_id constant uuid := 'e8000000-0000-4000-8000-000000000003'::uuid;
   v_organizer constant uuid := 'e8000000-0000-4000-8000-000000000080'::uuid;
   v_definition constant uuid := 'e7000000-0000-4000-8000-000000000000'::uuid;
   v_voucher_a constant uuid := 'e7000000-0000-4000-8000-000000000001'::uuid;
@@ -122,6 +124,14 @@ DECLARE
   v_missing_method constant uuid := 'e8000000-0000-4000-8000-000000000099'::uuid;
   v_global_method constant uuid := 'e8000000-0000-4000-8000-000000000098'::uuid;
   v_order public.orders%rowtype;
+  v_checkout_order public.orders%rowtype;
+  v_admin_product public.commerce_products%rowtype;
+  v_admin_definition jsonb;
+  v_admin_issue_a jsonb;
+  v_admin_issue_b jsonb;
+  v_checkout_definition_id uuid;
+  v_checkout_voucher_a uuid;
+  v_checkout_voucher_b uuid;
   v_order_a_id uuid;
   v_order_b_id uuid;
   v_count integer;
@@ -131,19 +141,36 @@ BEGIN
   -- Both actors and all rows below are synthetic; the enclosing transaction
   -- rolls profiles, vouchers, organizer/request fixtures and seen-state back.
   INSERT INTO private.app_users (id, identity_origin)
-  VALUES (v_user_a, 'better_auth'), (v_user_b, 'better_auth')
+  VALUES
+    (v_user_a, 'better_auth'),
+    (v_user_b, 'better_auth'),
+    (v_admin, 'better_auth')
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.profiles (id, username, full_name, is_public)
   VALUES
     (v_user_a, 'stage7_owner_boundary_a', 'Stage 7 Voucher Owner A', false),
-    (v_user_b, 'stage7_owner_boundary_b', 'Stage 7 Voucher Owner B', false)
+    (v_user_b, 'stage7_owner_boundary_b', 'Stage 7 Voucher Owner B', false),
+    (v_admin, 'stage7_owner_boundary_admin', 'Stage 7 Voucher Admin', false)
   ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.user_roles (user_id, role, is_active)
+  VALUES
+    (v_user_a, 'student'::public.app_role, true),
+    (v_user_b, 'student'::public.app_role, true),
+    (v_admin, 'admin'::public.app_role, true)
+  ON CONFLICT (user_id, role) DO NOTHING;
 
   IF EXISTS (
     SELECT 1 FROM public.organizers WHERE id = v_organizer
   ) OR EXISTS (
-    SELECT 1 FROM public.shop_voucher_definitions WHERE id = v_definition
+    SELECT 1 FROM public.shop_voucher_definitions
+    WHERE id = v_definition OR name = 'Stage 7 Checkout Voucher Definition'
+  ) OR EXISTS (
+    SELECT 1 FROM public.commerce_products
+    WHERE id = v_checkout_product_id
+       OR code = 'STAGE7-VOUCHER-CHECKOUT'
+       OR slug = 'stage7-voucher-checkout'
   ) OR EXISTS (
     SELECT 1 FROM public.shop_user_vouchers WHERE id IN (v_voucher_a, v_voucher_b)
   ) OR EXISTS (
@@ -179,6 +206,105 @@ BEGIN
   ) VALUES (
     v_organizer, v_user_a, 'owner', true, 'owner', 'ACTIVE'
   );
+
+  -- Build a real product and voucher definition through the Admin SECURITY
+  -- DEFINER entrypoints. Both actors are synthetic and this transaction rolls back.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub', v_admin::text, TRUE);
+
+  SELECT * INTO v_admin_product
+  FROM public.admin_save_product(
+    NULL::uuid,
+    'STAGE7-VOUCHER-CHECKOUT',
+    'stage7-voucher-checkout',
+    'Stage 7 Voucher Checkout Product',
+    'Rollback-only checkout fixture',
+    'Synthetic product for voucher owner isolation acceptance',
+    'DIGITAL_ITEM',
+    ARRAY['student']::text[],
+    10000,
+    'IDR',
+    NULL,
+    TRUE,
+    FALSE,
+    900,
+    '{}'::jsonb
+  );
+  IF v_admin_product.id IS DISTINCT FROM v_checkout_product_id
+     OR v_admin_product.product_type::text IS DISTINCT FROM 'DIGITAL_ITEM'
+     OR v_admin_product.price IS DISTINCT FROM 10000
+     OR v_admin_product.is_active IS NOT TRUE THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_ADMIN_PRODUCT_CREATE_FAILED:%', row_to_json(v_admin_product);
+  END IF;
+
+  v_admin_definition := public.admin_save_shop_voucher_definition(
+    jsonb_build_object(
+      'name','Stage 7 Checkout Voucher Definition',
+      'description','Rollback-only two-user checkout fixture',
+      'usage_type','SINGLE_USE',
+      'benefit_group','PRICE_DISCOUNT',
+      'benefit_type','PERCENT',
+      'discount_value',10,
+      'discount_currency','IDR',
+      'scope_type','ALL',
+      'starts_at',now()-interval '1 minute',
+      'ends_at',now()+interval '1 day',
+      'is_active',true
+    )
+  );
+  v_checkout_definition_id := nullif(v_admin_definition->>'id','')::uuid;
+  IF v_checkout_definition_id IS NULL
+     OR v_admin_definition->>'name' IS DISTINCT FROM 'Stage 7 Checkout Voucher Definition' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_ADMIN_DEFINITION_CREATE_FAILED:%', v_admin_definition;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admin_list_shop_voucher_definitions()
+    WHERE id=v_checkout_definition_id AND is_active IS TRUE
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_ADMIN_LIST_DEFINITIONS_FAILED';
+  END IF;
+
+  v_admin_issue_a := public.admin_issue_shop_voucher(
+    v_checkout_definition_id,'stage7_owner_boundary_a'
+  );
+  v_admin_issue_b := public.admin_issue_shop_voucher(
+    v_checkout_definition_id,'stage7_owner_boundary_b'
+  );
+  v_checkout_voucher_a := nullif(v_admin_issue_a->>'id','')::uuid;
+  v_checkout_voucher_b := nullif(v_admin_issue_b->>'id','')::uuid;
+  IF v_checkout_voucher_a IS NULL OR v_checkout_voucher_b IS NULL
+     OR v_admin_issue_a->>'user_id' IS DISTINCT FROM v_user_a::text
+     OR v_admin_issue_b->>'user_id' IS DISTINCT FROM v_user_b::text
+     OR v_admin_issue_a->>'status' IS DISTINCT FROM 'READY'
+     OR v_admin_issue_b->>'status' IS DISTINCT FROM 'READY' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_ADMIN_ISSUE_OWNER_MISMATCH:%:%',
+      v_admin_issue_a,v_admin_issue_b;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admin_list_issued_shop_vouchers()
+    WHERE id=v_checkout_voucher_a AND username='stage7_owner_boundary_a'
+      AND voucher_name='Stage 7 Checkout Voucher Definition' AND status='READY'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.admin_list_issued_shop_vouchers()
+    WHERE id=v_checkout_voucher_b AND username='stage7_owner_boundary_b'
+      AND voucher_name='Stage 7 Checkout Voucher Definition' AND status='READY'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_ADMIN_LIST_ISSUED_FAILED';
+  END IF;
+
+  -- Return to user A before starting the original two-user payment/voucher probe.
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"ffffffff-ffff-4fff-8fff-fffffffffff6","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+    TRUE
+  );
+  PERFORM set_config('request.jwt.claim.sub',v_user_a::text,TRUE);
 
   -- Schema-only export intentionally excludes table rows, including the
   -- migration seed for the global method. Seed a deterministic disposable
@@ -267,7 +393,73 @@ BEGIN
     (v_ad_request_b, v_organizer, v_user_b, 'https://example.invalid/stage7-owner-b.png',
      'home_top', 1, 7, 0, 'PENDING');
 
-  -- User A must see and mark only A's voucher; B's voucher stays hidden/unseen.
+  -- The checkout list must expose only the current user's voucher and show
+  -- a selected valid single-use voucher as eligible.
+  SELECT count(*) INTO v_count
+  FROM public.list_shop_checkout_vouchers(
+    v_checkout_product_id,1,10000,0
+  )
+  WHERE id=v_checkout_voucher_a AND eligible IS TRUE;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_CHECKOUT_ELIGIBILITY_FAILED:%',v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_shop_checkout_vouchers(
+    v_checkout_product_id,1,10000,0
+  )
+  WHERE id=v_checkout_voucher_b;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_CHECKOUT_LIST_EXPOSED_FOREIGN:%',v_count;
+  END IF;
+
+  -- Explicit voucher IDOR attempt: A cannot ask the checkout helper to redeem B's voucher.
+  v_error := NULL;
+  BEGIN
+    PERFORM public.create_shop_product_order_with_vouchers(
+      v_checkout_product_id,1,'081234567801','BANK_TRANSFER',
+      'https://proof.invalid/stage7-voucher-cross-owner-a',NULL,NULL,NULL,NULL,NULL,NULL,
+      ARRAY[v_checkout_voucher_b]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_error := SQLERRM;
+  END;
+  IF v_error IS DISTINCT FROM 'SHOP_VOUCHER_NOT_AVAILABLE' THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_FOREIGN_CHECKOUT_NOT_DENIED:%',
+      coalesce(v_error,'<no error>');
+  END IF;
+
+  -- A can then redeem their own voucher. The order is A-owned and the voucher
+  -- becomes RESERVED only for A's newly created pending order.
+  BEGIN
+    SELECT * INTO v_checkout_order
+    FROM public.create_shop_product_order_with_vouchers(
+      v_checkout_product_id,1,'081234567802','BANK_TRANSFER',
+      'https://proof.invalid/stage7-voucher-owner-a',NULL,NULL,NULL,NULL,NULL,NULL,
+      ARRAY[v_checkout_voucher_a]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_VALID_CHECKOUT_FAILED:%',SQLERRM;
+  END;
+  IF v_checkout_order.id IS NULL
+     OR v_checkout_order.user_id IS DISTINCT FROM v_user_a
+     OR v_checkout_order.status::text IS DISTINCT FROM 'PENDING_PAYMENT'
+     OR v_checkout_order.discount IS DISTINCT FROM 1000
+     OR v_checkout_order.total IS DISTINCT FROM 9000 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_CHECKOUT_ORDER_MISMATCH:%',row_to_json(v_checkout_order);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_checkout_voucher_a AND user_id=v_user_a
+      AND status='RESERVED' AND reserved_order_id=v_checkout_order.id
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_checkout_voucher_b AND user_id=v_user_b
+      AND status='READY' AND reserved_order_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_A_CHECKOUT_RESERVATION_CROSSED_BOUNDARY';
+  END IF;
+
+  -- User A must see and mark only A's original voucher; B's voucher stays hidden/unseen.
   SELECT count(*) INTO v_count
   FROM public.list_my_shop_vouchers()
   WHERE id = v_voucher_a;
@@ -337,7 +529,54 @@ BEGIN
   SET viewed_at = NULL
   WHERE id = v_voucher_a;
 
-  -- Switch to B. B sees/marks only B's voucher and cannot address A's request.
+  -- B's checkout list exposes the B voucher only. A's reserved voucher
+  -- must not be visible to B.
+  SELECT count(*) INTO v_count
+  FROM public.list_shop_checkout_vouchers(
+    v_checkout_product_id,1,10000,0
+  )
+  WHERE id=v_checkout_voucher_b AND eligible IS TRUE;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_CHECKOUT_ELIGIBILITY_FAILED:%',v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.list_shop_checkout_vouchers(
+    v_checkout_product_id,1,10000,0
+  )
+  WHERE id=v_checkout_voucher_a;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_CHECKOUT_LIST_EXPOSED_FOREIGN:%',v_count;
+  END IF;
+
+  BEGIN
+    SELECT * INTO v_checkout_order
+    FROM public.create_shop_product_order_with_vouchers(
+      v_checkout_product_id,1,'081234567803','BANK_TRANSFER',
+      'https://proof.invalid/stage7-voucher-owner-b',NULL,NULL,NULL,NULL,NULL,NULL,
+      ARRAY[v_checkout_voucher_b]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_VALID_CHECKOUT_FAILED:%',SQLERRM;
+  END;
+  IF v_checkout_order.id IS NULL
+     OR v_checkout_order.user_id IS DISTINCT FROM v_user_b
+     OR v_checkout_order.discount IS DISTINCT FROM 1000
+     OR v_checkout_order.total IS DISTINCT FROM 9000 THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_CHECKOUT_ORDER_MISMATCH:%',row_to_json(v_checkout_order);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_checkout_voucher_b AND user_id=v_user_b
+      AND status='RESERVED' AND reserved_order_id=v_checkout_order.id
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.shop_user_vouchers
+    WHERE id=v_checkout_voucher_a AND user_id=v_user_a
+      AND status='RESERVED' AND reserved_order_id IS DISTINCT FROM v_checkout_order.id
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_CHECKOUT_RESERVATION_CROSSED_BOUNDARY';
+  END IF;
+
+  -- Switch to B. B sees/marks only B's original viewed marker and cannot address A's request.
   PERFORM set_config(
     'request.jwt.claims',
     '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
