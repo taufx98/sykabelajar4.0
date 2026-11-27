@@ -2712,20 +2712,22 @@
   "direct_table_boundary_acceptance": {
     "status": "passed_disposable_schema_only",
     "workflow": "Auth Production Schema Baseline",
-    "workflow_run_id": 45922512277,
-    "workflow_url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45922512277",
-    "commit": "b7a28adc954058b7388773e19272d32924e8679c",
+    "workflow_run_id": 45996830345,
+    "workflow_url": "https://github.com/taufx98/sykabelajar4.0/actions/runs/45996830345",
+    "commit": "0fb11b4cf881a0f5ca8f768264c069ce6dfc3522",
     "postgres_version": "17.6",
     "checks": [
-      "All 23 application-owned tables exist, remain owned by postgres, retain RLS, and have zero policies.",
-      "anon and authenticated have no effective SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN privilege on the 23 tables.",
+      "All 23 application-owned tables exist on the PostgreSQL 17.6 schema-only disposable restore, remain owned by postgres, retain RLS, and have zero policies.",
+      "anon and authenticated have no effective SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER or MAINTAIN privilege on any of the 23 tables.",
       "No explicit PUBLIC ACL remains on the 23 application tables.",
       "service_role retains CRUD on the 20 designated public backend tables and has no direct table grants on the three private tables.",
-      "The direct table checks ran after Stage 5 ACL revoke and the Stage 7 portal/password/legacy-certificate hardening on the disposable restore."
+      "The direct table checks ran after Stage 5 ACL revoke and the Stage 7 portal/password/legacy-certificate hardening.",
+      "The same 78-step baseline passed Stage 7 payment/voucher owner-scope acceptance, 14 collective portal invalid-token cases, 5,000 selector keys, 69-FK rollback, and two-user Cloudinary/payment Edge integration."
     ],
     "limitations": [
-      "This acceptance covers direct table RLS/ACL boundaries only; it does not replace the separate SECURITY DEFINER caller/issuer/token audit, which is tracked per table.",
-      "No Production grants, policies, DDL, DML, user rows or account changes are included."
+      "This acceptance closes all 23 direct table RLS/ACL boundaries only; it does not replace the separate per-function SECURITY DEFINER caller/issuer audit.",
+      "The four authorization paths for payment_gateway_configs, payment_gateway_state, shop_user_vouchers and shop_voucher_definitions remain pending individual caller/fingerprint review; do not infer their full 202-function audit is complete from the passing runtime subset.",
+      "No Production grants, policies, DDL, DML, user rows or account changes are included. The workflow uses a schema-only export and disposable local restore."
     ]
   },
   "authorization_path_audit_summary": {
@@ -2747,7 +2749,9 @@
       "competition_status_history has no direct browser grants. Better Auth owner/Admin transition RPC writes history; the public results RPC reads only RESULT_PUBLISHED history for PUBLIC competitions after publication; the Admin monitoring RPC has an issuer-gated Admin boundary; the status trigger is not directly executable by browser roles.",
       "Baseline #364 (commit b7a28adc) passed all 75 numbered workflow steps plus post-job cleanup. Its disposable-restore acceptance closes the three server-authoritative exam tables, including cross-participant token IDOR, result publication projection and parent/child session revocation.",
       "notification_deliveries has no database or Realtime caller; supabase_system_logs has one exact postgres-owned service_role-only collector. Both boundaries passed the latest disposable runtime ACL/caller scan.",
-      "The remaining four pending tables are payment_gateway_configs, payment_gateway_state, shop_user_vouchers and shop_voucher_definitions; their SECURITY DEFINER owner/issuer paths are the next tranche."
+      "The remaining four pending tables are payment_gateway_configs, payment_gateway_state, shop_user_vouchers and shop_voucher_definitions; their SECURITY DEFINER owner/issuer paths are the next tranche.",
+      "Baseline #45996830345 on commit 0fb11b4cf881a0f5ca8f768264c069ce6dfc3522 passed 78/78 steps. It re-verified all 23 direct table RLS/ACL boundaries after Stage 5, plus Stage 7 payment/voucher rollback acceptance, all 14 collective portal invalid-token checks, valid portal lifecycle, 5,000 selector keys, 69-FK rollback, complete Stage 3 rollback, and two-user Cloudinary/payment Edge integration.",
+      "The four payment/voucher tables remain pending only for their complete per-function SECURITY DEFINER caller/fingerprint audit. Their direct table ACL boundary is passed; do not count them as fully authorization-path verified until every caller is reviewed."
     ],
     "verified_boundaries": {
       "retired_chat_browser_access": 5,
