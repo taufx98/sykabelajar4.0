@@ -94,11 +94,13 @@ assert.ok(certificateForeignActorBlock.includes("12121212-1212-4212-8212-1212121
   "Certificate IDOR test must use a dedicated unrelated Better Auth identity.");
 assert.ok(certificateForeignActorBlock.includes("BETTER_AUTH_ISSUER_REQUIRED") === false,
   "Foreign-owner case must test owner denial, not legacy issuer rejection.");
+assert.match(regression, /DO \$stage7_certificate_owner_fixture_preflight\$/);
+assert.match(regression, /FROM public\.collective_certificates AS cert[\s\S]*?JOIN public\.collective_participants AS cp/);
+assert.match(regression, /v_manager IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid/);
+assert.match(regression, /v_user IS NOT NULL/);
 assert.match(regression, /v_certificate_actor := auth\.uid\(\)/);
-assert.match(regression, /v_certificate_manager IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid/);
-assert.match(regression, /v_certificate_user IS NOT NULL/);
-assert.match(regression, /v_certificate_actor_admin/);
-assert.match(regression, /STAGE7_CERTIFICATE_FOREIGN_ACTOR_FIXTURE_INVALID/);
+assert.match(regression, /SELECT public\.is_active_admin\(v_certificate_actor\)/);
+assert.match(regression, /STAGE7_CERTIFICATE_FOREIGN_ACTOR_JWT_INVALID/);
 
 for (const marker of [
   "STAGE7_CERTIFICATE_OWNER_POSITIVE_FAILED",
