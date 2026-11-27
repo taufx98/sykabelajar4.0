@@ -26,7 +26,7 @@ assert.equal(review.direct_table_boundary_acceptance.status, "passed_disposable_
 assert.equal(review.direct_table_boundary_acceptance.workflow_run_id, 45996830345);
 assert.equal(review.direct_table_boundary_acceptance.commit, "0fb11b4cf881a0f5ca8f768264c069ce6dfc3522");
 assert.match(review.direct_table_boundary_acceptance.workflow_url, /runs\/45996830345/);
-assert.match(review.direct_table_boundary_acceptance.limitations.join(" "), /per-function SECURITY DEFINER caller\/fingerprint audit/);
+assert.match(review.direct_table_boundary_acceptance.limitations.join(" "), /per-function SECURITY DEFINER caller\/issuer audit/);
 assert.equal(review.authorization_path_audit_summary.verified_tables, 19,
   "do not count the four partially audited payment/voucher caller sets as fully closed");
 assert.equal(review.authorization_path_audit_summary.pending_tables, 4);
