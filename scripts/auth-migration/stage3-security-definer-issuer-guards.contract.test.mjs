@@ -315,6 +315,32 @@ assert.doesNotMatch(draft, /^(?:ALTER TABLE|DROP POLICY|INSERT INTO|UPDATE\s+[a-
   "draft must not mutate application data or replace RLS policy state");
 
 
+
+const profilePrivacyPreflight = draft.match(
+  /DO \$stage7_profile_privacy_fingerprint_preflight\$[\s\S]*?\$stage7_profile_privacy_fingerprint_preflight\$;/i,
+)?.[0] ?? "";
+assert.ok(profilePrivacyPreflight, "missing exact Production profile RPC fingerprint/ACL preflight");
+assert.ok(
+  draft.indexOf("DO $stage7_profile_privacy_fingerprint_preflight$") <
+    draft.indexOf("CREATE OR REPLACE FUNCTION public.get_profile_connections("),
+  "profile source/metadata preflight must run before any profile function replacement",
+);
+for (const hash of [
+  "85c419635f365e1af49ba0dddda9701c",
+  "5ab5851b52904c7e0a8f0d1575eaad9c",
+  "f2fb6078710677182c07096c20a36cdf",
+  "b737fddaa31055b691adf65aa2d0f032",
+  "11b6f840dab3e234aa82d57993b96ed8",
+]) assert.ok(profilePrivacyPreflight.includes(hash), "missing exact Production profile source fingerprint " + hash);
+assert.match(profilePrivacyPreflight, /p\.proacl::text/);
+assert.match(profilePrivacyPreflight, /pg_get_function_result/);
+assert.match(profilePrivacyPreflight, /p\.prosecdef/);
+assert.match(profilePrivacyPreflight, /v_acl IS DISTINCT FROM v_expected\.acl/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('anon'/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('authenticated'/);
+assert.match(profilePrivacyPreflight, /has_function_privilege\('service_role'/);
+
+
 const profileConnections = draft.match(
   /CREATE OR REPLACE FUNCTION public\.get_profile_connections\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
@@ -349,6 +375,15 @@ assert.match(profileSocial, /v_is_better_auth_admin :=[\s\S]*private\.current_us
 assert.match(profileSocial, /IF NOT v_is_public[\s\S]*NOT v_is_better_auth_owner[\s\S]*NOT v_is_better_auth_admin/);
 
 for (const marker of [
+  "STAGE3_ANON_PUBLIC_BADGE_VISIBILITY_FAILED",
+  "STAGE3_ANON_PUBLIC_BADGE_VISIBILITY_VALUES_FAILED",
+  "STAGE3_ANON_PUBLIC_BADGES_FAILED",
+  "STAGE3_ANON_HIDDEN_PUBLIC_BADGE_COLLECTION_ALLOWED",
+  "STAGE3_ANON_PUBLIC_UI_SETTINGS_FAILED",
+  "STAGE3_ANON_PUBLIC_UI_SETTINGS_VALUES_FAILED",
+  "STAGE3_ANON_PRIVATE_BADGE_VISIBILITY_ALLOWED",
+  "STAGE3_ANON_PRIVATE_BADGES_ALLOWED",
+  "STAGE3_ANON_PRIVATE_UI_SETTINGS_ALLOWED",
   "STAGE3_LEGACY_ADMIN_PRIVATE_BADGE_VISIBILITY_ALLOWED",
   "STAGE3_LEGACY_ADMIN_PRIVATE_BADGES_ALLOWED",
   "STAGE3_LEGACY_ADMIN_PRIVATE_UI_SETTINGS_ALLOWED",
@@ -356,8 +391,16 @@ for (const marker of [
   "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_BADGES_FAILED",
   "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_UI_SETTINGS_FAILED",
   "STAGE3_BETTER_AUTH_ADMIN_PRIVATE_SOCIAL_FAILED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGE_VISIBILITY_ALLOWED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGES_ALLOWED",
+  "STAGE3_OTHER_BETTER_AUTH_PRIVATE_UI_SETTINGS_ALLOWED",
+  "STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGE_VISIBILITY_FAILED",
+  "STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGE_VISIBILITY_VALUES_FAILED",
+  "STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGES_FAILED",
+  "STAGE3_BETTER_AUTH_OWNER_PRIVATE_UI_SETTINGS_FAILED",
+  "STAGE3_BETTER_AUTH_OWNER_PRIVATE_UI_SETTINGS_VALUES_FAILED",
 ]) {
-  assert.ok(regression.includes(marker), "missing verified Admin/private-profile regression: " + marker);
+  assert.ok(regression.includes(marker), "missing public/private profile visibility regression: " + marker);
 }
 
 

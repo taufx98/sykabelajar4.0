@@ -61,6 +61,9 @@ jobs:
       - name: Verify Stage 3 SECURITY DEFINER issuer draft remains atomic
         run: node --test services/auth-worker/tests/stage7-user-scoped-rpc-issuer-guard-contract.test.mjs
 
+      - name: Verify Stage 7 profile connections, badge, and UI issuer guard contracts
+        run: node --test services/auth-worker/tests/stage7-profile-connections-issuer-guard-contract.test.mjs
+
       - name: Verify Admin organizer pgcrypto search_path migration contract
         run: node scripts/auth-migration/admin-create-organizer-search-path.contract.test.mjs
 

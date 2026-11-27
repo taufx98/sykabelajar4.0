@@ -6,6 +6,10 @@ const guardSql = readFileSync(
   new URL("../../../docs/security/AUTH-STAGE-3-SECURITY-DEFINER-ISSUER-GUARDS-DRAFT.sql", import.meta.url),
   "utf8",
 );
+const regression = readFileSync(
+  new URL("../../../scripts/auth-migration/stage3-issuer-guard-regression.sql", import.meta.url),
+  "utf8",
+);
 
 function getFunction(name) {
   const marker = "CREATE OR REPLACE FUNCTION " + name;
@@ -18,6 +22,9 @@ function getFunction(name) {
 
 const connections = getFunction("public.get_profile_connections(");
 const social = getFunction("public.get_public_profile_social(");
+const badgeVisibility = getFunction("public.get_public_profile_badge_visibility(");
+const badges = getFunction("public.get_public_profile_badges(");
+const uiSettings = getFunction("public.get_public_profile_ui_settings(");
 
 test("private connection owner bypass requires the exact Better Auth issuer and identity row", () => {
   assert.match(connections, /SET search_path TO ''/);
@@ -81,4 +88,40 @@ test("social summary has authenticated-only EXECUTE and exact ACL pre/post asser
 test("user-specific follow RPC denies anonymous execution without removing the authenticated path", () => {
   assert.match(getFunction("public.get_follow_status("), /private\.current_user_is_better_auth\(\)/);
   assert.match(guardSql, /REVOKE EXECUTE ON FUNCTION public\.get_follow_status\(uuid, uuid\)\s+FROM PUBLIC, anon;/);
+});
+
+
+test("all five SECURITY DEFINER profile RPCs use an empty search_path", () => {
+  for (const definition of [connections, badgeVisibility, badges, uiSettings, social]) {
+    assert.match(definition, /SET search_path TO ''/i);
+  }
+});
+
+test("public badge and UI projections expose only public profile data and retain visibility flags", () => {
+  assert.match(badgeVisibility, /COALESCE\(p\.is_public, false\) = true/);
+  assert.match(badgeVisibility, /private\.current_user_is_better_auth\(\)[\s\S]*\(SELECT auth\.uid\(\)\) = p_profile_id/);
+  assert.match(badges, /COALESCE\(p\.is_public, false\) = true/);
+  assert.match(badges, /COALESCE\(s\.show_badge_collection, true\) = true/);
+  assert.match(badges, /private\.current_user_is_better_auth\(\)[\s\S]*\(SELECT auth\.uid\(\)\) = p_profile_id/);
+  assert.match(uiSettings, /COALESCE\(pr\.is_public, true\) = true/);
+  assert.match(uiSettings, /private\.current_user_is_better_auth\(\)[\s\S]*p_profile_id = \(SELECT auth\.uid\(\)\)/);
+  assert.match(uiSettings, /SELECT true, true/);
+});
+
+test("rollback runtime regression distinguishes guests, profile owners, admins, and unrelated Better Auth users", () => {
+  for (const marker of [
+    "STAGE3_ANON_PUBLIC_BADGE_VISIBILITY_FAILED",
+    "STAGE3_ANON_PUBLIC_BADGES_FAILED",
+    "STAGE3_ANON_HIDDEN_PUBLIC_BADGE_COLLECTION_ALLOWED",
+    "STAGE3_ANON_PUBLIC_UI_SETTINGS_FAILED",
+    "STAGE3_ANON_PRIVATE_BADGE_VISIBILITY_ALLOWED",
+    "STAGE3_ANON_PRIVATE_BADGES_ALLOWED",
+    "STAGE3_ANON_PRIVATE_UI_SETTINGS_ALLOWED",
+    "STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGE_VISIBILITY_FAILED",
+    "STAGE3_BETTER_AUTH_OWNER_PRIVATE_BADGES_FAILED",
+    "STAGE3_BETTER_AUTH_OWNER_PRIVATE_UI_SETTINGS_FAILED",
+    "STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGE_VISIBILITY_ALLOWED",
+    "STAGE3_OTHER_BETTER_AUTH_PRIVATE_BADGES_ALLOWED",
+    "STAGE3_OTHER_BETTER_AUTH_PRIVATE_UI_SETTINGS_ALLOWED",
+  ]) assert.ok(regression.includes(marker), "missing profile visibility regression marker: " + marker);
 });
