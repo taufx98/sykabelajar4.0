@@ -127,6 +127,8 @@ assert.match(postStage3Runtime, /'global_gateway', true/);
 assert.match(postStage3Runtime, /STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING/);
 assert.match(postStage3Runtime, /INSERT INTO public\.payment_gateway_configs/);
 assert.match(postStage3Runtime, /STAGE7_DISPOSABLE_ONLY/);
+assert.match(postStage3Runtime, /INSERT INTO public\.payment_gateway_state/);
+assert.match(postStage3Runtime, /STAGE7_PAYMENT_GATEWAY_STATE_FIXTURE_MISSING/);
 assert.match(postStage3Runtime, /ROLLBACK;/);
 assert.match(shopMigration, /where uv\.user_id=auth\.uid\(\)/i);
 assert.match(shopMigration, /where user_id=auth\.uid\(\) and viewed_at is null/i);
