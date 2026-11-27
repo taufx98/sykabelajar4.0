@@ -2382,6 +2382,10 @@ DECLARE
   v_order public.orders;
   v_question public.questions;
   v_option_count integer;
+  v_certificate_actor uuid;
+  v_certificate_manager uuid;
+  v_certificate_user uuid;
+  v_certificate_actor_admin boolean;
 BEGIN
   SELECT count(*) INTO v_count FROM public.auth_issuer_guard_probe;
   IF v_count <> 1 THEN RAISE EXCEPTION 'STAGE3_BETTER_AUTH_ISSUER_OWNER_READ_FAILED'; END IF;
@@ -2546,6 +2550,33 @@ SELECT count(*) INTO v_count
     TRUE
   );
   PERFORM set_config('request.jwt.claim.sub','12121212-1212-4212-8212-121212121212',TRUE);
+
+  -- Fail with explicit fixture diagnostics before the SECURITY DEFINER call.
+  -- The actor must be a valid Better Auth identity, but neither the manager nor
+  -- an explicitly claimed participant, and must not carry an Admin role.
+  v_certificate_actor := auth.uid();
+  SELECT cp.managed_by_user_id, cp.user_id
+    INTO v_certificate_manager, v_certificate_user
+  FROM public.collective_certificates AS cert
+  JOIN public.collective_participants AS cp
+    ON cp.id=cert.collective_participant_id
+  WHERE cert.id='88888888-8888-4888-8888-888888888894'::uuid;
+
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles AS ur
+    WHERE ur.user_id=v_certificate_actor
+      AND ur.role='admin'::public.app_role
+      AND ur.is_active=true
+  ) INTO v_certificate_actor_admin;
+
+  IF v_certificate_actor IS DISTINCT FROM '12121212-1212-4212-8212-121212121212'::uuid
+     OR v_certificate_manager IS DISTINCT FROM 'ffffffff-ffff-4fff-8fff-fffffffffff6'::uuid
+     OR v_certificate_user IS NOT NULL
+     OR coalesce(v_certificate_actor_admin,false) THEN
+    RAISE EXCEPTION 'STAGE7_CERTIFICATE_FOREIGN_ACTOR_FIXTURE_INVALID:uid=%:manager=%:user=%:admin=%',
+      v_certificate_actor, v_certificate_manager, v_certificate_user, v_certificate_actor_admin;
+  END IF;
+
   v_exam_denied := false;
   BEGIN
     PERFORM public.create_collective_certificate_order(
