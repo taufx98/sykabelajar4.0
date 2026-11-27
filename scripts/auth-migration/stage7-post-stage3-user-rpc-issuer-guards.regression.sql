@@ -120,7 +120,7 @@ DECLARE
   v_ad_request_a constant uuid := 'e8000000-0000-4000-8000-000000000001'::uuid;
   v_ad_request_b constant uuid := 'e8000000-0000-4000-8000-000000000002'::uuid;
   v_missing_method constant uuid := 'e8000000-0000-4000-8000-000000000099'::uuid;
-  v_global_method uuid;
+  v_global_method constant uuid := 'e8000000-0000-4000-8000-000000000098'::uuid;
   v_order public.orders%rowtype;
   v_count integer;
   v_seen integer;
@@ -147,7 +147,9 @@ BEGIN
   ) OR EXISTS (
     SELECT 1 FROM public.ad_banner_requests WHERE id IN (v_ad_request_a, v_ad_request_b)
   ) OR EXISTS (
-    SELECT 1 FROM public.organizer_payment_methods WHERE id = v_missing_method
+    SELECT 1 FROM public.organizer_payment_methods
+    WHERE id IN (v_missing_method, v_global_method)
+       OR details->>'global_gateway'='true'
   ) THEN
     RAISE EXCEPTION 'STAGE7_PAYMENT_VOUCHER_FIXTURE_UUID_COLLISION';
   END IF;
@@ -176,12 +178,28 @@ BEGIN
     v_organizer, v_user_a, 'owner', true, 'owner', 'ACTIVE'
   );
 
-  SELECT id INTO v_global_method
-  FROM public.organizer_payment_methods
-  WHERE details->>'global_gateway'='true' AND is_active=true
-  ORDER BY sort_order, created_at
-  LIMIT 1;
-  IF v_global_method IS NULL THEN
+  -- Schema-only export intentionally excludes table rows, including the
+  -- migration seed for the global method. Seed a deterministic disposable
+  -- method inside this rollback transaction; no live gateway is invoked.
+  INSERT INTO public.organizer_payment_methods (
+    id, name, payment_type, details, is_active, sort_order
+  ) VALUES (
+    v_global_method,
+    'STAGE7 disposable global gateway',
+    'SNAP',
+    jsonb_build_object(
+      'global_gateway', true,
+      'instructions', 'Disposable rollback-only gateway fixture'
+    ),
+    true,
+    0
+  );
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizer_payment_methods
+    WHERE id=v_global_method AND is_active=true
+      AND payment_type='SNAP' AND details->>'global_gateway'='true'
+  ) THEN
     RAISE EXCEPTION 'STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING';
   END IF;
 
