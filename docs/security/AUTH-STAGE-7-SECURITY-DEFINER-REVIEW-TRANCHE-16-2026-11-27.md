@@ -57,8 +57,8 @@ The baseline exported Production schema/catalog metadata read-only and applied a
 
 ## Count and remaining gate
 
-Previous accepted manual review: **78/202** (Tranches 01–15, including the reconciled Tranches 06–10 record).  
+Previous accepted unique manual review: **73/202** (Tranches 01–15, including the reconciled Tranches 06–10 record).  
 Tranche 16 accepted signatures: **5**.  
-**Cumulative accepted manual review: 83/202 exact signatures; 119 remain.**
+**Cumulative accepted manual review: 78/202 exact signatures; 124 remain.**
 
 This is partial per-function source/runtime evidence only. The canonical all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`. The complete 202-function classification and class-specific evidence are not finished. Production DB2 remains **NO-GO**.
