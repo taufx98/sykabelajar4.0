@@ -1574,8 +1574,8 @@ for (const marker of [
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
 assert.match(securityDefinerGate, /Tranche 18 report/);
-assert.match(securityDefinerGate, /Tranche 17 report[\\s\\S]*Tranche 18 report/);
-assert.match(tranche15RecheckReport, /Cumulative unique manual review remains 73\\/202 exact signatures; 129 remain/);
+assert.match(securityDefinerGate, /Tranche 17 report[\s\S]*Tranche 18 report/);
+assert.match(tranche15RecheckReport, /Cumulative unique manual review remains 73\/202 exact signatures; 129 remain/);
 assert.match(tranche15RecheckReport, /same five exact functions already accepted in Tranche 01/);
 for (const fingerprint of [
   "aa8f5302840e39728b006496ad817275",
