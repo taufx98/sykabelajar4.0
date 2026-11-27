@@ -242,6 +242,7 @@ VALUES
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'better_auth'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'better_auth'),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'better_auth'),
+  ('abababab-abab-4aba-8aba-abababababab', 'better_auth'),
   ('12121212-1212-4212-8212-121212121212', 'better_auth'),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'better_auth');
 
@@ -256,6 +257,7 @@ VALUES
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'stage3_ba_private', 'Better Auth Owner Probe', false, 'Private Synthetic School', 'SMA 2', 880000, 880000),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'stage3_public_profile', 'Public Profile Probe', true, 'Stage7 Public Synthetic School', 'SMA 1', 120, 80),
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'stage3_public_follower', 'Public Follower Probe', true, 'Stage7 Public Synthetic School', 'SMA 1', 60, 40),
+  ('abababab-abab-4aba-8aba-abababababab', 'stage7_public_admin_leaderboard_probe', 'Public Admin Must Be Hidden', true, 'Stage7 Public Synthetic School', 'SMA 1', 999999, 999999),
   ('ffffffff-ffff-4fff-8fff-fffffffffff6', 'stage3_ba_private_badge_owner', 'Private Badge Owner Probe', false, 'Private Synthetic School', 'SMA 1', 770000, 770000);
 
 INSERT INTO public.profile_ui_settings (
@@ -604,7 +606,8 @@ INSERT INTO public.user_roles (user_id, role, is_active)
 VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin'::public.app_role, TRUE),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'admin'::public.app_role, TRUE),
-  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student'::public.app_role, TRUE);
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'student'::public.app_role, TRUE),
+  ('abababab-abab-4aba-8aba-abababababab', 'admin'::public.app_role, TRUE);
 
 -- Stage 7 Tranche 10 fixtures: a student catalog product, an active
 -- organizer membership/question bank, and a foreign-bank question.
