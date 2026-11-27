@@ -120,6 +120,8 @@ DECLARE
   v_ad_request_a constant uuid := 'e8000000-0000-4000-8000-000000000001'::uuid;
   v_ad_request_b constant uuid := 'e8000000-0000-4000-8000-000000000002'::uuid;
   v_missing_method constant uuid := 'e8000000-0000-4000-8000-000000000099'::uuid;
+  v_global_method uuid;
+  v_order public.orders%rowtype;
   v_count integer;
   v_seen integer;
   v_error text;
@@ -173,6 +175,40 @@ BEGIN
   ) VALUES (
     v_organizer, v_user_a, 'owner', true, 'owner', 'ACTIVE'
   );
+
+  SELECT id INTO v_global_method
+  FROM public.organizer_payment_methods
+  WHERE details->>'global_gateway'='true' AND is_active=true
+  ORDER BY sort_order, created_at
+  LIMIT 1;
+  IF v_global_method IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_PAYMENT_GATEWAY_GLOBAL_METHOD_MISSING';
+  END IF;
+
+  -- Dummy secret only in the disposable rollback fixture. No gateway is called.
+  INSERT INTO public.payment_gateway_configs (
+    provider, is_enabled, environment, public_config, secret_config, updated_by
+  ) VALUES (
+    'MIDTRANS', true, 'sandbox', '{}'::jsonb,
+    '{"sandbox":{"server_key":"STAGE7_DISPOSABLE_ONLY","disable_legacy_midtrans":true}}'::jsonb,
+    v_user_a
+  )
+  ON CONFLICT (provider) DO UPDATE SET
+    is_enabled=EXCLUDED.is_enabled,
+    environment=EXCLUDED.environment,
+    public_config=EXCLUDED.public_config,
+    secret_config=EXCLUDED.secret_config,
+    updated_by=EXCLUDED.updated_by,
+    updated_at=now();
+
+  UPDATE public.payment_gateway_state
+  SET active_provider='MIDTRANS', automatic_payments_enabled=false,
+      updated_by=v_user_a, updated_at=now()
+  WHERE id=true;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_PAYMENT_GATEWAY_STATE_FIXTURE_MISSING';
+  END IF;
 
   INSERT INTO public.shop_voucher_definitions (
     id, name, description, usage_type, duration_hours,
@@ -234,7 +270,7 @@ BEGIN
   v_error := NULL;
   BEGIN
     PERFORM public.create_ad_banner_payment_order(
-      v_ad_request_b, v_missing_method, NULL, NULL, 0, NULL, NULL, NULL, 0
+      v_ad_request_b, v_global_method, NULL, NULL, 0, NULL, NULL, NULL, 0
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
@@ -244,17 +280,22 @@ BEGIN
       coalesce(v_error, '<no error>');
   END IF;
 
-  v_error := NULL;
+  UPDATE public.payment_gateway_state
+  SET automatic_payments_enabled=true, updated_at=now()
+  WHERE id=true;
+
   BEGIN
-    PERFORM public.create_ad_banner_payment_order(
-      v_ad_request_a, v_missing_method, NULL, NULL, 0, NULL, NULL, NULL, 0
+    SELECT * INTO v_order
+    FROM public.create_ad_banner_payment_order(
+      v_ad_request_a, v_global_method, NULL, NULL, 0, NULL, NULL, NULL, 0
     );
   EXCEPTION WHEN OTHERS THEN
-    v_error := SQLERRM;
+    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_A_OWN_REQUEST_SCOPE_FAILED:%', SQLERRM;
   END;
-  IF v_error IS DISTINCT FROM 'PAYMENT_METHOD_NOT_AVAILABLE' THEN
-    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_A_OWN_REQUEST_SCOPE_FAILED:%',
-      coalesce(v_error, '<no error>');
+  IF v_order.id IS NULL OR v_order.user_id IS DISTINCT FROM v_user_a
+     OR v_order.payment_method_id IS DISTINCT FROM v_global_method
+     OR v_order.payment_provider IS DISTINCT FROM 'GLOBAL' THEN
+    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_A_ORDER_OWNER_MISMATCH:%', row_to_json(v_order);
   END IF;
 
   -- Reset A's marker so B's subsequent mark-seen call proves it cannot
@@ -300,10 +341,14 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_VOUCHER_OWNER_B_MARK_SEEN_CROSSED_BOUNDARY';
   END IF;
 
+  UPDATE public.payment_gateway_state
+  SET automatic_payments_enabled=false, updated_at=now()
+  WHERE id=true;
+
   v_error := NULL;
   BEGIN
     PERFORM public.create_ad_banner_payment_order(
-      v_ad_request_a, v_missing_method, NULL, NULL, 0, NULL, NULL, NULL, 0
+      v_ad_request_a, v_global_method, NULL, NULL, 0, NULL, NULL, NULL, 0
     );
   EXCEPTION WHEN OTHERS THEN
     v_error := SQLERRM;
@@ -313,17 +358,22 @@ BEGIN
       coalesce(v_error, '<no error>');
   END IF;
 
-  v_error := NULL;
+  UPDATE public.payment_gateway_state
+  SET automatic_payments_enabled=true, updated_at=now()
+  WHERE id=true;
+
   BEGIN
-    PERFORM public.create_ad_banner_payment_order(
-      v_ad_request_b, v_missing_method, NULL, NULL, 0, NULL, NULL, NULL, 0
+    SELECT * INTO v_order
+    FROM public.create_ad_banner_payment_order(
+      v_ad_request_b, v_global_method, NULL, NULL, 0, NULL, NULL, NULL, 0
     );
   EXCEPTION WHEN OTHERS THEN
-    v_error := SQLERRM;
+    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_B_OWN_REQUEST_SCOPE_FAILED:%', SQLERRM;
   END;
-  IF v_error IS DISTINCT FROM 'PAYMENT_METHOD_NOT_AVAILABLE' THEN
-    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_B_OWN_REQUEST_SCOPE_FAILED:%',
-      coalesce(v_error, '<no error>');
+  IF v_order.id IS NULL OR v_order.user_id IS DISTINCT FROM v_user_b
+     OR v_order.payment_method_id IS DISTINCT FROM v_global_method
+     OR v_order.payment_provider IS DISTINCT FROM 'GLOBAL' THEN
+    RAISE EXCEPTION 'STAGE7_AD_BANNER_OWNER_B_ORDER_OWNER_MISMATCH:%', row_to_json(v_order);
   END IF;
 
   -- Voucher administration remains Better Auth Admin-only.
