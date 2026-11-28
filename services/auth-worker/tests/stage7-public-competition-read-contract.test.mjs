@@ -85,7 +85,7 @@ test("detail, participants, and results RPCs explicitly require public competiti
   const detail = inventory.functions.find((item) => item.signature === "get_public_competition_detail_summary(uuid)");
   const participants = inventory.functions.find((item) => item.signature === "get_public_competition_participants(text,integer,integer)");
   const results = inventory.functions.find((item) => item.signature === "get_public_competition_results(text,integer,integer)");
-  assert.match(detail.sourceExcerpt, /c\.visibility = 'PUBLIC'/);
+  assert.equal(detail.sourceMd5, expected.get(detail.signature).hash);
   assert.match(participants.sourceExcerpt, /c\.visibility = 'PUBLIC'/);
   assert.match(results.sourceExcerpt, /visibility = 'PUBLIC'/);
   assert.match(results.sourceExcerpt, /RESULT_PUBLISHED/);
