@@ -32,7 +32,7 @@ No application output schema or public visibility policy was broadened by this t
 ## Disposable regression coverage
 
 The rollback-only regression seeds:
-- one authorless PUBLISHED post and one authorless DRAFT post, to isolate the feed publication-state boundary without changing profile-owner semantics;
+- one authorless PUBLISHED post titled `Stage 7 public feed boundary probe` and one authorless DRAFT post titled `Stage 7 draft feed boundary probe`, to isolate the feed publication-state boundary without changing profile-owner semantics;
 - an existing synthetic collective certificate in ELIGIBLE state with a unique verification code;
 - existing synthetic Better Auth profiles/roles covering a public Admin, private Admin, and public non-Admin.
 
