@@ -109,6 +109,18 @@ test("Stage 3 preflight pins all five public RPCs and both private token helpers
   assert.ok(start < draft.indexOf("CREATE OR REPLACE FUNCTION"), "fingerprints must run before any replacement");
 });
 
+test("collective token hash helper fingerprint and non-SECDEF search_path remain pinned", () => {
+  const marker = "DO $stage7_collective_token_hash_preflight$";
+  const start = draft.indexOf(marker);
+  const end = draft.indexOf("$stage7_collective_token_hash_preflight$;", start);
+  assert.ok(start >= 0 && end > start);
+  const preflight = draft.slice(start, end);
+  assert.ok(preflight.includes("2be53e800f6ecb6995cef723b88806d7"));
+  assert.match(preflight, /v_security_definer IS DISTINCT FROM FALSE/);
+  assert.match(preflight, /search_path=pg_catalog, extensions, private/);
+  assert.match(preflight, /PUBLIC=EXECUTE\/postgres,postgres=EXECUTE\/postgres/);
+});
+
 test("rollback-only anon regression covers valid session, wrong/expired/revoked tokens and attempt IDOR", () => {
   const anonStart = regression.indexOf("DO $profile_anon$");
   const anonEnd = regression.indexOf("$profile_anon$;", anonStart);
