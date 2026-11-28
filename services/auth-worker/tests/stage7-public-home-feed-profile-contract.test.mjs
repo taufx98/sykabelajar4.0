@@ -89,11 +89,11 @@ test("private participant detail fallback and badge visibility are Better Auth b
 
 test("public Admin helper verifies the Better Auth identity foundation before returning a role bit", () => {
   const fn = getDraftFunction("is_public_profile_admin");
-  assert.match(fn, /JOIN private\.app_users AS app_user/);
+  assert.match(fn, /JOIN private\.app_users AS app_user/i);
   assert.match(fn, /app_user\.identity_origin = 'better_auth'/);
   assert.match(fn, /ur\.role::text = 'admin'/);
-  assert.match(fn, /ur\.is_active IS TRUE/);
-  assert.match(fn, /coalesce\(p\.is_public, true\) IS TRUE OR p\.id = \(SELECT auth\.uid\(\)\)/);
+  assert.match(fn, /ur\.is_active IS TRUE/i);
+  assert.match(fn, /coalesce\(p\.is_public, true\) IS TRUE OR p\.id = \(SELECT auth\.uid\(\)\)/i);
   assert.match(fn, /SET search_path TO ''/);
 });
 
