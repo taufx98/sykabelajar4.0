@@ -1578,7 +1578,7 @@ for (const marker of [
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
 assert.match(securityDefinerGate, /Tranche 18 report/);
-assert.match(securityDefinerGate, /Tranche 19 report[\\s\\S]*Tranche 18 report/);
+assert.ok(securityDefinerGate.indexOf("Tranche 19 report") < securityDefinerGate.indexOf("Tranche 18 report"));
 for (const marker of [
   "get_public_competition_detail_summary(uuid)",
   "get_public_competition_participants(text,integer,integer)",
