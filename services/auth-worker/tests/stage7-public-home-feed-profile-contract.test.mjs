@@ -165,7 +165,11 @@ test("Stage 3 preflight pins all five exact Production hashes and ACL metadata b
 });
 
 test("rollback-only anon regression checks feed/home, Admin privacy, certificate status and private result detail", () => {
+  const feedFixture = regression.indexOf("-- Tranche 20 public-feed and certificate visibility fixtures.");
+  const anonRole = regression.indexOf("SET LOCAL ROLE anon;");
   const anonStart = regression.indexOf("DO $profile_anon$");
+  assert.ok(feedFixture >= 0 && feedFixture < anonRole, "public feed/certificate fixtures must be seeded before switching to anon");
+  assert.ok(anonRole < anonStart, "anonymous RLS assertions must run after switching to anon");
   const anonEnd = regression.indexOf("$profile_anon$;", anonStart);
   assert.ok(anonStart >= 0 && anonEnd > anonStart);
   const anonBlock = regression.slice(anonStart, anonEnd);
