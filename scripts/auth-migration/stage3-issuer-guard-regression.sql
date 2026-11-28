@@ -825,6 +825,41 @@ VALUES (
   1
 );
 
+-- Public/private question-count boundary: a private result competition has
+-- published questions too, so an anonymous count must still return zero.
+-- The existing disposable Admin identity bypasses the organizer quota guard.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  TRUE
+);
+INSERT INTO public.questions (
+  id, question_bank_id, competition_id, type, prompt, points, required,
+  display_order, status, config
+)
+VALUES
+  (
+    '77777777-7777-4777-8777-777777777798',
+    '77777777-7777-4777-8777-777777777792',
+    '33333333-3333-4333-8333-333333333333',
+    'multiple-choice',
+    'Stage 7 public competition published question-count probe',
+    1, TRUE, 2, 'PUBLISHED', '{}'::jsonb
+  ),
+  (
+    '77777777-7777-4777-8777-777777777799',
+    '77777777-7777-4777-8777-777777777796',
+    '33333333-3333-4333-8333-333333333335',
+    'multiple-choice',
+    'Stage 7 private competition published question-count probe',
+    1, TRUE, 2, 'PUBLISHED', '{}'::jsonb
+  );
+
 -- Tranche 11 owner-scope fixture: bind the organizer when the competition is
 -- created. The application intentionally makes organizer_id immutable after
 -- insert; do not retarget an unrelated pre-existing competition.
@@ -1156,6 +1191,71 @@ BEGIN
   END;
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE3_ANON_PRIVATE_COMPETITION_RESULTS_ALLOWED';
+  END IF;
+
+  -- Public competition metadata endpoints remain public-read, but private
+  -- competition identifiers and their published-question counts stay hidden.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_competitions(20) AS public_competition
+  WHERE public_competition.id = '33333333-3333-4333-8333-333333333333'::uuid;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_COMPETITIONS_READ_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_competitions(20) AS public_competition
+  WHERE public_competition.id = '33333333-3333-4333-8333-333333333335'::uuid;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COMPETITIONS_LEAK:%', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_count
+  FROM public.get_public_competition_detail_summary(
+    '33333333-3333-4333-8333-333333333333'::uuid
+  );
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_COMPETITION_DETAIL_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_competition_detail_summary(
+    '33333333-3333-4333-8333-333333333335'::uuid
+  );
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COMPETITION_DETAIL_LEAK:%', v_count;
+  END IF;
+
+  v_detail := public.get_public_competition_participants(
+    'stage3-public-result-probe', 100, 0
+  );
+  IF v_detail IS NULL OR jsonb_typeof(v_detail->'participants') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_COMPETITION_PARTICIPANTS_FAILED:%', v_detail;
+  END IF;
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_public_competition_participants(
+      'stage7-tranche12-collective-result-probe', 100, 0
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COMPETITION_NOT_FOUND' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COMPETITION_PARTICIPANTS_ALLOWED';
+  END IF;
+
+  IF public.get_public_competition_question_count(
+       '33333333-3333-4333-8333-333333333333'::uuid
+     ) <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_COMPETITION_QUESTION_COUNT_FAILED:%',
+      public.get_public_competition_question_count('33333333-3333-4333-8333-333333333333'::uuid);
+  END IF;
+  IF public.get_public_competition_question_count(
+       '33333333-3333-4333-8333-333333333335'::uuid
+     ) <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_COMPETITION_QUESTION_COUNT_LEAK:%',
+      public.get_public_competition_question_count('33333333-3333-4333-8333-333333333335'::uuid);
   END IF;
 
   -- The explicitly public leaderboard/statistics RPCs may be called by
