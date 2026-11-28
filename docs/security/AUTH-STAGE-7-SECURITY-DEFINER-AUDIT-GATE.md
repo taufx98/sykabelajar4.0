@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 27 November 2026; 88/202 exact signatures individually reviewed (114 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 28 November 2026; 93/202 exact signatures individually reviewed (109 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -113,6 +113,18 @@ Protected Auth Production Schema Baseline [#46037657998](https://github.com/tauf
 
 **Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five new profile signatures to the previous 78/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, grant, policy, Worker deployment, DNS change, or secret change was performed.
 
+
+## Accepted manual review — 28 November 2026 (Tranche 19)
+
+[Tranche 19 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-19-2026-11-28.md) adds five unique public competition SECURITY DEFINER signatures: `get_public_competition_detail_summary(uuid)`, `get_public_competition_participants(text,integer,integer)`, `get_public_competition_question_count(uuid)`, `get_public_competition_results(text,integer,integer)`, and `get_public_competitions(integer)`.
+
+Production source hashes, owners, SECURITY DEFINER flags, return types, languages, original `search_path` values and canonical ACLs match the immutable 21 November triage inventory. The four detail/participant/results/list functions already restrict reads to PUBLIC competitions or published/archived results. The count RPC was missing `competitions.visibility='PUBLIC'` and could disclose the number of published questions for a known private competition. Its Stage 3 disposable draft now returns zero for private competitions and preserves the existing count for eligible public competitions. The public list RPC's references are schema-qualified and its draft `search_path` is hardened to empty.
+
+The rollback-only anon regression adds one published question to a PUBLIC result competition and one to a PRIVATE result competition. It asserts public competition list/detail/participant/question-count/results behavior and denies private list/detail/participants/results; the private question count is zero despite the private fixture containing a published question.
+
+Protected Auth Production Schema Baseline [#46092190442](https://github.com/taufx98/sykabelajar4.0/actions/runs/46092190442) passed **78/78** on commit `1f83a5d88872904818824ea9f3ffd41e0e9433ff`. It completed schema-only Production export, PostgreSQL 17.6 disposable restore, Stage 3 fingerprint/ACL preflight and replacement, and Stage 3 trusted-issuer RLS acceptance (step 48, which executes the new private competition question-count regression). It also passed all 23 direct RLS boundaries, all 14 portal invalid-token checks, valid portal acceptance, 5,000 selector collision cases, 69-FK and Stage 3 rollback, two-user Cloudinary/payment Edge integration, and cleanup. Local Auth Claims [#46092026732](https://github.com/taufx98/sykabelajar4.0/actions/runs/46092026732) passed **23/23**; Stage 3–5 static contracts [#46092026785](https://github.com/taufx98/sykabelajar4.0/actions/runs/46092026785) passed **28/28**; frontend [#46092026818](https://github.com/taufx98/sykabelajar4.0/actions/runs/46092026818) passed **10/10**; Cloudflare staging preflight [#46092190365](https://github.com/taufx98/sykabelajar4.0/actions/runs/46092190365) passed **9/9** read-only.
+
+**Cumulative accepted unique manual review: 93/202 exact signatures; 109 remain.** This adds five new signatures to the previous 88/202 count; these fingerprints do not appear in any prior tranche report. The immutable triage inventory remains unchanged. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; this partial count does not satisfy the full 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, grants, policies, roles, accounts, or application data were changed. No Worker deployment, DNS change, or secret update occurred.
 
 ## Accepted manual review — 27 November 2026 (Tranche 18)
 
