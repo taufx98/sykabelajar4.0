@@ -148,6 +148,12 @@ test("rollback-only anon regression covers valid session, wrong/expired/revoked 
     "stage7-tranche21-revoked-linear-exam-token-20261128-c",
     "77777777-7777-4777-8777-777777777901",
   ]) assert.ok(regression.includes(fixture), "missing linear-exam fixture " + fixture);
+  assert.ok(regression.includes("'stage7-tranche21-live-linear-exam-probe'"));
+  assert.ok(regression.includes("'33333333-3333-4333-8333-333333333336'"));
+  assert.ok(regression.includes("'66666666-6666-4666-8666-666666666683'"));
+  assert.ok(regression.includes("'77777777-7777-4777-8777-777777777900'"));
+  assert.ok(regression.includes("'77777777-7777-4777-8777-777777777902'"));
+  assert.doesNotMatch(regression, /UPDATE public\\.competitions\\s+SET status = 'LIVE'/);
   assert.match(regression, /private\.hash_collective_token\(/);
   assert.match(regression.slice(anonEnd), /RESET ROLE;/);
   assert.match(regression, /ROLLBACK;/i);
