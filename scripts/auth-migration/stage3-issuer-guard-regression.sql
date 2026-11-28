@@ -1045,12 +1045,6 @@ VALUES
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner-a'),
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'owner-b');
 
-SET LOCAL ROLE anon;
-SELECT set_config('request.jwt.claims',
-  '{"role":"anon","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
-  true);
-SELECT set_config('request.jwt.claim.sub', '', true);
-
 -- Tranche 20 public-feed and certificate visibility fixtures. Posts are
 -- intentionally authorless so this check validates publication state only.
 INSERT INTO public.posts (
@@ -1103,6 +1097,12 @@ BEGIN
   END IF;
 END;
 $stage7_tranche20_fixture_preflight$;
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims',
+  '{"role":"anon","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
+  true);
+SELECT set_config('request.jwt.claim.sub', '', true);
 
 DO $profile_anon$
 DECLARE
