@@ -1537,6 +1537,10 @@ const tranche18AcceptedReport = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-18-2026-11-27.md"),
   "utf8",
 );
+const tranche19AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-19-2026-11-28.md"),
+  "utf8",
+);
 for (const marker of [
   "choose_organizer_plan(uuid,text)",
   "get_organizer_competition_result_overview(uuid,integer,integer)",
@@ -1553,8 +1557,8 @@ for (const marker of [
   "78/202 exact signatures; 124 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche16AcceptedReport.includes(marker), "Tranche 16 accepted-review report missing " + marker);
-assert.match(securityDefinerGate, /updated 27 November 2026; 88\/202 exact signatures individually reviewed \(114 remain\)/);
-assert.match(securityDefinerGate, /Cumulative accepted manual review: 88\/202 exact signatures; 114 remain/);
+assert.match(securityDefinerGate, /updated 28 November 2026; 93\/202 exact signatures individually reviewed \(109 remain\)/);
+assert.match(securityDefinerGate, /Cumulative accepted unique manual review: 93\/202 exact signatures; 109 remain/);
 for (const marker of [
   "get_platform_stats()",
   "get_public_coin_leaderboard(integer)",
@@ -1574,6 +1578,33 @@ for (const marker of [
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
 assert.match(securityDefinerGate, /Tranche 18 report/);
+assert.ok(securityDefinerGate.indexOf("Tranche 19 report") < securityDefinerGate.indexOf("Tranche 18 report"));
+for (const marker of [
+  "get_public_competition_detail_summary(uuid)",
+  "get_public_competition_participants(text,integer,integer)",
+  "get_public_competition_question_count(uuid)",
+  "get_public_competition_results(text,integer,integer)",
+  "get_public_competitions(integer)",
+  "911222960fda1b15c410c5407482f548",
+  "695758d3c7df1347a79fe5189439f35e",
+  "c1fd7dd6f06f405252d6e93b77498638",
+  "223b202465fb18d721d7a5fe1b011237",
+  "72fda47f09a2bfa2a868e2458a1a1631",
+  "visibility='PUBLIC'",
+  "46092190442",
+  "78/78",
+  "46092026732",
+  "23/23",
+  "46092026785",
+  "28/28",
+  "46092026818",
+  "10/10",
+  "46092190365",
+  "9/9",
+  "93/202 exact signatures; 109 remain",
+  "Production DB2 remains **NO-GO**",
+]) assert.ok(tranche19AcceptedReport.includes(marker), "Tranche 19 accepted-review report missing " + marker);
+
 assert.match(securityDefinerGate, /Tranche 17 report[\s\S]*Tranche 18 report/);
 assert.match(tranche15RecheckReport, /Cumulative unique manual review remains 73\/202 exact signatures; 129 remain/);
 assert.match(tranche15RecheckReport, /same five exact functions already accepted in Tranche 01/);
