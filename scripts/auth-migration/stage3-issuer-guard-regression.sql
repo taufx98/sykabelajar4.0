@@ -1467,7 +1467,7 @@ BEGIN
   v_denied := false;
   BEGIN
     PERFORM public.start_collective_linear_exam_attempt(
-      '33333333-3333-4333-8333-333333333335'::uuid,
+      '33333333-3333-4333-8333-333333333336'::uuid,
       'stage7-tranche21-unknown-linear-exam-token'
     );
   EXCEPTION WHEN OTHERS THEN
@@ -1501,7 +1501,7 @@ BEGIN
   END IF;
 
   v_linear_state := public.start_collective_linear_exam_attempt(
-    '33333333-3333-4333-8333-333333333335'::uuid,
+    '33333333-3333-4333-8333-333333333336'::uuid,
     v_linear_token
   );
   v_linear_attempt_id := (v_linear_state->>'attempt_id')::uuid;
@@ -1623,7 +1623,7 @@ BEGIN
     RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_ANSWER_FAILED:%', v_linear_state;
   END IF;
   v_linear_second_question_id := (v_linear_state->'question'->>'id')::uuid;
-  IF v_linear_second_question_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777799'::uuid THEN
+  IF v_linear_second_question_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777902'::uuid THEN
     RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_SECOND_QUESTION_MISMATCH:%', v_linear_state;
   END IF;
 
