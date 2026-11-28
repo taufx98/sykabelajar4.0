@@ -7,6 +7,218 @@
 
 BEGIN;
 
+-- Stage 7 Tranche 21: pin the token-bound collective linear-exam entrypoints
+-- and their private authorization helpers before any draft replacement runs.
+-- This fingerprint/ACL preflight executes only on the schema-only disposable restore.
+DO $stage7_collective_linear_exam_token_rpc_preflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      (
+        'public.start_collective_linear_exam_attempt(uuid,text)',
+        'e0cb760153c8d32cfc3a4dd7a094bf3f',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb','plpgsql'
+      ),
+      (
+        'public.get_collective_linear_exam_state(uuid,text)',
+        '6e8de1b7cf650fe44ef470bc6a7cdb97',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb','plpgsql'
+      ),
+      (
+        'public.save_collective_linear_exam_draft(uuid,text,uuid,jsonb)',
+        'c00ff9db0800c4ebad0197ce8f49f90a',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb','plpgsql'
+      ),
+      (
+        'public.answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean)',
+        '127d65f07194685cc631e2a934a762b1',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb','plpgsql'
+      ),
+      (
+        'public.skip_collective_linear_exam_question(uuid,text)',
+        '9db307e948270835d17b305d5609d6d4',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb','plpgsql'
+      )
+    ) AS expected(signature, source_hash, settings, acl, return_type, language)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_COLLECTIVE_LINEAR_EXAM_RPC_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT
+      md5(p.prosrc),
+      pg_catalog.pg_get_userbyid(p.proowner),
+      p.prosecdef,
+      COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+      COALESCE((
+        SELECT string_agg(
+          (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+          || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+          || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+          ',' ORDER BY
+            (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+            a.privilege_type,pg_catalog.pg_get_userbyid(a.grantor)
+        )
+        FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+      ),'(none)'),
+      pg_catalog.pg_get_function_result(p.oid),
+      l.lanname
+    INTO v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+    WHERE p.oid=v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM v_expected.acl
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language
+       OR NOT pg_catalog.has_function_privilege('anon',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated',v_oid,'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role',v_oid,'EXECUTE') THEN
+      RAISE EXCEPTION
+        'STAGE7_COLLECTIVE_LINEAR_EXAM_RPC_DRIFT:%:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+        v_expected.signature,v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language;
+    END IF;
+  END LOOP;
+
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      (
+        'private.assert_collective_linear_exam_access(uuid,text)',
+        'df41031f29e376c9b4d5cb8966a09028',
+        'search_path=""',
+        'postgres=EXECUTE/postgres',
+        'void','plpgsql'
+      ),
+      (
+        'private.collective_session_participant(text)',
+        '6d794ce4a3c96f20324f9ba81ac8658f',
+        'search_path=public, private',
+        'PUBLIC=EXECUTE/postgres,postgres=EXECUTE/postgres',
+        'uuid','sql'
+      )
+    ) AS expected(signature,source_hash,settings,acl,return_type,language)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_COLLECTIVE_LINEAR_EXAM_HELPER_MISSING:%',v_expected.signature;
+    END IF;
+    SELECT
+      md5(p.prosrc),
+      pg_catalog.pg_get_userbyid(p.proowner),
+      p.prosecdef,
+      COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+      COALESCE((
+        SELECT string_agg(
+          (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+          || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+          || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+          ',' ORDER BY
+            (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+            a.privilege_type,pg_catalog.pg_get_userbyid(a.grantor)
+        )
+        FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+      ),'(none)'),
+      pg_catalog.pg_get_function_result(p.oid),
+      l.lanname
+    INTO v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+    WHERE p.oid=v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM v_expected.acl
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language THEN
+      RAISE EXCEPTION
+        'STAGE7_COLLECTIVE_LINEAR_EXAM_HELPER_DRIFT:%:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+        v_expected.signature,v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language;
+    END IF;
+  END LOOP;
+END;
+$stage7_collective_linear_exam_token_rpc_preflight$;
+
+DO $stage7_collective_token_hash_preflight$
+DECLARE
+  v_oid oid := pg_catalog.to_regprocedure('private.hash_collective_token(text)');
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_COLLECTIVE_TOKEN_HASH_HELPER_MISSING';
+  END IF;
+
+  SELECT
+    md5(p.prosrc),
+    pg_catalog.pg_get_userbyid(p.proowner),
+    p.prosecdef,
+    COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+    COALESCE((
+      SELECT string_agg(
+        (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+        || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+        || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+        ',' ORDER BY
+          (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+          a.privilege_type,pg_catalog.pg_get_userbyid(a.grantor)
+      )
+      FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+    ),'(none)'),
+    pg_catalog.pg_get_function_result(p.oid),
+    l.lanname
+  INTO v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+  WHERE p.oid=v_oid;
+
+  IF v_hash IS DISTINCT FROM '2be53e800f6ecb6995cef723b88806d7'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM FALSE
+     OR v_settings IS DISTINCT FROM 'search_path=pg_catalog, extensions, private'
+     OR v_acl IS DISTINCT FROM 'PUBLIC=EXECUTE/postgres,postgres=EXECUTE/postgres'
+     OR v_return_type IS DISTINCT FROM 'text'
+     OR v_language IS DISTINCT FROM 'sql' THEN
+    RAISE EXCEPTION
+      'STAGE7_COLLECTIVE_TOKEN_HASH_HELPER_DRIFT:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+      v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language;
+  END IF;
+END;
+$stage7_collective_token_hash_preflight$;
+
+
+
 -- Stage 7 Tranche 17: pin the original individual exam-start RPC before replacing it.
 -- This preflight runs only on the schema-only disposable restore.
 DO $stage7_exam_start_fingerprint_preflight$

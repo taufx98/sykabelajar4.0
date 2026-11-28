@@ -1098,6 +1098,132 @@ BEGIN
 END;
 $stage7_tranche20_fixture_preflight$;
 
+
+-- Tranche 21: token-bound linear collective exam fixtures. All rows are
+-- synthetic and live only inside this rollback-only disposable regression.
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","iss":"https://auth-prod.sykabelajar.my.id/api/auth"}',
+  TRUE
+);
+SELECT set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',TRUE);
+
+-- The T12 private collective-result fixture becomes a LIVE private exam
+-- solely so the valid token can start a real two-question linear attempt.
+UPDATE public.competitions
+SET status = 'LIVE'::public.competition_status,
+    config = jsonb_build_object(
+      'duration_minutes', 10,
+      'linear_exam_decision_seconds', 30,
+      'linear_exam_grace_seconds', 30
+    )
+WHERE id = '33333333-3333-4333-8333-333333333335'::uuid
+  AND visibility = 'PRIVATE'
+  AND participant_mode = 'COLLECTIVE_TEACHER';
+
+INSERT INTO public.questions (
+  id, question_bank_id, competition_id, type, prompt, points, required,
+  display_order, status, config
+)
+VALUES (
+  '77777777-7777-4777-8777-777777777900',
+  '77777777-7777-4777-8777-777777777796',
+  '33333333-3333-4333-8333-333333333335',
+  'multiple-choice',
+  'Stage 7 Tranche 21 token-bound linear exam question one',
+  1, TRUE, 1, 'PUBLISHED', '{}'::jsonb
+);
+
+INSERT INTO public.collective_access_sessions (
+  id, collective_participant_id, token_hash, expires_at, last_seen_at,
+  revoked_at, session_type, competition_id
+)
+VALUES
+  (
+    '88888888-8888-4888-8888-888888888901',
+    '66666666-6666-4666-8666-666666666682',
+    private.hash_collective_token('stage7-tranche21-valid-linear-exam-token-20261128-a'),
+    now() + interval '1 hour',
+    now(),
+    NULL,
+    'COMPETITION',
+    '33333333-3333-4333-8333-333333333335'
+  ),
+  (
+    '88888888-8888-4888-8888-888888888902',
+    '66666666-6666-4666-8666-666666666682',
+    private.hash_collective_token('stage7-tranche21-expired-linear-exam-token-20261128-b'),
+    now() - interval '1 minute',
+    now(),
+    NULL,
+    'COMPETITION',
+    '33333333-3333-4333-8333-333333333335'
+  ),
+  (
+    '88888888-8888-4888-8888-888888888903',
+    '66666666-6666-4666-8666-666666666682',
+    private.hash_collective_token('stage7-tranche21-revoked-linear-exam-token-20261128-c'),
+    now() + interval '1 hour',
+    now(),
+    now(),
+    'COMPETITION',
+    '33333333-3333-4333-8333-333333333335'
+  );
+
+-- A second participant's attempt proves that a valid token cannot cross the
+-- participant/attempt binding enforced by private.assert_collective_linear_exam_access.
+INSERT INTO public.attempts (
+  id, competition_id, participant_id, collective_participant_id,
+  canonical_participant_id, attempt_number, status, started_at, expires_at,
+  score, is_preview
+)
+SELECT
+  '77777777-7777-4777-8777-777777777901',
+  cp.competition_id,
+  NULL,
+  cp.id,
+  p.id,
+  99,
+  'IN_PROGRESS'::public.attempt_status,
+  now(),
+  now() + interval '10 minutes',
+  0,
+  FALSE
+FROM public.collective_participants AS cp
+JOIN public.participants AS p
+  ON p.collective_participant_id = cp.id
+ AND p.competition_id = cp.competition_id
+WHERE cp.id = '66666666-6666-4666-8666-666666666681'::uuid
+  AND cp.competition_id = '22222222-2222-4222-8222-222222222222'::uuid;
+
+DO $stage7_tranche21_fixture_preflight$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.competitions
+    WHERE id = '33333333-3333-4333-8333-333333333335'::uuid
+      AND status = 'LIVE'
+      AND visibility = 'PRIVATE'
+      AND participant_mode = 'COLLECTIVE_TEACHER'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.questions
+    WHERE id = '77777777-7777-4777-8777-777777777900'::uuid
+      AND competition_id = '33333333-3333-4333-8333-333333333335'::uuid
+      AND status = 'PUBLISHED'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.collective_access_sessions
+    WHERE id = '88888888-8888-4888-8888-888888888901'::uuid
+      AND revoked_at IS NULL
+      AND expires_at > now()
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.attempts
+    WHERE id = '77777777-7777-4777-8777-777777777901'::uuid
+      AND collective_participant_id = '66666666-6666-4666-8666-666666666681'::uuid
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE21_LINEAR_EXAM_FIXTURE_MISSING';
+  END IF;
+END;
+$stage7_tranche21_fixture_preflight$;
+
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims',
   '{"role":"anon","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
@@ -1118,6 +1244,11 @@ DECLARE
   v_public_row_count integer;
   v_private_row_count integer;
   v_public_school_count integer;
+  v_linear_state jsonb;
+  v_linear_attempt_id uuid;
+  v_linear_question_id uuid;
+  v_linear_second_question_id uuid;
+  v_linear_token text := 'stage7-tranche21-valid-linear-exam-token-20261128-a';
 BEGIN
   -- A private profile remains private even when its popup setting is enabled.
   SELECT count(*) INTO v_count
@@ -1273,6 +1404,191 @@ BEGIN
   END;
   IF NOT v_denied THEN
     RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_PARTICIPANT_DETAIL_ALLOWED';
+  END IF;
+
+  -- Token-bound collective linear exam RPCs require an active, unrevoked,
+  -- unexpired COMPETITION session whose participant owns the requested attempt.
+  v_denied := false;
+  BEGIN
+    PERFORM public.start_collective_linear_exam_attempt(
+      '33333333-3333-4333-8333-333333333335'::uuid,
+      'stage7-tranche21-unknown-linear-exam-token'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_START_INVALID_TOKEN_ALLOWED';
+  END IF;
+
+  -- A valid token is bound to one collective participant and therefore one
+  -- competition; it cannot be replayed against a different competition UUID.
+  v_denied := false;
+  BEGIN
+    PERFORM public.start_collective_linear_exam_attempt(
+      '22222222-2222-4222-8222-222222222222'::uuid,
+      v_linear_token
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'PARTICIPANT_NOT_REGISTERED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_CROSS_COMPETITION_START_ALLOWED';
+  END IF;
+
+  v_linear_state := public.start_collective_linear_exam_attempt(
+    '33333333-3333-4333-8333-333333333335'::uuid,
+    v_linear_token
+  );
+  v_linear_attempt_id := (v_linear_state->>'attempt_id')::uuid;
+  IF v_linear_attempt_id IS NULL
+     OR v_linear_state->>'phase' IS DISTINCT FROM 'ACTIVE'
+     OR v_linear_state->>'position' IS DISTINCT FROM '1' THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_START_FAILED:%', v_linear_state;
+  END IF;
+
+  v_linear_state := public.get_collective_linear_exam_state(
+    v_linear_attempt_id,
+    v_linear_token
+  );
+  IF v_linear_state->>'attempt_id' IS DISTINCT FROM v_linear_attempt_id::text
+     OR v_linear_state->>'phase' IS DISTINCT FROM 'ACTIVE'
+     OR v_linear_state ? 'answer_key'
+     OR coalesce(v_linear_state::text ILIKE '%correct_option_ids%', false)
+     OR coalesce(v_linear_state::text ILIKE '%accepted_answers%', false) THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_STATE_FAILED:%', v_linear_state;
+  END IF;
+  v_linear_question_id := (v_linear_state->'question'->>'id')::uuid;
+  IF v_linear_question_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777900'::uuid THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_CURRENT_QUESTION_MISMATCH:%', v_linear_state;
+  END IF;
+
+  -- Wrong, expired, and revoked tokens all fail before a state read.
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(
+      v_linear_attempt_id,
+      'stage7-tranche21-unknown-linear-exam-token'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_STATE_INVALID_TOKEN_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(
+      v_linear_attempt_id,
+      'stage7-tranche21-expired-linear-exam-token-20261128-b'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_EXPIRED_TOKEN_ALLOWED'; END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(
+      v_linear_attempt_id,
+      'stage7-tranche21-revoked-linear-exam-token-20261128-c'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_REVOKED_TOKEN_ALLOWED'; END IF;
+
+  -- A valid participant token cannot read another participant's attempt UUID.
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_collective_linear_exam_state(
+      '77777777-7777-4777-8777-777777777901'::uuid,
+      v_linear_token
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'ATTEMPT_NOT_FOUND' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_ATTEMPT_IDOR_ALLOWED'; END IF;
+
+  -- All draft/answer/skip mutations apply the same token + attempt guard.
+  v_denied := false;
+  BEGIN
+    PERFORM public.save_collective_linear_exam_draft(
+      v_linear_attempt_id,
+      'stage7-tranche21-unknown-linear-exam-token',
+      v_linear_question_id,
+      '{"value":"invalid-token-must-not-save"}'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_DRAFT_INVALID_TOKEN_ALLOWED'; END IF;
+
+  v_linear_state := public.save_collective_linear_exam_draft(
+    v_linear_attempt_id,
+    v_linear_token,
+    v_linear_question_id,
+    '{"value":"stage7-tranche21-draft-saved"}'::jsonb
+  );
+  IF v_linear_state->'answer'->>'value' IS DISTINCT FROM 'stage7-tranche21-draft-saved' THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_DRAFT_FAILED:%', v_linear_state;
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.answer_collective_linear_exam_question(
+      v_linear_attempt_id,
+      'stage7-tranche21-unknown-linear-exam-token',
+      v_linear_question_id,
+      '{"value":"invalid-token-must-not-answer"}'::jsonb,
+      FALSE
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_ANSWER_INVALID_TOKEN_ALLOWED'; END IF;
+
+  v_linear_state := public.answer_collective_linear_exam_question(
+    v_linear_attempt_id,
+    v_linear_token,
+    v_linear_question_id,
+    '{"value":"stage7-tranche21-answer-saved"}'::jsonb,
+    FALSE
+  );
+  IF v_linear_state->>'phase' IS DISTINCT FROM 'ACTIVE'
+     OR v_linear_state->>'position' IS DISTINCT FROM '2' THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_ANSWER_FAILED:%', v_linear_state;
+  END IF;
+  v_linear_second_question_id := (v_linear_state->'question'->>'id')::uuid;
+  IF v_linear_second_question_id IS DISTINCT FROM '77777777-7777-4777-8777-777777777799'::uuid THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_SECOND_QUESTION_MISMATCH:%', v_linear_state;
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.skip_collective_linear_exam_question(
+      v_linear_attempt_id,
+      'stage7-tranche21-unknown-linear-exam-token'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'COLLECTIVE_SESSION_INVALID' THEN v_denied := true; ELSE RAISE; END IF;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_SKIP_INVALID_TOKEN_ALLOWED'; END IF;
+
+  v_linear_state := public.skip_collective_linear_exam_question(
+    v_linear_attempt_id,
+    v_linear_token
+  );
+  IF v_linear_state->>'phase' IS DISTINCT FROM 'COMPLETED'
+     OR v_linear_state->>'attempt_id' IS DISTINCT FROM v_linear_attempt_id::text THEN
+    RAISE EXCEPTION 'STAGE7_ANON_LINEAR_EXAM_VALID_SKIP_FAILED:%', v_linear_state;
   END IF;
 
   -- Public results are available only after publication on a PUBLIC competition.
