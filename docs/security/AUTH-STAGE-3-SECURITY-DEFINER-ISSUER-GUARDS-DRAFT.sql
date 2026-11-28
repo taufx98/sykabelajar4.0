@@ -165,6 +165,59 @@ BEGIN
 END;
 $stage7_collective_linear_exam_token_rpc_preflight$;
 
+DO $stage7_collective_token_hash_preflight$
+DECLARE
+  v_oid oid := pg_catalog.to_regprocedure('private.hash_collective_token(text)');
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  IF v_oid IS NULL THEN
+    RAISE EXCEPTION 'STAGE7_COLLECTIVE_TOKEN_HASH_HELPER_MISSING';
+  END IF;
+
+  SELECT
+    md5(p.prosrc),
+    pg_catalog.pg_get_userbyid(p.proowner),
+    p.prosecdef,
+    COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+    COALESCE((
+      SELECT string_agg(
+        (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+        || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+        || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+        ',' ORDER BY
+          (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+          a.privilege_type,pg_catalog.pg_get_userbyid(a.grantor)
+      )
+      FROM pg_catalog.aclexplode(COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+    ),'(none)'),
+    pg_catalog.pg_get_function_result(p.oid),
+    l.lanname
+  INTO v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+  WHERE p.oid=v_oid;
+
+  IF v_hash IS DISTINCT FROM '2be53e800f6ecb6995cef723b88806d7'
+     OR v_owner IS DISTINCT FROM 'postgres'
+     OR v_security_definer IS DISTINCT FROM FALSE
+     OR v_settings IS DISTINCT FROM 'search_path=pg_catalog, extensions, private'
+     OR v_acl IS DISTINCT FROM 'PUBLIC=EXECUTE/postgres,postgres=EXECUTE/postgres'
+     OR v_return_type IS DISTINCT FROM 'text'
+     OR v_language IS DISTINCT FROM 'sql' THEN
+    RAISE EXCEPTION
+      'STAGE7_COLLECTIVE_TOKEN_HASH_HELPER_DRIFT:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+      v_hash,v_owner,v_security_definer,v_settings,v_acl,v_return_type,v_language;
+  END IF;
+END;
+$stage7_collective_token_hash_preflight$;
+
+
 
 -- Stage 7 Tranche 17: pin the original individual exam-start RPC before replacing it.
 -- This preflight runs only on the schema-only disposable restore.
