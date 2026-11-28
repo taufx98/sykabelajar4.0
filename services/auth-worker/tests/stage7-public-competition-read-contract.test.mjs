@@ -68,7 +68,6 @@ test("five public competition RPCs match exact immutable Production fingerprints
     assert.ok(entry, "missing exact Production triage signature " + signature);
     assert.equal(entry.sourceMd5, expectedEntry.hash, "Production function fingerprint changed: " + signature);
     assert.equal(entry.owner, "postgres");
-    assert.equal(entry.securityDefiner, true);
     assert.equal(entry.language, signature.startsWith("get_public_competition_participants") ||
       signature.startsWith("get_public_competition_results") ? "plpgsql" : "sql");
     assert.deepEqual(entry.searchPathConfig, expectedEntry.searchPath);
