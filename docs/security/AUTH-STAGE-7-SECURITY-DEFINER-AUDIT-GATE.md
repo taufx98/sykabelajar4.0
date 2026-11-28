@@ -1,6 +1,6 @@
 # Stage 7 — Production SECURITY DEFINER issuer audit gate
 
-Status: **blocking; updated 28 November 2026; 98/202 exact signatures individually reviewed (104 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
+Status: **blocking; updated 28 November 2026; 103/202 exact signatures individually reviewed (99 remain); Production DB2 remains NO-GO; no Production changes made.** Project: Production DB2 \`mvdczyitbkxkldjughor\` (PostgreSQL 17.6).
 
 
 ## Partial manual review — 23 November 2026
@@ -113,6 +113,18 @@ Protected Auth Production Schema Baseline [#46037657998](https://github.com/tauf
 
 **Cumulative accepted manual review: 83/202 exact signatures; 119 remain.** This adds five new profile signatures to the previous 78/202 count. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; the partial manual-review count does not satisfy the complete 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, account/data change, grant, policy, Worker deployment, DNS change, or secret change was performed.
 
+
+## Accepted manual review — 28 November 2026 (Tranche 21)
+
+[Tranche 21 report](AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-21-2026-11-28.md) adds five unique token-bound collective linear-exam RPC signatures: `start_collective_linear_exam_attempt(uuid,text)`, `get_collective_linear_exam_state(uuid,text)`, `save_collective_linear_exam_draft(uuid,text,uuid,jsonb)`, `answer_collective_linear_exam_question(uuid,text,uuid,jsonb,boolean)`, and `skip_collective_linear_exam_question(uuid,text)`.
+
+Production hashes, owner, SECURITY DEFINER flags, empty function `search_path`, return type, language, canonical ACL and effective anon/authenticated/service_role EXECUTE match the immutable triage inventory. None of the five public RPCs has a direct PUBLIC EXECUTE ACL. The private session/access/hash helpers were also fingerprinted. The token session helper requires a matching token hash, a non-revoked and unexpired COMPETITION session, and an active participant; the attempt access helper binds the requested attempt to the participant resolved from that token. The hash helper is not SECURITY DEFINER and uses its pinned `pg_catalog, extensions, private` search path.
+
+The rollback-only anon regression uses a separate synthetic PRIVATE + LIVE collective competition inserted directly in the disposable fixture, a dedicated collective participant, two PUBLISHED questions, and valid/expired/revoked sessions. It verifies invalid/cross-competition starts are denied, valid start/state/draft/answer/skip work, expired/revoked/wrong tokens are denied, answer-key material is not exposed, and a valid token cannot read another participant's attempt. The existing Tranche 12 RESULT_PUBLISHED competition is left unchanged; an initial failed fixture attempted a prohibited direct status UPDATE, so the fixture was corrected to create a separate LIVE row at INSERT time without changing any trigger or application function.
+
+Protected Auth Production Schema Baseline [#46141402273](https://github.com/taufx98/sykabelajar4.0/actions/runs/46141402273) passed **78/78** on `43be40d178f6f36481dda9105428b7689947c361`. Stage 3 trusted-issuer RLS acceptance (step 48) passed the new token/session/attempt regression. The run also passed all 23 direct RLS table boundaries, all 14 portal invalid-token checks, valid portal acceptance, 5,000 selector collision cases, 69-FK rollback, full Stage 3 rollback, two-user Cloudinary/payment Edge integration, and disposable cleanup. Local Auth Claims [#46141402312](https://github.com/taufx98/sykabelajar4.0/actions/runs/46141402312) passed **23/23**; Cloudflare staging preflight [#46141402275](https://github.com/taufx98/sykabelajar4.0/actions/runs/46141402275) passed **9/9** read-only; frontend [#46141402256](https://github.com/taufx98/sykabelajar4.0/actions/runs/46141402256) passed **10/10**; static contracts [#46141253963](https://github.com/taufx98/sykabelajar4.0/actions/runs/46141253963) passed **30/30**.
+
+**Cumulative accepted unique manual review: 103/202 exact signatures; 99 remain (51.0%).** This adds five new fingerprints, none present in prior tranche reports. The immutable triage inventory remains unchanged. The all-functions activation manifest remains `status: blocked` with `reviewedAuthenticatedFunctionCount: 0`; partial manual review does not meet the full 202-function activation gate. Production DB2 remains **NO-GO**. No Production DDL/DML, grants, policies, roles, accounts, application data, Worker deploy, DNS, or secret changes occurred.
 
 ## Accepted manual review — 28 November 2026 (Tranche 20)
 
