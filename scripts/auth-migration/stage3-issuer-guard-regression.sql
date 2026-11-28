@@ -49,7 +49,8 @@ BEGIN
     SELECT 1 FROM public.competitions
     WHERE id IN (
       '33333333-3333-4333-8333-333333333334'::uuid,
-      '33333333-3333-4333-8333-333333333335'::uuid
+      '33333333-3333-4333-8333-333333333335'::uuid,
+      '33333333-3333-4333-8333-333333333336'::uuid
     ) OR slug IN (
       'stage3-unpublished-result-probe',
       'stage7-tranche12-collective-result-probe'
@@ -333,6 +334,16 @@ VALUES
     'PRIVATE',
     'COLLECTIVE_TEACHER',
     '{"participant_modes":["COLLECTIVE_TEACHER"]}'::jsonb
+  ),
+  (
+    '33333333-3333-4333-8333-333333333336',
+    'stage7-tranche21-live-linear-exam-probe',
+    'Stage 7 Tranche 21 Live Linear Exam Probe',
+    'Stage 7 Test',
+    'LIVE'::public.competition_status,
+    'PRIVATE',
+    'COLLECTIVE_TEACHER',
+    '{"participant_modes":["COLLECTIVE_TEACHER"],"duration_minutes":10,"linear_exam_decision_seconds":30,"linear_exam_grace_seconds":30}'::jsonb
   );
 
 -- A public results page may expose the published result, but private badge
@@ -351,6 +362,17 @@ BEGIN
     WHERE participant_code = 'STAGE7-T09-NEW-001'
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE09_PARTICIPANT_CODE_COLLISION';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.participants
+    WHERE competition_id = '33333333-3333-4333-8333-333333333336'::uuid
+      AND participant_code = 'STAGE7-T21-LINEAR-001'
+  ) OR EXISTS (
+    SELECT 1 FROM public.collective_participants
+    WHERE competition_id = '33333333-3333-4333-8333-333333333336'::uuid
+      AND participant_code = 'STAGE7-T21-LINEAR-001'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE21_PARTICIPANT_CODE_COLLISION';
   END IF;
 END;
 $stage7_tranche09_fixture_preflight$;
@@ -389,6 +411,12 @@ VALUES
     '88888888-8888-4888-8888-888888888892',
     'Stage 7 Tranche 12 Collective Result Participant',
     true
+  ),
+  (
+    '99999999-9999-4999-8999-999999999984',
+    '88888888-8888-4888-8888-888888888891',
+    'Stage 7 Tranche 21 Live Linear Exam Participant',
+    true
   );
 
 INSERT INTO public.collective_participants (
@@ -419,6 +447,20 @@ VALUES (
   'ACTIVE'
 );
 
+INSERT INTO public.collective_participants (
+  id, competition_id, roster_student_id, managed_by_user_id,
+  participant_code, full_name, status
+)
+VALUES (
+  '66666666-6666-4666-8666-666666666683',
+  '33333333-3333-4333-8333-333333333336',
+  '99999999-9999-4999-8999-999999999984',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'STAGE7-T21-LINEAR-001',
+  'Stage 7 Tranche 21 Live Linear Exam Participant',
+  'ACTIVE'
+);
+
 -- Active collective_participants are canonicalized by
 -- trg_collective_participant_canonical. Assert that the trigger created the
 -- canonical row instead of inserting a duplicate manually.
@@ -438,6 +480,14 @@ BEGIN
       AND p.collective_participant_id = '66666666-6666-4666-8666-666666666682'::uuid
       AND p.participant_type = 'COLLECTIVE'
       AND p.participant_code = 'STAGE7-T12-COL-001'
+      AND p.user_id IS NULL
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.participants p
+    WHERE p.competition_id = '33333333-3333-4333-8333-333333333336'::uuid
+      AND p.collective_participant_id = '66666666-6666-4666-8666-666666666683'::uuid
+      AND p.participant_type = 'COLLECTIVE'
+      AND p.participant_code = 'STAGE7-T21-LINEAR-001'
       AND p.user_id IS NULL
   ) THEN
     RAISE EXCEPTION 'STAGE7_TRANCHE09_OR_T12_CANONICAL_PARTICIPANT_NOT_CREATED';
