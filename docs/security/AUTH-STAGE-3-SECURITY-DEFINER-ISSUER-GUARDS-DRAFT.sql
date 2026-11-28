@@ -908,6 +908,118 @@ CREATE OR REPLACE FUNCTION public.generate_awards_for_competition(p_competition_
 AS $function$ DECLARE v_uid uuid:=auth.uid();v_org uuid;v_count integer:=0;r record;v_rank text;v_title text;v_points numeric;v_cert boolean;v_award_id uuid;BEGIN IF NOT private.current_user_is_better_auth() THEN RAISE EXCEPTION 'BETTER_AUTH_ISSUER_REQUIRED'; END IF; IF v_uid IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED';END IF;SELECT organizer_id INTO v_org FROM public.competitions WHERE id=p_competition_id;IF v_org IS NULL THEN RAISE EXCEPTION 'COMPETITION_NOT_FOUND';END IF;IF NOT private.current_user_is_admin() AND NOT private.current_user_is_active_organizer_member(v_org) THEN RAISE EXCEPTION 'FORBIDDEN';END IF;FOR r IN SELECT a.participant_id,max(a.score) AS score,row_number() over(order by max(a.score) desc,min(a.finalized_at),a.participant_id) AS pos FROM public.attempts a WHERE a.competition_id=p_competition_id AND a.status='FINALIZED' GROUP BY a.participant_id ORDER BY max(a.score) DESC LOOP IF r.pos=1 THEN v_rank:='FIRST';ELSIF r.pos=2 THEN v_rank:='SECOND';ELSIF r.pos=3 THEN v_rank:='THIRD';ELSE v_rank:='PARTICIPANT';END IF;SELECT cr.title,cr.points,cr.certificate_enabled INTO v_title,v_points,v_cert FROM public.competition_rewards cr WHERE cr.competition_id=p_competition_id AND cr.rank_code=v_rank ORDER BY cr.created_at LIMIT 1;IF v_title IS NULL THEN v_title:=CASE v_rank WHEN 'FIRST' THEN 'Juara 1' WHEN 'SECOND' THEN 'Juara 2' WHEN 'THIRD' THEN 'Juara 3' ELSE 'Peserta' END;v_points:=0;v_cert:=(v_rank<>'PARTICIPANT');END IF;SELECT id INTO v_award_id FROM public.awards WHERE user_id=r.participant_id AND competition_id=p_competition_id AND rank_code=v_rank LIMIT 1;IF v_award_id IS NULL THEN INSERT INTO public.awards(user_id,competition_id,rank_code,title,points,issued_at,visibility) VALUES(r.participant_id,p_competition_id,v_rank,v_title,coalesce(v_points,0),now(),'PUBLIC') RETURNING id INTO v_award_id;v_count:=v_count+1;END IF;IF v_cert THEN BEGIN PERFORM public.issue_certificate_for_award(v_award_id);EXCEPTION WHEN OTHERS THEN INSERT INTO public.audit_logs(actor_user_id,action,entity_type,entity_id,reason) VALUES(v_uid,'CERTIFICATE_ISSUE_DEFERRED','award',v_award_id::text,SQLERRM);END;END IF;END LOOP;INSERT INTO public.audit_logs(actor_user_id,action,entity_type,entity_id,reason) VALUES(v_uid,'AWARDS_GENERATED','competition',p_competition_id::text,'Generated from finalized attempts');RETURN v_count;END;$function$;
 
 -- is_public_profile_admin
+
+-- Stage 7 Tranche 20: preserve the exact Production identity and ACL baseline
+-- for the public profile/result/feed/home/certificate SECURITY DEFINER RPCs.
+DO $stage7_public_profile_feed_rpc_preflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      (
+        'public.get_competition_participant_detail(text,uuid)',
+        '68183b7176c3f24ec95c018d13b973ef',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb',
+        'plpgsql'
+      ),
+      (
+        'public.get_home_snapshot(integer)',
+        '6c57e4102a8a51b39602625f6aeb2eaf',
+        'search_path=public, private',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb',
+        'sql'
+      ),
+      (
+        'public.get_public_feed(integer,timestamp with time zone)',
+        '1944c33d7a1d0404151de702e13e894f',
+        'search_path=public, private',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'TABLE(id uuid, author_user_id uuid, author_name text, author_username text, avatar_url text, title text, body text, cover_url text, created_at timestamp with time zone, competition_id uuid, competition_slug text, likes bigint, liked boolean, comments bigint, organizer_name text, organizer_photo_url text)',
+        'sql'
+      ),
+      (
+        'public.is_public_profile_admin(uuid)',
+        'e94eb7f539ab889dc503ce9d04b36886',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'boolean',
+        'sql'
+      ),
+      (
+        'public.get_public_collective_certificate(text)',
+        '7a47a902b83e1ea7e2915f69791f55b0',
+        'search_path=public',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb',
+        'sql'
+      )
+    ) AS expected(signature, source_hash, settings, acl, return_type, language)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_PUBLIC_PROFILE_FEED_RPC_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT
+      md5(p.prosrc),
+      pg_catalog.pg_get_userbyid(p.proowner),
+      p.prosecdef,
+      COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+      COALESCE((
+        SELECT string_agg(
+          (CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+          || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+          || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+          ',' ORDER BY
+            (CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                  ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+            a.privilege_type,
+            pg_catalog.pg_get_userbyid(a.grantor)
+        )
+        FROM pg_catalog.aclexplode(
+          COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        ) AS a
+      ), '(none)'),
+      pg_catalog.pg_get_function_result(p.oid),
+      l.lanname
+    INTO
+      v_hash, v_owner, v_security_definer, v_settings, v_acl, v_return_type, v_language
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_language AS l ON l.oid = p.prolang
+    WHERE p.oid = v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM v_expected.acl
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language
+       OR NOT pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION
+        'STAGE7_PUBLIC_PROFILE_FEED_RPC_DRIFT:%:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+        v_expected.signature, v_hash, v_owner, v_security_definer,
+        v_settings, v_acl, v_return_type, v_language;
+    END IF;
+  END LOOP;
+END;
+$stage7_public_profile_feed_rpc_preflight$;
+
 CREATE OR REPLACE FUNCTION public.is_public_profile_admin(p_profile_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -7144,6 +7256,145 @@ AS $function$
     )
   ORDER BY c.created_at DESC
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 6), 1), 20);
+$function$;
+
+
+
+-- These public read-only projections use schema-qualified references throughout;
+-- an empty function search_path removes caller-controlled namespace resolution.
+CREATE OR REPLACE FUNCTION public.get_home_snapshot(p_feed_limit integer DEFAULT 15)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT jsonb_build_object(
+    'competitions',
+      COALESCE((SELECT jsonb_agg(to_jsonb(x)) FROM public.get_public_competitions(5) AS x), '[]'::jsonb),
+    'leaderboard',
+      COALESCE((SELECT jsonb_agg(to_jsonb(x)) FROM public.get_public_leaderboard(5) AS x), '[]'::jsonb),
+    'coin_leaderboard',
+      COALESCE((SELECT jsonb_agg(to_jsonb(x)) FROM public.get_public_coin_leaderboard(5) AS x), '[]'::jsonb),
+    'stats',
+      COALESCE((SELECT to_jsonb(x) FROM public.get_platform_stats() AS x LIMIT 1), '{}'::jsonb),
+    'feed',
+      COALESCE((
+        SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC, x.id DESC)
+        FROM public.get_public_feed(
+          LEAST(GREATEST(COALESCE(p_feed_limit, 15), 1), 16),
+          NULL
+        ) AS x
+      ), '[]'::jsonb)
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_feed(
+  p_limit integer DEFAULT 16,
+  p_before timestamp with time zone DEFAULT NULL::timestamp with time zone
+)
+RETURNS TABLE(
+  id uuid,
+  author_user_id uuid,
+  author_name text,
+  author_username text,
+  avatar_url text,
+  title text,
+  body text,
+  cover_url text,
+  created_at timestamp with time zone,
+  competition_id uuid,
+  competition_slug text,
+  likes bigint,
+  liked boolean,
+  comments bigint,
+  organizer_name text,
+  organizer_photo_url text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    p.id,
+    p.author_user_id,
+    CASE
+      WHEN c.id IS NULL THEN COALESCE(pr.full_name, pr.username, 'Pengguna')
+      ELSE COALESCE(NULLIF(o.name, ''), 'Penyelenggara')
+    END,
+    COALESCE(pr.username, ''),
+    CASE
+      WHEN c.id IS NULL THEN pr.avatar_url
+      ELSE COALESCE(NULLIF(o.logo_asset_url, ''), NULLIF(op.avatar_url, ''))
+    END,
+    p.title,
+    p.body,
+    p.cover_url,
+    p.created_at,
+    p.competition_id,
+    c.slug,
+    (SELECT count(*) FROM public.post_likes AS pl WHERE pl.post_id = p.id)::bigint,
+    (
+      (SELECT auth.uid()) IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.post_likes AS mpl
+        WHERE mpl.post_id = p.id
+          AND mpl.user_id = (SELECT auth.uid())
+      )
+    ),
+    (
+      SELECT count(*)
+      FROM public.comments AS cm
+      WHERE cm.post_id = p.id
+        AND cm.moderation_state IN ('PUBLISHED', 'VISIBLE')
+    )::bigint,
+    CASE
+      WHEN c.id IS NULL THEN NULL
+      ELSE COALESCE(NULLIF(o.name, ''), 'Penyelenggara')
+    END,
+    CASE
+      WHEN c.id IS NULL THEN NULL
+      ELSE COALESCE(NULLIF(o.logo_asset_url, ''), NULLIF(op.avatar_url, ''))
+    END
+  FROM public.posts AS p
+  LEFT JOIN public.profiles AS pr ON pr.id = p.author_user_id
+  LEFT JOIN public.competitions AS c ON c.id = p.competition_id
+  LEFT JOIN public.organizers AS o ON o.id = c.organizer_id
+  LEFT JOIN public.profiles AS op ON op.id = o.owner_user_id
+  WHERE p.status = 'PUBLISHED'
+    AND (p_before IS NULL OR p.created_at < p_before)
+  ORDER BY p.created_at DESC, p.id DESC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 16), 1), 31);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_public_collective_certificate(p_verification_code text)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT jsonb_build_object(
+    'certificate_id', cc.id,
+    'verification_code', cc.verification_code,
+    'status', cc.status,
+    'public_name', cp.full_name,
+    'competition_title', c.title,
+    'achievement_title', NULL,
+    'issued_at', cc.issued_at,
+    'revoked_at', CASE WHEN cc.status = 'REVOKED' THEN cc.updated_at ELSE NULL END,
+    'serial_number', cc.serial_number,
+    'certificate_url', cc.certificate_url
+  )
+  FROM public.collective_certificates AS cc
+  JOIN public.collective_participants AS cp
+    ON cp.id = cc.collective_participant_id
+  JOIN public.competitions AS c
+    ON c.id = cc.competition_id
+  WHERE upper(cc.verification_code) = upper(trim(p_verification_code))
+    AND cc.status IN ('PUBLISHED', 'REVOKED')
+  LIMIT 1;
 $function$;
 
 
