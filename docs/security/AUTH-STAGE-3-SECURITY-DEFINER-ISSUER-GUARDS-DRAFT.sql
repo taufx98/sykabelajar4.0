@@ -6949,4 +6949,202 @@ BEGIN
 END;
 $stage7_tranche16_metadata_postflight$;
 
+
+-- Stage 7 Tranche 19: pin the five public competition read RPCs before
+-- tightening the question-count visibility boundary and search_path.
+-- This preflight runs only against the schema-only disposable restore.
+DO $stage7_public_competition_rpc_fingerprint_preflight$
+DECLARE
+  v_expected record;
+  v_oid oid;
+  v_hash text;
+  v_owner text;
+  v_security_definer boolean;
+  v_settings text;
+  v_acl text;
+  v_return_type text;
+  v_language text;
+BEGIN
+  FOR v_expected IN
+    SELECT * FROM (VALUES
+      (
+        'public.get_public_competition_detail_summary(uuid)',
+        '911222960fda1b15c410c5407482f548',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'TABLE(participant_count bigint, organizer_name text, organizer_logo_url text, question_bank_name text, question_provider_name text, question_count bigint)',
+        'sql'
+      ),
+      (
+        'public.get_public_competition_participants(text,integer,integer)',
+        '695758d3c7df1347a79fe5189439f35e',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb',
+        'plpgsql'
+      ),
+      (
+        'public.get_public_competition_question_count(uuid)',
+        'c1fd7dd6f06f405252d6e93b77498638',
+        'search_path=""',
+        'PUBLIC=EXECUTE/postgres,anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'integer',
+        'sql'
+      ),
+      (
+        'public.get_public_competition_results(text,integer,integer)',
+        '223b202465fb18d721d7a5fe1b011237',
+        'search_path=""',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'jsonb',
+        'plpgsql'
+      ),
+      (
+        'public.get_public_competitions(integer)',
+        '72fda47f09a2bfa2a868e2458a1a1631',
+        'search_path=public, private',
+        'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
+        'TABLE(id uuid, organizer_id uuid, slug text, title text, short_description text, description text, category text, status public.competition_status, registration_starts_at timestamp with time zone, registration_ends_at timestamp with time zone, starts_at timestamp with time zone, ends_at timestamp with time zone, announcement_at timestamp with time zone, poster_url text, juknis_url text, visibility text, participant_count bigint, organizer_name text, organizer_photo_url text)',
+        'sql'
+      )
+    ) AS expected(signature, source_hash, settings, acl, return_type, language)
+  LOOP
+    v_oid := pg_catalog.to_regprocedure(v_expected.signature);
+    IF v_oid IS NULL THEN
+      RAISE EXCEPTION 'STAGE7_PUBLIC_COMPETITION_RPC_MISSING:%', v_expected.signature;
+    END IF;
+
+    SELECT
+      md5(p.prosrc),
+      pg_catalog.pg_get_userbyid(p.proowner),
+      p.prosecdef,
+      COALESCE(array_to_string(p.proconfig, ', '), '(none)'),
+      COALESCE((
+        SELECT string_agg(
+          (CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                ELSE pg_catalog.pg_get_userbyid(a.grantee) END)
+          || '=' || a.privilege_type || '/' || pg_catalog.pg_get_userbyid(a.grantor)
+          || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END,
+          ',' ORDER BY
+            (CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                  ELSE pg_catalog.pg_get_userbyid(a.grantee) END),
+            a.privilege_type,
+            pg_catalog.pg_get_userbyid(a.grantor)
+        )
+        FROM pg_catalog.aclexplode(
+          COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+        ) AS a
+      ), '(none)'),
+      pg_catalog.pg_get_function_result(p.oid),
+      l.lanname
+    INTO
+      v_hash, v_owner, v_security_definer, v_settings, v_acl, v_return_type, v_language
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_language AS l ON l.oid = p.prolang
+    WHERE p.oid = v_oid;
+
+    IF v_hash IS DISTINCT FROM v_expected.source_hash
+       OR v_owner IS DISTINCT FROM 'postgres'
+       OR v_security_definer IS DISTINCT FROM TRUE
+       OR v_settings IS DISTINCT FROM v_expected.settings
+       OR v_acl IS DISTINCT FROM v_expected.acl
+       OR v_return_type IS DISTINCT FROM v_expected.return_type
+       OR v_language IS DISTINCT FROM v_expected.language
+       OR NOT pg_catalog.has_function_privilege('anon', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('authenticated', v_oid, 'EXECUTE')
+       OR NOT pg_catalog.has_function_privilege('service_role', v_oid, 'EXECUTE') THEN
+      RAISE EXCEPTION
+        'STAGE7_PUBLIC_COMPETITION_RPC_FINGERPRINT_ACL_DRIFT:%:hash=%:owner=%:definer=%:settings=%:acl=%:return=%:language=%',
+        v_expected.signature, v_hash, v_owner, v_security_definer,
+        v_settings, v_acl, v_return_type, v_language;
+    END IF;
+  END LOOP;
+END;
+$stage7_public_competition_rpc_fingerprint_preflight$;
+
+-- Public question metadata must not disclose whether a PRIVATE competition
+-- contains published questions. A private competition therefore returns zero.
+CREATE OR REPLACE FUNCTION public.get_public_competition_question_count(p_competition_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT count(*)::integer
+  FROM public.questions AS q
+  JOIN public.competitions AS c ON c.id = q.competition_id
+  WHERE q.competition_id = p_competition_id
+    AND q.status = 'PUBLISHED'
+    AND c.visibility = 'PUBLIC'
+    AND c.status IN ('LIVE', 'RESULT_PUBLISHED', 'ARCHIVED');
+$function$;
+
+-- All object references in this list RPC are schema-qualified. An empty
+-- function search_path makes the public projection independent of caller state.
+CREATE OR REPLACE FUNCTION public.get_public_competitions(p_limit integer DEFAULT 6)
+RETURNS TABLE(
+  id uuid,
+  organizer_id uuid,
+  slug text,
+  title text,
+  short_description text,
+  description text,
+  category text,
+  status public.competition_status,
+  registration_starts_at timestamp with time zone,
+  registration_ends_at timestamp with time zone,
+  starts_at timestamp with time zone,
+  ends_at timestamp with time zone,
+  announcement_at timestamp with time zone,
+  poster_url text,
+  juknis_url text,
+  visibility text,
+  participant_count bigint,
+  organizer_name text,
+  organizer_photo_url text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+  SELECT
+    c.id,
+    c.organizer_id,
+    c.slug,
+    c.title,
+    c.short_description,
+    c.description,
+    c.category,
+    c.status,
+    c.registration_starts_at,
+    c.registration_ends_at,
+    c.starts_at,
+    c.ends_at,
+    c.announcement_at,
+    c.poster_url,
+    c.juknis_url,
+    c.visibility,
+    (
+      SELECT count(*)::bigint
+      FROM public.registrations AS r
+      WHERE r.competition_id = c.id
+        AND r.status <> 'CANCELLED'
+    ) AS participant_count,
+    COALESCE(NULLIF(o.name, ''), 'Penyelenggara') AS organizer_name,
+    COALESCE(NULLIF(o.logo_asset_url, ''), NULLIF(op.avatar_url, '')) AS organizer_photo_url
+  FROM public.competitions AS c
+  LEFT JOIN public.organizers AS o ON o.id = c.organizer_id
+  LEFT JOIN public.profiles AS op ON op.id = o.owner_user_id
+  WHERE c.visibility = 'PUBLIC'
+    AND c.status IN (
+      'PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'LIVE',
+      'SUBMISSION_CLOSED', 'RESULT_PUBLISHED', 'ARCHIVED'
+    )
+  ORDER BY c.created_at DESC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 6), 1), 20);
+$function$;
+
+
 COMMIT;
