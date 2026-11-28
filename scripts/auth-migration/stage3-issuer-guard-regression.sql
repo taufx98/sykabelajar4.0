@@ -1050,10 +1050,65 @@ SELECT set_config('request.jwt.claims',
   '{"role":"anon","iss":"https://mvdczyitbkxkldjughor.supabase.co/auth/v1"}',
   true);
 SELECT set_config('request.jwt.claim.sub', '', true);
+
+-- Tranche 20 public-feed and certificate visibility fixtures. Posts are
+-- intentionally authorless so this check validates publication state only.
+INSERT INTO public.posts (
+  id, author_user_id, competition_id, title, body, status
+)
+VALUES
+  (
+    '88888888-8888-4888-8888-888888888897',
+    NULL,
+    NULL,
+    'Stage 7 public feed boundary probe',
+    'Published synthetic feed entry for anonymous read testing',
+    'PUBLISHED'
+  ),
+  (
+    '88888888-8888-4888-8888-888888888898',
+    NULL,
+    NULL,
+    'Stage 7 draft feed boundary probe',
+    'Draft synthetic feed entry must remain hidden from guests',
+    'DRAFT'
+  );
+
+UPDATE public.collective_certificates
+SET verification_code = 'STAGE7-TRANCHE20-ELIGIBLE-CERT'
+WHERE id = '88888888-8888-4888-8888-888888888894'::uuid
+  AND status = 'ELIGIBLE';
+
+DO $stage7_tranche20_fixture_preflight$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.posts
+    WHERE id = '88888888-8888-4888-8888-888888888897'::uuid
+      AND status = 'PUBLISHED'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.posts
+    WHERE id = '88888888-8888-4888-8888-888888888898'::uuid
+      AND status = 'DRAFT'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE20_FEED_FIXTURE_MISSING';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.collective_certificates
+    WHERE id = '88888888-8888-4888-8888-888888888894'::uuid
+      AND status = 'ELIGIBLE'
+      AND verification_code = 'STAGE7-TRANCHE20-ELIGIBLE-CERT'
+  ) THEN
+    RAISE EXCEPTION 'STAGE7_TRANCHE20_CERTIFICATE_FIXTURE_MISSING';
+  END IF;
+END;
+$stage7_tranche20_fixture_preflight$;
+
 DO $profile_anon$
 DECLARE
   v_count integer;
   v_detail jsonb;
+  v_snapshot jsonb;
   v_status text;
   v_show_badges boolean;
   v_show_badge_collection boolean;
@@ -1145,6 +1200,79 @@ BEGIN
      OR coalesce(v_detail::text ILIKE '%correct_option_ids%', false)
      OR coalesce(v_detail::text ILIKE '%accepted_answers%', false) THEN
     RAISE EXCEPTION 'STAGE3_ANON_PARTICIPANT_DETAIL_QUESTION_SNAPSHOT_LEAKED:%', v_detail;
+  END IF;
+
+
+  -- Public home/feed projections expose only PUBLISHED posts and compose
+  -- the already-reviewed public competition, leaderboard and aggregate RPCs.
+  SELECT count(*) INTO v_count
+  FROM public.get_public_feed(31, NULL)
+  WHERE id = '88888888-8888-4888-8888-888888888897'::uuid;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_FEED_PUBLISHED_POST_FAILED:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM public.get_public_feed(31, NULL)
+  WHERE id = '88888888-8888-4888-8888-888888888898'::uuid;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_FEED_DRAFT_POST_LEAK:%', v_count;
+  END IF;
+
+  v_snapshot := public.get_home_snapshot(16);
+  IF v_snapshot IS NULL
+     OR jsonb_typeof(v_snapshot->'competitions') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(v_snapshot->'leaderboard') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(v_snapshot->'coin_leaderboard') IS DISTINCT FROM 'array'
+     OR jsonb_typeof(v_snapshot->'stats') IS DISTINCT FROM 'object'
+     OR jsonb_typeof(v_snapshot->'feed') IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'STAGE7_ANON_HOME_SNAPSHOT_SHAPE_FAILED:%', v_snapshot;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM jsonb_array_elements(coalesce(v_snapshot->'feed', '[]'::jsonb)) AS feed_row
+  WHERE feed_row->>'id' = '88888888-8888-4888-8888-888888888897';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_HOME_SNAPSHOT_PUBLIC_FEED_MISSING:%', v_count;
+  END IF;
+  SELECT count(*) INTO v_count
+  FROM jsonb_array_elements(coalesce(v_snapshot->'feed', '[]'::jsonb)) AS feed_row
+  WHERE feed_row->>'id' = '88888888-8888-4888-8888-888888888898';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'STAGE7_ANON_HOME_SNAPSHOT_DRAFT_FEED_LEAK:%', v_count;
+  END IF;
+
+  -- A public Admin profile may expose a boolean role marker; a private Admin
+  -- profile and a public non-Admin profile must not reveal active admin status.
+  IF public.is_public_profile_admin('abababab-abab-4aba-8aba-abababababab'::uuid) IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_ADMIN_PROFILE_FLAG_FAILED';
+  END IF;
+  IF public.is_public_profile_admin('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid) IS DISTINCT FROM FALSE THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_ADMIN_PROFILE_FLAG_LEAK';
+  END IF;
+  IF public.is_public_profile_admin('cccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid) IS DISTINCT FROM FALSE THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PUBLIC_NON_ADMIN_PROFILE_FLAG_FAILED';
+  END IF;
+
+  -- A known certificate code does not make an ELIGIBLE/DRAFT certificate
+  -- public before it reaches the explicit PUBLISHED or REVOKED states.
+  IF public.get_public_collective_certificate('STAGE7-TRANCHE20-ELIGIBLE-CERT') IS NOT NULL THEN
+    RAISE EXCEPTION 'STAGE7_ANON_ELIGIBLE_COLLECTIVE_CERTIFICATE_LEAK';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM public.get_competition_participant_detail(
+      'stage3-private-collective-probe',
+      '55555555-5555-4555-8555-555555555551'::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'RESULT_NOT_PUBLISHED' THEN
+      v_denied := true;
+    ELSE
+      RAISE;
+    END IF;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'STAGE7_ANON_PRIVATE_PARTICIPANT_DETAIL_ALLOWED';
   END IF;
 
   -- Public results are available only after publication on a PUBLIC competition.
