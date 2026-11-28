@@ -7004,7 +7004,7 @@ BEGIN
         '72fda47f09a2bfa2a868e2458a1a1631',
         'search_path=public, private',
         'anon=EXECUTE/postgres,authenticated=EXECUTE/postgres,postgres=EXECUTE/postgres,service_role=EXECUTE/postgres',
-        'TABLE(id uuid, organizer_id uuid, slug text, title text, short_description text, description text, category text, status public.competition_status, registration_starts_at timestamp with time zone, registration_ends_at timestamp with time zone, starts_at timestamp with time zone, ends_at timestamp with time zone, announcement_at timestamp with time zone, poster_url text, juknis_url text, visibility text, participant_count bigint, organizer_name text, organizer_photo_url text)',
+        'TABLE(id uuid, organizer_id uuid, slug text, title text, short_description text, description text, category text, status competition_status, registration_starts_at timestamp with time zone, registration_ends_at timestamp with time zone, starts_at timestamp with time zone, ends_at timestamp with time zone, announcement_at timestamp with time zone, poster_url text, juknis_url text, visibility text, participant_count bigint, organizer_name text, organizer_photo_url text)',
         'sql'
       )
     ) AS expected(signature, source_hash, settings, acl, return_type, language)
