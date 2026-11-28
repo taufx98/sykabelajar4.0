@@ -1541,6 +1541,10 @@ const tranche19AcceptedReport = readFileSync(
   path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-19-2026-11-28.md"),
   "utf8",
 );
+const tranche20AcceptedReport = readFileSync(
+  path.join(here, "../../docs/security/AUTH-STAGE-7-SECURITY-DEFINER-REVIEW-TRANCHE-20-2026-11-28.md"),
+  "utf8",
+);
 for (const marker of [
   "choose_organizer_plan(uuid,text)",
   "get_organizer_competition_result_overview(uuid,integer,integer)",
@@ -1557,8 +1561,8 @@ for (const marker of [
   "78/202 exact signatures; 124 remain",
   "Production DB2 remains **NO-GO**",
 ]) assert.ok(tranche16AcceptedReport.includes(marker), "Tranche 16 accepted-review report missing " + marker);
-assert.match(securityDefinerGate, /updated 28 November 2026; 93\/202 exact signatures individually reviewed \(109 remain\)/);
-assert.match(securityDefinerGate, /Cumulative accepted unique manual review: 93\/202 exact signatures; 109 remain/);
+assert.match(securityDefinerGate, /updated 28 November 2026; 98\/202 exact signatures individually reviewed \(104 remain\)/);
+assert.match(securityDefinerGate, /Cumulative accepted unique manual review: 98\/202 exact signatures; 104 remain/);
 for (const marker of [
   "get_platform_stats()",
   "get_public_coin_leaderboard(integer)",
@@ -1579,6 +1583,29 @@ for (const marker of [
 ]) assert.ok(tranche18AcceptedReport.includes(marker), "Tranche 18 accepted-review report missing " + marker);
 assert.match(securityDefinerGate, /Tranche 18 report/);
 assert.ok(securityDefinerGate.indexOf("Tranche 19 report") < securityDefinerGate.indexOf("Tranche 18 report"));
+assert.ok(securityDefinerGate.indexOf("Tranche 20 report") < securityDefinerGate.indexOf("Tranche 19 report"));
+for (const marker of [
+  "get_competition_participant_detail(text,uuid)",
+  "get_home_snapshot(integer)",
+  "get_public_feed(integer,timestamp with time zone)",
+  "is_public_profile_admin(uuid)",
+  "get_public_collective_certificate(text)",
+  "68183b7176c3f24ec95c018d13b973ef",
+  "6c57e4102a8a51b39602625f6aeb2eaf",
+  "1944c33d7a1d0404151de702e13e894f",
+  "e94eb7f539ab889dc503ce9d04b36886",
+  "7a47a902b83e1ea7e2915f69791f55b0",
+  "Stage 7 public feed boundary probe",
+  "STAGE7_ANON_PUBLIC_FEED_PUBLISHED_POST_FAILED",
+  "STAGE7_ANON_PUBLIC_FEED_DRAFT_POST_LEAK",
+  "STAGE7_ANON_HOME_SNAPSHOT_SHAPE_FAILED",
+  "STAGE7_ANON_PRIVATE_ADMIN_PROFILE_FLAG_LEAK",
+  "STAGE7_ANON_ELIGIBLE_COLLECTIVE_CERTIFICATE_LEAK",
+  "460982PLACEHOLDER",
+  "98/202 exact signatures; 104 remain",
+  "Production DB2 remains **NO-GO**",
+]) assert.ok(tranche20AcceptedReport.includes(marker), "Tranche 20 accepted-review report missing " + marker);
+
 for (const marker of [
   "get_public_competition_detail_summary(uuid)",
   "get_public_competition_participants(text,integer,integer)",
